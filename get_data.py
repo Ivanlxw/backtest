@@ -11,4 +11,4 @@ for idx, symbol in enumerate(stock_list):
     # if idx % 5 == 0 and idx > 0:
     #     time.sleep(65)
     # getData_csv(symbol, csv_dir="./data/daily", full=True)
-    get_tiingo_eod(symbol, f"data/daily/{symbol}.csv", full=True)
+    get_tiingo_eod(symbol, f"data/data/daily/{symbol}.csv", full=True)
