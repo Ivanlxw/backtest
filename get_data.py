@@ -1,10 +1,14 @@
-import requests
+from backtest import utils
+from data.get_csv import getData_csv, get_tiingo_eod
 
-headers = {
-        'Content-Type': 'application/json'
-}
-ticker = "AAPL"
-url = f"https://api.tiingo.com/tiingo/daily/{ticker}/prices?startDate=2010-1-1&endDate=2016-1-1&format=csv&resampleFreq=daily"
+with open("data/stock_list.txt", 'r') as fin:
+    stock_list = fin.readlines()
 
-requestResponse = requests.get(url, headers=headers)
-print(requestResponse.json())
+stock_list = list(map(utils.remove_bs, stock_list))
+
+for idx, symbol in enumerate(stock_list):
+    import time
+    # if idx % 5 == 0 and idx > 0:
+    #     time.sleep(65)
+    # getData_csv(symbol, csv_dir="./data/daily", full=True)
+    get_tiingo_eod(symbol, f"data/daily/{symbol}.csv", full=True)
