@@ -158,20 +158,25 @@ class NaivePortfolio(Portfolio):
         cur_quantity = self.current_positions[symbol]
         order_type = 'MKT'
 
-        if direction == 'LONG' and cur_quantity == 0 :
-            order = OrderEvent(symbol, order_type, mkt_quantity, 'BUY')
-        elif direction == 'SHORT' and cur_quantity == 0:
-            order = OrderEvent(symbol, order_type, mkt_quantity, 'SELL')
+        if direction == 'LONG' and cur_quantity < 0:
+            order = OrderEvent(symbol, order_type, mkt_quantity*2, 'BUY')
+        elif direction == 'SHORT' and cur_quantity > 0:
+            order = OrderEvent(symbol, order_type, mkt_quantity*2, 'SELL')
         elif direction == 'EXIT' and cur_quantity > 0:
             order = OrderEvent(symbol, order_type, mkt_quantity, 'SELL')
         elif direction == 'EXIT' and cur_quantity < 0:
             order = OrderEvent(symbol, order_type, mkt_quantity, 'BUY')
+        elif direction == 'LONG':
+            order = OrderEvent(symbol, order_type, mkt_quantity, 'BUY')
+        elif direction == 'SHORT':
+            order = OrderEvent(symbol, order_type, mkt_quantity, 'SELL')
+
         
         return order
     
-    def update_signal(self, event, size):
+    def update_signal(self, event):
         if event.type == 'SIGNAL':
-            order_event = self.generate_naive_order(event, size)
+            order_event = self.generate_naive_order(event, 200)
             self.events.put(order_event)
 
     def create_equity_curve_df(self):

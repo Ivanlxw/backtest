@@ -8,6 +8,7 @@ import datetime
 import numpy as np
 import pandas as pd
 import queue
+import talib
 
 from abc import ABCMeta, abstractmethod
 
@@ -62,3 +63,46 @@ class BuyAndHoldStrategy(Strategy):
                         signal = SignalEvent(bars[0][0], bars[0][1], 'LONG')
                         self.events.put(signal)
                         self.bought[s] = True
+
+supported_types=["sma", "ema"]
+class SimpleCrossStrategy(Strategy):
+    def __init__(self, bars, events, timeperiod, cross_type:str):
+        if cross_type.lower() not in supported_types:
+            raise Exception(f"TA strategy not available. Choose from the following:\n{supported_types}") 
+    
+        self.bars = bars  ## datahandler
+        self.symbol_list = self.bars.symbol_list
+        self.events = events
+        self.timeperiod= timeperiod
+        self.cross_type = cross_type
+
+        if cross_type == "sma":
+            self.cross_function = self._get_SMA
+        elif cross_type == "ema":
+            self.cross_function = self._get_EMA
+    
+    def _get_SMA(self, bars):
+        close_prices = np.array([tup[5] for tup in bars])
+        return talib.SMA(close_prices, self.timeperiod)
+
+    def _get_EMA(self, bars):
+        close_prices = np.array([tup[5] for tup in bars])
+        return talib.EMA(close_prices, self.timeperiod)
+
+    def calculate_signals(self, event):
+        if event.type == "MARKET":
+            for s in self.symbol_list:
+                bars = self.bars.get_latest_bars(s, N=(self.timeperiod+1)) ## list of tuples
+                if len(bars) == self.timeperiod+1:
+                    SMAs = self.cross_function(bars)
+                    if bars[-2][5] > SMAs[-2] and bars[-1][5] < SMAs[-1]:
+                        ## break downwards, SHORT
+                        # print("Ytd end price" ,SMAs[-2], bars[-2][5])
+                        # print("Today end price" ,SMAs[-1], bars[-1][5])
+                        signal = SignalEvent(bars[-1][0], bars[-1][1], 'SHORT')
+                        self.events.put(signal)
+                    elif bars[-2][5] < SMAs[-2] and bars[-1][5] > SMAs[-1]:
+                        ## break upwards, LONG
+                        signal =  SignalEvent(bars[-1][0], bars[-1][1], 'LONG')
+                        self.events.put(signal)
+

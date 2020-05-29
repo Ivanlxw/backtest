@@ -3,6 +3,8 @@ Actual file to run for backtesting
 """
 import time
 import queue
+import matplotlib.pyplot as plt
+
 from backtest import portfolio, data_handler, strategy, utils, execution
 
 with open("data/stock_list.txt", 'r') as fin:
@@ -13,9 +15,10 @@ stock_list = list(map(utils.remove_bs, stock_list))
 event_queue = queue.Queue()
 
 # Declare the components with relsspective parameters
-bars = data_handler.HistoricCSVDataHandler(event_queue, csv_dir="data/daily",
-                                           symbol_list=["GS", "WMT", "BAC","MSFT"])
-strategy = strategy.BuyAndHoldStrategy(bars, event_queue)
+bars = data_handler.HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
+                                           symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"])
+# strategy = strategy.BuyAndHoldStrategy(bars, event_queue)
+strategy = strategy.SimpleCrossStrategy(bars, event_queue, timeperiod=50, cross_type="sma")
 port = portfolio.NaivePortfolio(bars, event_queue, start_date="2000-01-30")
 broker = execution.SimulatedExecutionHandler(event_queue)
 
@@ -39,10 +42,12 @@ while True:
                     port.update_timeindex(event)
 
                 elif event.type == 'SIGNAL':
-                    port.update_signal(event, 100) ## order 100 stocks everytime
+                    port.update_signal(event)
+                    # print(event.datetime)
 
                 elif event.type == 'ORDER':
                     broker.execute_order(event)
+                    # event.print_order()
 
                 elif event.type == 'FILL':
                     port.update_fill(event)
@@ -50,6 +55,7 @@ while True:
     # 10-Minute heartbeat
     # time.sleep(10*60)
 port.create_equity_curve_df()
-print(port.equity_curve)
+# print(port.equity_curve)
 print(port.output_summary_stats())
-    
+plt.plot(port.equity_curve['equity_curve'])
+plt.show()
