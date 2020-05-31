@@ -22,10 +22,11 @@ def create_drawdowns(equity_curve):
     drawdown = pd.Series(index = eq_idx)
     duration = pd.Series(index = eq_idx)
 
+    print(equity_curve)
     for t in range(1, len(eq_idx)):
         cur_hwm = max(hwm[t-1], equity_curve[t])
         hwm.append(cur_hwm)
         drawdown[t] = hwm[t] - equity_curve[t]
         duration[t] = 0 if drawdown[t] == 0 else duration[t-1] + 1
-
-        return drawdown.max(), duration.max()
+    
+    return drawdown.max(), duration.max()
