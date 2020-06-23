@@ -6,8 +6,8 @@ import queue
 import matplotlib.pyplot as plt
 
 from backtest import portfolio, data_handler, utils, execution
-from backtest.portfolio.portfolio import NaivePortfolio
-from backtest.strategy.base import BuyAndHoldStrategy
+from backtest.portfolio.base import NaivePortfolio
+from backtest.strategy.naive import BuyAndHoldStrategy
 
 with open("data/stock_list.txt", 'r') as fin:
     stock_list = fin.readlines()
