@@ -5,23 +5,29 @@ import time
 import queue
 import matplotlib.pyplot as plt
 
-from backtest import portfolio, data_handler, strategy, utils, execution
+from backtest import portfolio, data_handler, utils, execution
+from backtest.portfolio.base import NaivePortfolio, PercentagePortFolio
+from backtest.strategy.cross_strategy import SimpleCrossStrategy, MeanReversionTA
+from backtest.strategy.naive import BuyAndHoldStrategy
 
 with open("data/stock_list.txt", 'r') as fin:
     stock_list = fin.readlines()
 
 stock_list = list(map(utils.remove_bs, stock_list))
 
-event_queue = queue.Queue()
+event_queue = queue.LifoQueue()
 
 # Declare the components with relsspective parameters
 bars = data_handler.HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
                                            symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"])
-# strategy = strategy.BuyAndHoldStrategy(bars, event_queue)
-strategy = strategy.SimpleCrossStrategy(bars, event_queue, timeperiod=50, cross_type="sma")
-port = portfolio.NaivePortfolio(bars, event_queue, start_date="2000-01-30")
+# strategy = BuyAndHoldStrategy(bars, event_queue)
+# strategy = SimpleCrossStrategy(bars, event_queue, cross_type="sma", timeperiod=50)
+strategy = MeanReversionTA(bars, event_queue, cross_type="sma", timeperiod=20, sd=2, exit="cross")
+port = NaivePortfolio(bars, event_queue, start_date="2010-01-30")
+port = PercentagePortFolio(bars, event_queue, start_date="2010-01-30", percentage=0.10)
 broker = execution.SimulatedExecutionHandler(event_queue)
 
+start = time.time()
 while True:
     # Update the bars (specific backtest code, as opposed to live trading)
     if bars.continue_backtest == True:
@@ -38,8 +44,8 @@ while True:
         else:
             if event is not None:
                 if event.type == 'MARKET':
-                    strategy.calculate_signals(event)
                     port.update_timeindex(event)
+                    strategy.calculate_signals(event)
 
                 elif event.type == 'SIGNAL':
                     port.update_signal(event)
@@ -54,8 +60,16 @@ while True:
 
     # 10-Minute heartbeat
     # time.sleep(10*60)
+print(f"Backtest finished in {time.time() - start}. Getting summary stats")
 port.create_equity_curve_df()
-# print(port.equity_curve)
 print(port.output_summary_stats())
+plt.subplot(2,1,1)
+plt.title("Equity curve")
 plt.plot(port.equity_curve['equity_curve'])
+plt.plot(port.equity_curve['liquidity_curve'])
+plt.subplot(2,1,2)
+plt.title("Assets over time")
+plt.plot(port.equity_curve["total"])
+plt.plot(port.equity_curve['cash'])
+plt.tight_layout()
 plt.show()

@@ -6,7 +6,7 @@ import pandas as pd
 import queue
 
 from abc import ABCMeta, abstractmethod
-from math import floor
+from math import floor, fabs
 
 from event import FillEvent, OrderEvent
 from performance import create_sharpe_ratio, create_drawdowns
@@ -147,48 +147,50 @@ class NaivePortfolio(Portfolio):
     def generate_naive_order(self, signal, size):
         """
         takes a signal to long or short an asset and then sends an order 
-        for 100 shares of such an asset
+        of size=size of such an asset
         """
         order = None
         symbol = signal.symbol
         direction = signal.signal_type
         # strength = signal.strength
 
-        mkt_quantity =  size ## floor(100 * strength)
         cur_quantity = self.current_positions[symbol]
         order_type = 'MKT'
 
-        if direction == 'LONG' and cur_quantity < 0:
-            order = OrderEvent(symbol, order_type, mkt_quantity*2, 'BUY')
-        elif direction == 'SHORT' and cur_quantity > 0:
-            order = OrderEvent(symbol, order_type, mkt_quantity*2, 'SELL')
+        if direction == 'REVERSE' and cur_quantity < 0:
+            order = OrderEvent(symbol, order_type, size*2, 'BUY')
+        elif direction == 'REVERSE' and cur_quantity > 0:
+            order = OrderEvent(symbol, order_type, size*2, 'SELL')
         elif direction == 'EXIT' and cur_quantity > 0:
-            order = OrderEvent(symbol, order_type, mkt_quantity, 'SELL')
+            order = OrderEvent(symbol, order_type, cur_quantity, 'SELL')
         elif direction == 'EXIT' and cur_quantity < 0:
-            order = OrderEvent(symbol, order_type, mkt_quantity, 'BUY')
+            order = OrderEvent(symbol, order_type, fabs(cur_quantity), 'BUY')
         elif direction == 'LONG':
-            order = OrderEvent(symbol, order_type, mkt_quantity, 'BUY')
+            order = OrderEvent(symbol, order_type, size, 'BUY')
         elif direction == 'SHORT':
-            order = OrderEvent(symbol, order_type, mkt_quantity, 'SELL')
-
-        
+            order = OrderEvent(symbol, order_type, size, 'SELL')
         return order
     
     def update_signal(self, event):
         if event.type == 'SIGNAL':
-            order_event = self.generate_naive_order(event, 200)
-            self.events.put(order_event)
+            qty = 100
+            mkt_price = self.bars.get_latest_bars(event.symbol)[0][5]
+            order_event = self.generate_naive_order(event, qty)
+            if self.current_holdings["cash"] > (order_event.quantity * mkt_price): 
+                self.events.put(order_event)
 
     def create_equity_curve_df(self):
         curve = pd.DataFrame(self.all_holdings)
         curve.set_index('datetime', inplace=True)
-        curve['returns'] = curve['total'].pct_change()
-        curve['equity_curve'] = (1.0+curve['returns']).cumprod()
-        self.equity_curve = curve
+        curve['equity_returns'] = curve['total'].pct_change()
+        curve['equity_curve'] = (1.0+curve['equity_returns']).cumprod()
+        curve['liquidity_returns'] = curve['cash'].pct_change()
+        curve['liquidity_curve'] = (1.0+curve['liquidity_returns']).cumprod()
+        self.equity_curve = curve.dropna()
 
     def output_summary_stats(self):
         total_return = self.equity_curve['equity_curve'][-1]
-        returns = self.equity_curve['returns']
+        returns = self.equity_curve['equity_returns']
         pnl = self.equity_curve['equity_curve']
 
         sharpe_ratio = create_sharpe_ratio(returns)
@@ -197,5 +199,34 @@ class NaivePortfolio(Portfolio):
         stats = [("Total Return", "%0.2f%%" % ((total_return - 1.0) * 100.0)),
                  ("Sharpe Ratio", "%0.2f" % sharpe_ratio),
                  ("Max Drawdown", "%0.2f%%" % (max_dd * 100.0)),
-                 ("Drawdown Duration", "%d" % dd_duration)]
+                 ("Drawdown Duration", "%d" % dd_duration),
+                 ("Lowest point" , "%0.2f%%" % (np.amin(self.equity_curve["equity_curve"])*100)),
+                 ("Lowest Cash", "%f" % (np.amin(self.equity_curve["cash"])))]
         return stats
+
+    def get_backtest_results(self,fp):
+        if self.equity_curve != None:
+            self.equity_curve.to_csv(fp)
+        else:
+            raise Exception("Error: equity_curve is not initialized.")
+
+class PercentagePortFolio(NaivePortfolio):
+    def __init__(self, bars, events, start_date, percentage, initial_capital=100000.0):
+        super().__init__(bars, events, start_date, initial_capital=100000.0)
+        if percentage > 1:
+            self.perc = percentage / 100
+        else:
+            self.perc = percentage
+    
+    def generate_perc_order(self, signal, mkt_price):
+        size = int(self.current_holdings["cash"] * self.perc / mkt_price)
+        return self.generate_naive_order(signal, size)
+
+    def update_signal(self, event):
+        if event.type == 'SIGNAL':
+            mkt_price = self.bars.get_latest_bars(event.symbol)[0][5]
+            order_event = self.generate_perc_order(event, mkt_price)
+            if order_event == None: 
+                return
+            if self.current_holdings["cash"] > (order_event.quantity * mkt_price): 
+                self.events.put(order_event)
