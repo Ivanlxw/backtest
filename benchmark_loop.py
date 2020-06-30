@@ -1,7 +1,7 @@
 """
 Actual file to run for backtesting 
 """
-import time
+import time, datetime
 import queue
 import matplotlib.pyplot as plt
 
@@ -19,10 +19,12 @@ event_queue = queue.Queue()
 # Declare the components with relsspective parameters
 bars = data_handler.HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
                                            symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"])
+start_date = datetime.datetime(2000,1,30)
 strategy = BuyAndHoldStrategy(bars, event_queue)
-port = NaivePortfolio(bars, event_queue, start_date="2000-01-30")
+port = NaivePortfolio(bars, event_queue, start_date=start_date)
 broker = execution.SimulatedExecutionHandler(event_queue)
 
+start = time.time()
 while True:
     # Update the bars (specific backtest code, as opposed to live trading)
     if bars.continue_backtest == True:
@@ -55,8 +57,16 @@ while True:
 
     # 10-Minute heartbeat
     # time.sleep(10*60)
+print(f"Backtest finished in {time.time() - start}. Getting summary stats")
 port.create_equity_curve_df()
-# print(port.equity_curve)
 print(port.output_summary_stats())
+plt.subplot(2,1,1)
+plt.title("Equity curve")
 plt.plot(port.equity_curve['equity_curve'])
+plt.plot(port.equity_curve['liquidity_curve'])
+plt.subplot(2,1,2)
+plt.title("Assets over time")
+plt.plot(port.equity_curve["total"])
+plt.plot(port.equity_curve['cash'])
+plt.tight_layout()
 plt.show()
