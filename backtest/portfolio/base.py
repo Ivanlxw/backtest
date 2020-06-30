@@ -27,6 +27,20 @@ class Portfolio(object):
         """
         raise NotImplementedError("Should implement update_fill()")
 
+    @abstractmethod
+    def need_rebalance(self, datetime):
+        """
+        The check for rebalancing portfolio
+        """
+        raise NotImplementedError("Should implement need_rebalance(). If not required, just return false")
+
+    @abstractmethod
+    def rebalance(self,):
+        """
+        Updates portfolio based on rebalancing criteria
+        """
+        raise NotImplementedError("Should implement rebalance(). If not required, just pass")
+
 
 class NaivePortfolio(Portfolio):
     def __init__(self, bars, events, start_date, initial_capital=100000.0):
@@ -70,7 +84,6 @@ class NaivePortfolio(Portfolio):
         d['total'] = self.initial_capital
         return [d]
 
-
     def construct_current_holdings(self, ):
         d = dict( (k,v) for k, v in [(s, 0.0) for s in self.symbol_list] )
         d['cash'] = self.initial_capital
@@ -86,6 +99,11 @@ class NaivePortfolio(Portfolio):
         ## update positions
         dp = dict( (k,v) for k, v in [(s,0) for s in self.symbol_list ])
         dp['datetime'] = bars[self.symbol_list[0]][0][1]
+
+        if self.need_rebalance(dp['datetime']):
+            self.rebalance()
+        else:
+            pass
 
         for s in self.symbol_list:
             dp[s] = self.current_positions[s]
@@ -178,6 +196,15 @@ class NaivePortfolio(Portfolio):
             order_event = self.generate_naive_order(event, qty)
             if self.current_holdings["cash"] > (order_event.quantity * mkt_price): 
                 self.events.put(order_event)
+
+    def need_rebalance(self,datetime):
+        last_dt = self.all_holdings[-1]['datetime'] 
+        if datetime.year != last_dt.year:
+            return True
+        return False
+
+    def rebalance(self,):
+        print(self.all_holdings[-1])
 
     def create_equity_curve_df(self):
         curve = pd.DataFrame(self.all_holdings)

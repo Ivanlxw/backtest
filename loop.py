@@ -1,7 +1,7 @@
 """
 Actual file to run for backtesting 
 """
-import time
+import time, datetime
 import queue
 import matplotlib.pyplot as plt
 
@@ -22,9 +22,10 @@ bars = data_handler.HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily
                                            symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"])
 # strategy = BuyAndHoldStrategy(bars, event_queue)
 # strategy = SimpleCrossStrategy(bars, event_queue, cross_type="sma", timeperiod=50)
+start_date = datetime.datetime(2000,1,30)
 strategy = MeanReversionTA(bars, event_queue, cross_type="sma", timeperiod=20, sd=2, exit="cross")
-port = NaivePortfolio(bars, event_queue, start_date="2010-01-30")
-port = PercentagePortFolio(bars, event_queue, start_date="2010-01-30", percentage=0.10)
+port = NaivePortfolio(bars, event_queue, start_date=start_date)
+port = PercentagePortFolio(bars, event_queue, start_date=start_date, percentage=0.10)
 broker = execution.SimulatedExecutionHandler(event_queue)
 
 start = time.time()
