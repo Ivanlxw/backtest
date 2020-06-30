@@ -64,6 +64,9 @@ def get_tiingo_eod(ticker, fp, full:bool):
     merge_n_save(fp, df)
 
 def merge_n_save(filepath, df):
+    daily_fp =os.path.join(os.getcwd(), 'data','data', 'daily')
+    if not os.path.exists(daily_fp):
+        os.makedirs(daily_fp)
     if os.path.exists(filepath):
         ## merge data
         existing_df = pd.read_csv(filepath, index_col=0)
