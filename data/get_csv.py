@@ -3,10 +3,8 @@ import pandas as pd
 import os
 from datetime import datetime
 
-def getData_csv(symbol, csv_dir, full=False, interval=None,):
+def get_av_csv(symbol, csv_dir, key, full=False, interval=None,):
     print(f"Getting symbol: {symbol}")
-
-    key = "GOTIYRMA96Y0WN5U"
     if interval != None:
         if interval not in ['1min', '5min', '15min', '30min', '60min']:
             raise Exception("internval has to be one of the following options (string):\n'1min', '5min', '15min', '30min', '60min'")
@@ -34,13 +32,9 @@ def getData_csv(symbol, csv_dir, full=False, interval=None,):
     parsed_data = requests.get(url).json()
     df = pd.DataFrame.from_dict(parsed_data['Time Series (Daily)'], orient='index')
     df = df.iloc[::-1]  ## reverse from start to end instead of end to start
-
     merge_n_save(filepath, df)
 
-    
-
-def get_tiingo_eod(ticker, fp, full:bool):
-    TIINGO_TOKEN = "8333c1fb24c9f861e940450cbd8b7f88691ecc3d"
+def get_tiingo_eod(ticker, fp, full:bool, key):
     headers = {
             'Content-Type': 'application/json'
     }
@@ -51,7 +45,7 @@ def get_tiingo_eod(ticker, fp, full:bool):
             start_date = "2020-1-1"
             end_date = datetime.today().strftime('%Y-%m-%d')
 
-    url = f"https://api.tiingo.com/tiingo/daily/{ticker}/prices?startDate={start_date}&endDate={end_date}&resampleFreq=daily&token={TIINGO_TOKEN}"
+    url = f"https://api.tiingo.com/tiingo/daily/{ticker}/prices?startDate={start_date}&endDate={end_date}&resampleFreq=daily&token={key}"
 
     requestResponse = requests.get(url, headers=headers)
     json_df = requestResponse.json()
@@ -60,7 +54,6 @@ def get_tiingo_eod(ticker, fp, full:bool):
     df.index = df['date']
     df = df.drop("date", axis=1)
     df = df[["open", "high", "low", "close", "volume"]]
-    
     merge_n_save(fp, df)
 
 def merge_n_save(filepath, df):
@@ -74,4 +67,4 @@ def merge_n_save(filepath, df):
         df = df.drop_duplicates()
 
     df.to_csv(filepath)
-    print("Data is stored as csv!")
+    print("Data is stored at {}".format(filepath))
