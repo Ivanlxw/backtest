@@ -64,7 +64,9 @@ def merge_n_save(filepath, df):
         ## merge data
         existing_df = pd.read_csv(filepath, index_col=0)
         df = pd.concat([existing_df, df])
-        df = df.drop_duplicates()
+        df = df[~df.index.duplicated(keep='last')]
+        df.sort_index(inplace=True)
+        assert df.index.nunique() == df.index.size
 
     df.to_csv(filepath)
     print("Data is stored at {}".format(filepath))

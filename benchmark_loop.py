@@ -21,7 +21,7 @@ bars = data_handler.HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily
                                            symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"])
 start_date = datetime.datetime(2000,1,30)
 strategy = BuyAndHoldStrategy(bars, event_queue)
-port = NaivePortfolio(bars, event_queue, start_date=start_date)
+port = NaivePortfolio(bars, event_queue, start_date=start_date, stock_size=100)
 broker = execution.SimulatedExecutionHandler(event_queue)
 
 start = time.time()
