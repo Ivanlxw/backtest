@@ -16,16 +16,18 @@ with open("data/stock_list.txt", 'r') as fin:
 stock_list = list(map(utils.remove_bs, stock_list))
 
 event_queue = queue.LifoQueue()
-start_date = datetime.datetime(2000,1,30)
+start_date = "2010-01-05"  ## YYYY-MM-DD
 
 # Declare the components with relsspective parameters
 bars = data_handler.HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
-                                           symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"])
+                                           symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"],
+                                           start_date=start_date,
+                                           end_date="2016-12-01")
 # strategy = BuyAndHoldStrategy(bars, event_queue)
 # strategy = SimpleCrossStrategy(bars, event_queue, cross_type="sma", timeperiod=50)
 strategy = MeanReversionTA(bars, event_queue, cross_type="sma", timeperiod=20, sd=2, exit="bb")
 # port = NaivePortfolio(bars, event_queue, start_date=start_date, stock_size=100)
-port = PercentagePortFolio(bars, event_queue, start_date=start_date, percentage=0.10)
+port = PercentagePortFolio(bars, event_queue, percentage=0.10)
 broker = execution.SimulatedExecutionHandler(event_queue)
 
 start = time.time()

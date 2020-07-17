@@ -14,14 +14,15 @@ with open("data/stock_list.txt", 'r') as fin:
 
 stock_list = list(map(utils.remove_bs, stock_list))
 
-event_queue = queue.Queue()
+event_queue = queue.LifoQueue()
 
 # Declare the components with relsspective parameters
+start_date = "2000-01-25"  ## YYYY-MM-DD
 bars = data_handler.HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
-                                           symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"])
-start_date = datetime.datetime(2000,1,30)
+                                           symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"],
+                                           start_date=start_date)
 strategy = BuyAndHoldStrategy(bars, event_queue)
-port = NaivePortfolio(bars, event_queue, start_date=start_date, stock_size=100)
+port = NaivePortfolio(bars, event_queue, stock_size=100)
 broker = execution.SimulatedExecutionHandler(event_queue)
 
 start = time.time()

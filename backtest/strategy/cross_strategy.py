@@ -56,7 +56,7 @@ class MeanReversionTA(SimpleCrossStrategy):
     Strategy is based on the assumption that prices will always revert to the smoothed line.
     Will buy/sell when it crosses the smoothed line and EXIT when it reaches beyond 
     the confidence interval, calculated with sd - and Vice-versa works as well
-    which method to use is denoted in exit - "cross" or "boundary"
+    which method to use is denoted in exit - "cross" or "bb"
     '''
     def __init__(self, bars, events, cross_type:str, timeperiod:int, sd:float=2, exit="cross"):
         if cross_type.lower() not in supported_types:
@@ -83,10 +83,10 @@ class MeanReversionTA(SimpleCrossStrategy):
 
                     if self.exit == "cross":
                         if bars[-2][5] > TAs[-2] and bars[-1][5] < TAs[-1]:
-                            signal = SignalEvent(bars[-1][0], bars[-1][1], 'EXIT')
+                            signal = SignalEvent(bars[-1][0], bars[-1][1], 'REVERSE')
                             self.events.put(signal)
                         elif bars[-2][5] < TAs[-2] and bars[-1][5] > TAs[-1]:
-                            signal =  SignalEvent(bars[-1][0], bars[-1][1], 'EXIT')
+                            signal =  SignalEvent(bars[-1][0], bars[-1][1], 'REVERSE')
                         elif bars[-1][5] > (TAs[-1] + sd_TA*self.sd_multiplier):
                             signal = SignalEvent(bars[-1][0], bars[-1][1], 'SHORT')
                             self.events.put(signal)
@@ -94,7 +94,7 @@ class MeanReversionTA(SimpleCrossStrategy):
                             signal = SignalEvent(bars[-1][0], bars[-1][1], 'LONG')
                             self.events.put(signal)
 
-                    elif self.exit == "boundary":
+                    elif self.exit == "bb":
                         if bars[-2][5] > TAs[-2] and bars[-1][5] < TAs[-1]:
                             signal = SignalEvent(bars[-1][0], bars[-1][1], 'SHORT')
                             self.events.put(signal)
@@ -102,8 +102,8 @@ class MeanReversionTA(SimpleCrossStrategy):
                             signal =  SignalEvent(bars[-1][0], bars[-1][1], 'LONG')
                             self.events.put(signal)
                         elif bars[-1][5] > (TAs[-1] + sd_TA*self.sd_multiplier):
-                            signal = SignalEvent(bars[-1][0], bars[-1][1], 'EXIT')
+                            signal = SignalEvent(bars[-1][0], bars[-1][1], 'REVERSE')
                             self.events.put(signal)
                         elif bars[-1][5] < (TAs[-1] + sd_TA*self.sd_multiplier):
-                            signal = SignalEvent(bars[-1][0], bars[-1][1], 'EXIT')
+                            signal = SignalEvent(bars[-1][0], bars[-1][1], 'REVERSE')
                             self.events.put(signal)

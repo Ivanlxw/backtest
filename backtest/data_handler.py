@@ -40,7 +40,7 @@ class HistoricCSVDataHandler(DataHandler):
     obtain "latest" bar similar to live trading (drip feed)
     """
 
-    def __init__(self, events, csv_dir, symbol_list):
+    def __init__(self, events, csv_dir, symbol_list, start_date, end_date=None):
         """
         Args:
         - Event Queue on which to push MarketEvent information to
@@ -50,7 +50,9 @@ class HistoricCSVDataHandler(DataHandler):
         self.events = events ## a queue
         self.csv_dir = csv_dir
         self.symbol_list = symbol_list
-
+        self.start_date = start_date
+        if end_date != None:
+            self.end_date = end_date
         self.symbol_data = {}
         self.latest_symbol_data = {}
         self.continue_backtest = True
@@ -60,10 +62,15 @@ class HistoricCSVDataHandler(DataHandler):
     def _open_convert_csv_files(self):
         comb_index = None
         for s in self.symbol_list:
-            self.symbol_data[s] = pd.read_csv(
+            temp = pd.read_csv(
                 os.path.join(self.csv_dir, f"{s}.csv"),
                 header = 0, index_col= 0,
             ).drop_duplicates()
+            if self.end_date == None:
+                filtered = temp.iloc[temp.index.get_loc(self.start_date):,]
+            else:
+                filtered = temp.iloc[temp.index.get_loc(self.start_date):temp.index.get_loc(self.end_date),]
+            self.symbol_data[s] = filtered
 
             ## combine index to pad forward values
             if comb_index is None:

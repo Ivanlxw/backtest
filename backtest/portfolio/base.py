@@ -43,7 +43,7 @@ class Portfolio(object):
 
 
 class NaivePortfolio(Portfolio):
-    def __init__(self, bars, events, start_date, initial_capital=100000.0):
+    def __init__(self, bars, events, stock_size, initial_capital=100000.0):
         """ 
         Parameters:
         bars - The DataHandler object with current market data.
@@ -54,8 +54,9 @@ class NaivePortfolio(Portfolio):
         self.bars = bars  
         self.events = events
         self.symbol_list = self.bars.symbol_list
-        self.start_date = start_date
+        self.start_date = self.bars.start_date
         self.initial_capital = initial_capital
+        self.qty = stock_size
 
         self.all_positions = self.construct_all_positions()
         self.current_positions = dict( (k,v) for k, v in [(s, 0) for s in self.symbol_list] )
@@ -69,7 +70,7 @@ class NaivePortfolio(Portfolio):
         every timestep
         """
         d = dict( (k,v) for k,v in [(s,0) for s in self.symbol_list])
-        d['datetime'] = self.start_date
+        d['datetime'] = datetime.datetime.strptime(self.start_date, '%Y-%m-%d')
         return [d]
     
     def construct_all_holdings(self,):
@@ -78,7 +79,7 @@ class NaivePortfolio(Portfolio):
         to determine when the time index will begin.
         """
         d = dict( (k,v) for k, v in [(s, 0.0) for s in self.symbol_list] )
-        d['datetime'] = self.start_date
+        d['datetime'] = datetime.datetime.strptime(self.start_date, '%Y-%m-%d')
         d['cash'] = self.initial_capital
         d['commission'] = 0.0
         d['total'] = self.initial_capital
@@ -113,7 +114,7 @@ class NaivePortfolio(Portfolio):
         self.all_positions.append(dp)
 
         ## update holdings
-        dh = dict((k,v) for k, v in [(s,0) for s in self.symbol_list ])
+        dh = dict((k,v) for k, v in [(s,0) for s in self.symbol_list])
         dh['datetime'] = bars[self.symbol_list[0]][0][1]
         dh['cash'] = self.current_holdings['cash']
         dh['commission'] = self.current_holdings['commission']
@@ -175,14 +176,16 @@ class NaivePortfolio(Portfolio):
         cur_quantity = self.current_positions[symbol]
         order_type = 'MKT'
 
-        if direction == 'REVERSE' and cur_quantity < 0:
-            order = OrderEvent(symbol, order_type, size*2, 'BUY')
-        elif direction == 'REVERSE' and cur_quantity > 0:
-            order = OrderEvent(symbol, order_type, size*2, 'SELL')
-        elif direction == 'EXIT' and cur_quantity > 0:
-            order = OrderEvent(symbol, order_type, cur_quantity, 'SELL')
-        elif direction == 'EXIT' and cur_quantity < 0:
-            order = OrderEvent(symbol, order_type, fabs(cur_quantity), 'BUY')
+        if direction == 'REVERSE':
+            if cur_quantity < 0:
+                order = OrderEvent(symbol, order_type, size*2, 'BUY')
+            else:
+                order = OrderEvent(symbol, order_type, size*2, 'SELL')
+        elif direction == 'EXIT':
+            if cur_quantity > 0:
+                order = OrderEvent(symbol, order_type, cur_quantity, 'SELL')
+            else:
+                order = OrderEvent(symbol, order_type, fabs(cur_quantity), 'BUY')            
         elif direction == 'LONG':
             order = OrderEvent(symbol, order_type, size, 'BUY')
         elif direction == 'SHORT':
@@ -191,9 +194,8 @@ class NaivePortfolio(Portfolio):
     
     def update_signal(self, event):
         if event.type == 'SIGNAL':
-            qty = 100
             mkt_price = self.bars.get_latest_bars(event.symbol)[0][5]
-            order_event = self.generate_naive_order(event, qty)
+            order_event = self.generate_naive_order(event, self.qty)
             if self.current_holdings["cash"] > (order_event.quantity * mkt_price): 
                 self.events.put(order_event)
 
@@ -238,8 +240,8 @@ class NaivePortfolio(Portfolio):
             raise Exception("Error: equity_curve is not initialized.")
 
 class PercentagePortFolio(NaivePortfolio):
-    def __init__(self, bars, events, start_date, percentage, initial_capital=100000.0):
-        super().__init__(bars, events, start_date, initial_capital=100000.0)
+    def __init__(self, bars, events, percentage, initial_capital=100000.0):
+        super().__init__(bars, events, stock_size=0, initial_capital=100000.0)
         if percentage > 1:
             self.perc = percentage / 100
         else:
