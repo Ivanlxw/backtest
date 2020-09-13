@@ -1,16 +1,14 @@
 import datetime
 import time
 
-from abc import ABCMeta, abstractmethod
+from abc import ABC, abstractmethod
 from event import FillEvent, OrderEvent
 
 # from ib.ext.Contract import Contract
 # from ib.ext.Order import Order
 # from ib.opt import ibConnection, message
 
-class ExecutionHandler(object):
-    __metaclass__ = ABCMeta
-
+class ExecutionHandler(ABC):
     @abstractmethod
     def execute_order(self, event):
         """

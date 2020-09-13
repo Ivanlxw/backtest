@@ -8,8 +8,12 @@ import matplotlib.pyplot as plt
 from backtest import utils, execution
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import NaivePortfolio, PercentagePortFolio
-from backtest.strategy.cross_strategy import SimpleCrossStrategy, MeanReversionTA
-from backtest.strategy.naive import BuyAndHoldStrategy
+from backtest.data.FullData import CSVDataCreater
+from backtest.strategy.sk.data import BaseSkData
+from backtest.strategy.sk.strategy import SKRCStrategy
+
+## sklearn modules
+from sklearn.linear_model import LinearRegression
 
 with open("data/stock_list.txt", 'r') as fin:
     stock_list = fin.readlines()
@@ -17,18 +21,24 @@ with open("data/stock_list.txt", 'r') as fin:
 stock_list = list(map(utils.remove_bs, stock_list))
 
 event_queue = queue.LifoQueue()
-start_date = "2010-01-05"  ## YYYY-MM-DD
+start_date = "2000-01-25"  ## YYYY-MM-DD
+end_train_date = "2010-12-31"
 
-# Declare the components with relsspective parameters
+## type: dict(pd.DataFrame)
+train = CSVDataCreater(csv_dir="data/data/daily",
+                    symbol_list=["AXP", "JNJ", "VZ","MSFT", "AMZN", "XOM", "PG"],
+                    start_date=start_date,
+                    end_date=end_train_date).get_data()
+
+# Declare the components with respective parameters
+## bars_test dates should not overlap with bars_train
 bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
-                                           symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"],
-                                           start_date=start_date,
-                                           end_date="2016-12-01")
-# strategy = BuyAndHoldStrategy(bars, event_queue)
-# strategy = SimpleCrossStrategy(bars, event_queue, cross_type="sma", timeperiod=50)
-strategy = MeanReversionTA(bars, event_queue, cross_type="sma", timeperiod=50, sd=1.5, exit="cross")
-# port = NaivePortfolio(bars, event_queue, start_date=start_date, stock_size=100)
-port = PercentagePortFolio(bars, event_queue, percentage=0.10)
+                                           symbol_list=["MMM", "JNJ", "VZ","MSFT", "MRK", "XOM", "PG"],
+                                           start_date=end_train_date,
+                                           )
+regressor = LinearRegression()
+strategy = SKRCStrategy(bars, event_queue, regressor, processor=BaseSkData(train, 14))
+port = PercentagePortFolio(bars, event_queue, percentage=0.05)
 broker = execution.SimulatedExecutionHandler(event_queue)
 
 start = time.time()

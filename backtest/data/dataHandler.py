@@ -2,11 +2,11 @@ import datetime
 import os, os.path
 import pandas as pd
 
-from abc import ABCMeta, abstractmethod
+from abc import ABC, abstractmethod
 
 from event import MarketEvent
 
-class DataHandler(object):
+class DataHandler(ABC):
     """
     The goal of a (derived) DataHandler object is to output a generated
     set of bars (OLHCVI) for each symbol requested. 
@@ -15,8 +15,6 @@ class DataHandler(object):
     market data would be sent "down the pipe". Thus a historic and live
     system will be treated identically by the rest of the backtesting suite.
     """
-
-    __metaclass__ = ABCMeta
 
     @abstractmethod
     def get_latest_bars(self, symbol, N=1):
@@ -51,7 +49,10 @@ class HistoricCSVDataHandler(DataHandler):
         self.csv_dir = csv_dir
         self.symbol_list = symbol_list
         self.start_date = start_date
-        self.end_date = end_date
+        if end_date != None:
+            self.end_date = end_date
+        else:
+            self.end_date = None
         self.symbol_data = {}
         self.latest_symbol_data = {}
         self.continue_backtest = True
