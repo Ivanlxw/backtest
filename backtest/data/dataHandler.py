@@ -38,7 +38,8 @@ class HistoricCSVDataHandler(DataHandler):
     obtain "latest" bar similar to live trading (drip feed)
     """
 
-    def __init__(self, events, csv_dir, symbol_list, start_date, end_date=None):
+    def __init__(self, events, csv_dir, symbol_list, start_date, 
+        end_date=None, datahandler: bool=True):
         """
         Args:
         - Event Queue on which to push MarketEvent information to
@@ -58,6 +59,8 @@ class HistoricCSVDataHandler(DataHandler):
         self.continue_backtest = True
 
         self._open_convert_csv_files()
+        if datahandler:
+            self._to_generator()
 
     def _open_convert_csv_files(self):
         comb_index = None
@@ -66,10 +69,15 @@ class HistoricCSVDataHandler(DataHandler):
                 os.path.join(self.csv_dir, f"{s}.csv"),
                 header = 0, index_col= 0,
             ).drop_duplicates()
-            if self.end_date == None:
+            temp.columns = ["Open", "High", "Low", "Close", "Volume"]
+            if self.start_date in temp.index:
                 filtered = temp.iloc[temp.index.get_loc(self.start_date):,]
             else:
-                filtered = temp.iloc[temp.index.get_loc(self.start_date):temp.index.get_loc(self.end_date),]
+                filtered = temp
+            
+            if self.end_date is not None and self.end_date in temp.index:
+                filtered = filtered.iloc[:temp.index.get_loc(self.end_date),]
+
             self.symbol_data[s] = filtered
 
             ## combine index to pad forward values
@@ -79,11 +87,14 @@ class HistoricCSVDataHandler(DataHandler):
                 comb_index.union(self.symbol_data[s].index.drop_duplicates())
             
             self.latest_symbol_data[s] = []
-        
         ## reindex
         for s in self.symbol_list:
-            self.symbol_data[s] = self.symbol_data[s].reindex(index=comb_index, method='pad').iterrows()
+            self.symbol_data[s] = self.symbol_data[s].reindex(index=comb_index, method='pad',fill_value=0)
     
+    def _to_generator(self):
+        for s in self.symbol_list:
+            self.symbol_data[s] = self.symbol_data[s].iterrows()
+        
     def _get_new_bar(self, symbol):
         """
         Returns latest bar from data feed as tuple of
@@ -105,7 +116,6 @@ class HistoricCSVDataHandler(DataHandler):
     def update_bars(self):
         for s in self.symbol_list:
             try:
-                # print(next(self._get_new_bar(s)))
                 bar = next(self._get_new_bar(s))
             except StopIteration:
                 self.continue_backtest = False
@@ -113,4 +123,6 @@ class HistoricCSVDataHandler(DataHandler):
                 if bar is not None:
                     self.latest_symbol_data[s].append(bar)
         self.events.put(MarketEvent())
-        return
+    
+    def get_data(self):
+        return self.symbol_data

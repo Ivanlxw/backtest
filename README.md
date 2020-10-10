@@ -2,8 +2,8 @@
 
 A simple backtester to test trading algorithms and portfolio optimization strategies.
 
-## Installation
-- To be updated with requirements.txt
+## Setup
+`python -m pip install -r requirements.txt && python -m pip install -e .`
 
 ## Usage
 `python loop.py`

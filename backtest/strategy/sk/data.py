@@ -37,7 +37,7 @@ class BaseSkData(ProcessData, SKData):
         print("Basic Data Model for supervised models")
         ##  one whole dataframe concatnated in a dict
         ##  Standardization is done so data can actually be appended
-        self.raw_data = bars  ## a dict(pd.DataFrame)
+        self.raw_data = bars.get_data()  ## a dict(pd.DataFrame)
         if shift > 0:
             self.shift = -shift
         else:
@@ -71,7 +71,7 @@ class BaseSkData(ProcessData, SKData):
         ## In this basic example, our reference is the price self.shift days from now.
         Y = {}
         for k,v in X.items():
-            temp_ser = v["close"].shift(self.shift)
+            temp_ser = v["Close"].shift(self.shift)
             Y[k] = temp_ser
         return Y
     
@@ -103,7 +103,7 @@ class DataWithLag(BaseSkData):
             temp_df = scaler.fit_transform(v)
             temp_df = pd.DataFrame(temp_df, columns=v.columns)
             for i in range(1,self.lag):
-                temp_df["lag_"+str(i)] = temp_df["close"].shift(-i)
+                temp_df["lag_"+str(i)] = temp_df["Close"].shift(-i)
             X[k] = temp_df
         return X
 

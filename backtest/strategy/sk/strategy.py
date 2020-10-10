@@ -47,7 +47,8 @@ class SKRCStrategy(SkStrategy, Strategy):
         if event.type == "MARKET":
             for s in self.symbol_list:
                 bars_list = self.bars.get_latest_bars(s, N=self.processor.get_shift())
-                if len(bars_list) != self.processor.get_shift():
+                if len(bars_list) != self.processor.get_shift() or \
+                    bars_list[-1][-1] == 0.0:
                     return
 
                 #standardize values

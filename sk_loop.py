@@ -3,6 +3,7 @@ Actual file to run for backtesting
 """
 import time, datetime
 import queue
+import random
 import matplotlib.pyplot as plt
 
 from backtest import utils, execution
@@ -11,6 +12,7 @@ from backtest.portfolio.base import NaivePortfolio, PercentagePortFolio
 from backtest.data.FullData import CSVDataCreater
 from backtest.strategy.sk.data import BaseSkData
 from backtest.strategy.sk.strategy import SKRCStrategy
+from backtest.benchmark.benchmark import plot_benchmark
 
 ## sklearn modules
 from sklearn.linear_model import LinearRegression
@@ -23,25 +25,27 @@ stock_list = list(map(utils.remove_bs, stock_list))
 event_queue = queue.LifoQueue()
 start_date = "2000-01-25"  ## YYYY-MM-DD
 end_train_date = "2010-12-31"
+symbol_list = random.sample(stock_list, 7)
 
-## type: dict(pd.DataFrame)
-train = CSVDataCreater(csv_dir="data/data/daily",
-                    symbol_list=["AXP", "JNJ", "VZ","MSFT", "AMZN", "XOM", "PG"],
-                    start_date=start_date,
-                    end_date=end_train_date).get_data()
-
+start = time.time()
 # Declare the components with respective parameters
 ## bars_test dates should not overlap with bars_train
 bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
-                                           symbol_list=["MMM", "JNJ", "VZ","MSFT", "MRK", "XOM", "PG"],
+                                           symbol_list=symbol_list,
                                            start_date=end_train_date,
                                            )
+train = HistoricCSVDataHandler(None, csv_dir="data/data/daily",
+                                           symbol_list=symbol_list,
+                                           start_date=start_date,
+                                           end_date=end_train_date,
+                                           datahandler=False
+                                           )
+
 regressor = LinearRegression()
 strategy = SKRCStrategy(bars, event_queue, regressor, processor=BaseSkData(train, 14))
 port = PercentagePortFolio(bars, event_queue, percentage=0.05)
 broker = execution.SimulatedExecutionHandler(event_queue)
 
-start = time.time()
 while True:
     # Update the bars (specific backtest code, as opposed to live trading)
     if bars.continue_backtest == True:
@@ -79,11 +83,17 @@ port.create_equity_curve_df()
 print(port.output_summary_stats())
 plt.subplot(2,1,1)
 plt.title("Equity curve")
-plt.plot(port.equity_curve['equity_curve'])
-plt.plot(port.equity_curve['liquidity_curve'])
+plt.plot(port.equity_curve['equity_curve'], label="strat_eq")
+plt.plot(port.equity_curve['liquidity_curve'], label="strat_cash")
 plt.subplot(2,1,2)
 plt.title("Assets over time")
-plt.plot(port.equity_curve["total"])
-plt.plot(port.equity_curve['cash'])
+plt.plot(port.equity_curve["total"], label="strat_total")
+plt.plot(port.equity_curve['cash'], label="strat_cash")
 plt.tight_layout()
+
+plot_benchmark("data/stock_list.txt", \
+    symbol_list=stock_list, \
+    start_date = start_date)
+
+plt.legend()
 plt.show()

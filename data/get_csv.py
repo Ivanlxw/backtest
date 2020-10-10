@@ -7,7 +7,7 @@ def get_av_csv(symbol, csv_dir, key, full=False, interval=None,):
     print(f"Getting symbol: {symbol}")
     if interval != None:
         if interval not in ['1min', '5min', '15min', '30min', '60min']:
-            raise Exception("internval has to be one of the following options (string):\n'1min', '5min', '15min', '30min', '60min'")
+            raise Exception("Interval has to be one of the following options (string):\n'1min', '5min', '15min', '30min', '60min'")
 
         if full:
             url = "https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=" + symbol + "&interval=" + interval +"&outputsize=full" + "&apikey=" + key
@@ -27,7 +27,7 @@ def get_av_csv(symbol, csv_dir, key, full=False, interval=None,):
         if not os.path.exists(csv_dir):
             os.mkdir(csv_dir)
 
-        filepath = csv_dir + "/{}.csv".format(symbol)
+        filepath = csv_dir + f"/{symbol}.csv"
 
     parsed_data = requests.get(url).json()
     df = pd.DataFrame.from_dict(parsed_data['Time Series (Daily)'], orient='index')
