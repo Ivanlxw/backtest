@@ -10,6 +10,7 @@ from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import NaivePortfolio, PercentagePortFolio
 from backtest.strategy.cross_strategy import SimpleCrossStrategy, MeanReversionTA
 from backtest.strategy.naive import BuyAndHoldStrategy
+from backtest.benchmark.benchmark import plot_benchmark
 
 with open("data/stock_list.txt", 'r') as fin:
     stock_list = fin.readlines()
@@ -69,11 +70,17 @@ port.create_equity_curve_df()
 print(port.output_summary_stats())
 plt.subplot(2,1,1)
 plt.title("Equity curve")
-plt.plot(port.equity_curve['equity_curve'])
-plt.plot(port.equity_curve['liquidity_curve'])
+plt.plot(port.equity_curve['equity_curve'], label="strat_eq")
+plt.plot(port.equity_curve['liquidity_curve'], label="strat_cash")
 plt.subplot(2,1,2)
 plt.title("Assets over time")
-plt.plot(port.equity_curve["total"])
-plt.plot(port.equity_curve['cash'])
+plt.plot(port.equity_curve["total"], label="strat_total")
+plt.plot(port.equity_curve['cash'], label="strat_cash")
 plt.tight_layout()
+
+plot_benchmark("data/stock_list.txt", \
+    symbol_list=stock_list, \
+    start_date = start_date)
+
+plt.legend()
 plt.show()

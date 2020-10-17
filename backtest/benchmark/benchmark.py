@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 from backtest import utils, execution
 from backtest.data.dataHandler import HistoricCSVDataHandler
-from backtest.portfolio.base import NaivePortfolio
+from backtest.portfolio.base import NaivePortfolio, PercentagePortFolio
 from backtest.strategy.naive import BuyAndHoldStrategy
 
 def plot_benchmark(stock_list_fp, symbol_list, start_date, freq="daily"):
@@ -17,14 +17,14 @@ def plot_benchmark(stock_list_fp, symbol_list, start_date, freq="daily"):
 
     stock_list = list(map(utils.remove_bs, stock_list))
     event_queue = queue.LifoQueue()
-
+    symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"]
     # Declare the components with relsspective parameters
     csv_dir = os.path.dirname(os.getcwd() + "/" +stock_list_fp) + f"/data/{freq}" 
     bars = HistoricCSVDataHandler(event_queue, csv_dir=csv_dir,
-                                            symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"],
+                                            symbol_list=symbol_list,
                                             start_date=start_date)
     strategy = BuyAndHoldStrategy(bars, event_queue)
-    port = NaivePortfolio(bars, event_queue, stock_size=100)
+    port = PercentagePortFolio(bars, event_queue, percentage=1/len(symbol_list))
     broker = execution.SimulatedExecutionHandler(event_queue)
 
     start = time.time()

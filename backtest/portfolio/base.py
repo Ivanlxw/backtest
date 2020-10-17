@@ -257,5 +257,5 @@ class PercentagePortFolio(NaivePortfolio):
             order_event = self.generate_perc_order(event, mkt_price)
             if order_event == None: 
                 return
-            if self.current_holdings["cash"] > (order_event.quantity * mkt_price): 
+            if self.current_holdings["total"] > (order_event.quantity * mkt_price): 
                 self.events.put(order_event)
