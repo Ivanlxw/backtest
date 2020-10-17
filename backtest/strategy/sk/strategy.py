@@ -39,7 +39,7 @@ class SkStrategy():
 
 ## Sklearn regressor (combined)
 ## data is combined and standardized.
-class SKRCStrategy(SkStrategy, Strategy):
+class SKRStrategy(SkStrategy, Strategy):
     def __init__(self, bars, events, reg, processor):
         SkStrategy.__init__(self, bars, events, reg, processor)
 
@@ -64,10 +64,17 @@ class SKRCStrategy(SkStrategy, Strategy):
 
 ## Sklearn classifier (combined)
 ## data is combined and standardized.
-class SKCCStrategy(SkStrategy, Strategy):
+class SKCStrategy(SkStrategy, Strategy):
     def __init__(self, bars, events, clf, processor):
         SkStrategy.__init__(self, bars, events, clf, processor)
     
+    def _set_X_and_Y(self,):
+        from sklearn.preprocessing import LabelBinarizer, LabelEncoder
+        self.label = LabelEncoder() 
+        self.X, self.Y = self.processor.get_processed_data()
+        self.columns = ["symbol", "date"] + list(self.X.columns)
+        self.Y = self.label.fit_transform(self.Y)
+
     def calculate_signals(self, event):
         if event.type == "MARKET":
             for s in self.symbol_list:
@@ -79,9 +86,9 @@ class SKCCStrategy(SkStrategy, Strategy):
                 ## this is slow and should be optimized.
                 preds = self._prepare_flow_data(bars)
 
-                if preds[-1] > "BUY":
+                if preds[-1] == 2:
                     signal = SignalEvent(bars[-1][0], bars[-1][1], 'LONG')
                     self.events.put(signal)
-                elif preds[-1] < "SELL":
+                elif preds[-1] == 0:
                     signal = SignalEvent(bars[-1][0], bars[-1][1], 'SHORT')
                     self.events.put(signal)

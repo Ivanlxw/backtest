@@ -33,7 +33,7 @@ class SKData(ABC):
         raise NotImplementedError("Should implement preprocess_Y()")
 
 class BaseSkData(ProcessData, SKData):
-    def __init__(self, bars, shift: int):
+    def __init__(self, bars, shift: int, lag: int=0):
         print("Basic Data Model for supervised models")
         ##  one whole dataframe concatnated in a dict
         ##  Standardization is done so data can actually be appended
@@ -42,6 +42,9 @@ class BaseSkData(ProcessData, SKData):
             self.shift = -shift
         else:
             self.shift = shift
+        self.lag = lag
+        if self.lag != 0:
+            self.lag = lag + 1
 
     def get_shift(self):
         return abs(self.shift)
@@ -62,9 +65,27 @@ class BaseSkData(ProcessData, SKData):
             X[k] = temp_df
         return X
     
-    def transform_X(self, df):
-        ## no feature engineering done
-        return df
+    # def transform_X(self, df):
+    #     ## no feature engineering done
+    #     return df
+
+    ## return dict(pd.dataframe)
+    def transform_X(self, df): 
+        ## obtains lagged data for lag days
+        if self.lag > 0:
+            X = {}  
+            for k,v in df.items():
+                scaler = StandardScaler()
+                temp_df = scaler.fit_transform(v)
+                temp_df = pd.DataFrame(temp_df, columns=v.columns)
+                for i in range(1,self.lag):
+                    temp_df["lag_"+str(i)] = temp_df["Close"].shift(-i)
+                X[k] = temp_df
+            return X
+        elif self.lag == 0:
+            return df
+        raise Exception("self.lag variable should not be negative")
+
     
     def preprocess_Y(self, X):
         ## derive Y from transformed X
@@ -90,22 +111,27 @@ class BaseSkData(ProcessData, SKData):
         all_df = pd.concat(dfs, axis=0, ignore_index=True).dropna()
         return (all_df.drop('target',axis=1), all_df['target']) 
 
-class DataWithLag(BaseSkData):
-    def __init__(self, bars, shift, lag:int):
+class ClassificationData(BaseSkData):
+    def __init__(self, bars, shift, lag:int=0):
         super().__init__(bars, shift)
-        self.lag = lag + 1
+        self.lag = lag
+        if self.lag != 0:
+            self.lag = lag + 1
     
-    def transform_X(self, df):
-        ## obtains lagged data for lag days
-        X = {}
-        for k,v in self.raw_data.items():
-            scaler = StandardScaler()
-            temp_df = scaler.fit_transform(v)
-            temp_df = pd.DataFrame(temp_df, columns=v.columns)
-            for i in range(1,self.lag):
-                temp_df["lag_"+str(i)] = temp_df["Close"].shift(-i)
-            X[k] = temp_df
-        return X
+    def to_buy_or_sell(self, perc):
+        if perc > 0.05:
+            return 1
+        elif perc < -0.05:
+            return -1
+        else:
+            return 0
 
-class ClassificationData(SKData):
-    pass
+    def preprocess_Y(self, X):
+        Y = {}
+        for k,v in X.items():
+            v["target_num"] = v["Close"].shift(self.shift)
+            v["target"] = (v["target_num"] - v["Close"]) / v["Close"]
+            v["target"] = v["target"].apply(self.to_buy_or_sell)
+            Y[k] = v["target"]
+            del v["target_num"]
+        return Y
