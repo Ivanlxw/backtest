@@ -25,10 +25,7 @@ bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
                                            symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"],
                                            start_date=start_date,
                                            end_date="2016-12-01")
-# strategy = BuyAndHoldStrategy(bars, event_queue)
-# strategy = SimpleCrossStrategy(bars, event_queue, cross_type="sma", timeperiod=50)
 strategy = MeanReversionTA(bars, event_queue, cross_type="sma", timeperiod=50, sd=1.5, exit="cross")
-# port = NaivePortfolio(bars, event_queue, start_date=start_date, stock_size=100)
 port = PercentagePortFolio(bars, event_queue, percentage=0.10)
 broker = execution.SimulatedExecutionHandler(event_queue)
 

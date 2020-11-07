@@ -156,12 +156,13 @@ class NaivePortfolio(Portfolio):
         self.current_holdings[fill.symbol] += cost
         self.current_holdings['commission'] += fill.commission
         self.current_holdings['cash'] -= (cost + fill.commission)
-        self.current_holdings['total'] -= (cost + fill.commission)
+        self.current_holdings['total'] = sum([self.current_holdings[sym] for sym in self.symbol_list] + [self.current_holdings['cash']])
     
     def update_fill(self, event):
         if event.type == "FILL":
             self.update_positions_from_fill(event)
             self.update_holdings_from_fill(event)
+            print(f"Updated: {self.current_holdings}")
 
     def generate_naive_order(self, signal, size):
         """
@@ -206,7 +207,8 @@ class NaivePortfolio(Portfolio):
         return False
 
     def rebalance(self,):
-        print(self.all_holdings[-1])
+        # print(self.all_holdings[-1])
+        pass
 
     def create_equity_curve_df(self):
         curve = pd.DataFrame(self.all_holdings)
@@ -240,15 +242,19 @@ class NaivePortfolio(Portfolio):
             raise Exception("Error: equity_curve is not initialized.")
 
 class PercentagePortFolio(NaivePortfolio):
-    def __init__(self, bars, events, percentage, initial_capital=100000.0):
+    def __init__(self, bars, events, percentage, initial_capital=100000.0, mode='cash'):
         super().__init__(bars, events, stock_size=0, initial_capital=100000.0)
+        if mode not in ('cash', 'asset'):
+            raise Exception('mode has to be cash or asset')
+        self.mode = mode
         if percentage > 1:
             self.perc = percentage / 100
         else:
             self.perc = percentage
     
     def generate_perc_order(self, signal, mkt_price):
-        size = int(self.current_holdings["cash"] * self.perc / mkt_price)
+        size = int(self.current_holdings["cash"] * self.perc / mkt_price) if self.mode == 'cash' \
+            else int(self.current_holdings["total"] * self.perc / mkt_price)
         return self.generate_naive_order(signal, size)
 
     def update_signal(self, event):
