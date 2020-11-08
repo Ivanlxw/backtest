@@ -24,8 +24,8 @@ class SKData(ABC):
         raise NotImplementedError("Should implement preprocess_X()")
 
     @abstractmethod 
-    def transform_X(self, df: pd.DataFrame):
-        raise NotImplementedError("transform_X() not implemented. \
+    def _transform_X(self, df: pd.DataFrame):
+        raise NotImplementedError("_transform_X() not implemented. \
             return df if no transformation.")
 
     @abstractmethod
@@ -38,13 +38,17 @@ class BaseSkData(ProcessData, SKData):
         ##  one whole dataframe concatnated in a dict
         ##  Standardization is done so data can actually be appended
         self.raw_data = bars.get_data()  ## a dict(pd.DataFrame)
+        self.lag = lag
+        if lag < 0:
+            raise Exception("self.lag variable should not be negative")
+        elif lag != 0:
+            self.lag = lag + 1
+
         if shift > 0:
             self.shift = -shift
         else:
             self.shift = shift
-        self.lag = lag
-        if self.lag != 0:
-            self.lag = lag + 1
+
 
     def get_shift(self):
         return abs(self.shift)
@@ -61,31 +65,17 @@ class BaseSkData(ProcessData, SKData):
                 sliced = v.iloc[start:t,:] 
                 temp_data.append(scaler.fit_transform(sliced)[-1,:])
             temp_df = pd.DataFrame(temp_data, columns=v.columns)
-            temp_df = self.transform_X(temp_df)
+            temp_df = self._transform_X(temp_df)
             X[k] = temp_df
         return X
-    
-    # def transform_X(self, df):
-    #     ## no feature engineering done
-    #     return df
 
     ## return dict(pd.dataframe)
-    def transform_X(self, df): 
+    def _transform_X(self, df): 
         ## obtains lagged data for lag days
         if self.lag > 0:
-            X = {}  
-            for k,v in df.items():
-                scaler = StandardScaler()
-                temp_df = scaler.fit_transform(v)
-                temp_df = pd.DataFrame(temp_df, columns=v.columns)
-                for i in range(1,self.lag):
-                    temp_df["lag_"+str(i)] = temp_df["Close"].shift(-i)
-                X[k] = temp_df
-            return X
-        elif self.lag == 0:
-            return df
-        raise Exception("self.lag variable should not be negative")
-
+            for i in range(1,self.lag):
+                df["lag_"+str(i)] = df["Close"].shift(-i)
+        return df.dropna()
     
     def preprocess_Y(self, X):
         ## derive Y from transformed X
@@ -100,7 +90,7 @@ class BaseSkData(ProcessData, SKData):
     ## appends all data into 1 large dataframe with extra col - ticker
     ## returns (pd.DataFrame, pd.Series)
     def _process_data(self):
-        X = self.transform_X(self.preprocess_X(self.raw_data))
+        X = self.preprocess_X(self.raw_data)
         Y = self.preprocess_Y(X)
         dfs = []
         for symbol in X.keys():    

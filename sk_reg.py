@@ -41,7 +41,7 @@ train = HistoricCSVDataHandler(None, csv_dir="data/data/daily",
                                            )
 
 regressor = LinearRegression()
-strategy = SKRStrategy(bars, event_queue, regressor, processor=BaseSkData(train, 14))
+strategy = SKRStrategy(bars, event_queue, regressor, processor=BaseSkData(train, 14, 2))
 port = PercentagePortFolio(bars, event_queue, percentage=0.05)
 broker = execution.SimulatedExecutionHandler(event_queue)
 

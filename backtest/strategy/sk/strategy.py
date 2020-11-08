@@ -4,6 +4,7 @@ sys.path.append((os.path.dirname(os.path.abspath(__file__))))  ## 2 dirs above
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import LabelEncoder
 
 from strategy.naive import Strategy
 from event import SignalEvent
@@ -31,10 +32,10 @@ class SkStrategy():
         self.reg.fit(self.X, self.Y)
     
     def _prepare_flow_data(self, bars):
-        temp_df = pd.DataFrame(bars, columns=self.columns)
+        temp_df = pd.DataFrame(bars, columns=self.columns[:-2])
         temp_df = temp_df.drop(["symbol", "date"], axis=1)
-        temp_df = pd.DataFrame(self.scaler.fit_transform(temp_df), columns = self.columns[2:])
-        return self.reg.predict(self.processor.transform_X(temp_df))
+        temp_df = pd.DataFrame(self.scaler.fit_transform(temp_df), columns = self.columns[2:-2])
+        return self.reg.predict(self.processor._transform_X(temp_df))
     
 
 ## Sklearn regressor (combined)
@@ -69,7 +70,6 @@ class SKCStrategy(SkStrategy, Strategy):
         SkStrategy.__init__(self, bars, events, clf, processor)
     
     def _set_X_and_Y(self,):
-        from sklearn.preprocessing import LabelBinarizer, LabelEncoder
         self.label = LabelEncoder() 
         self.X, self.Y = self.processor.get_processed_data()
         self.columns = ["symbol", "date"] + list(self.X.columns)

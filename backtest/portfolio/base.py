@@ -162,7 +162,6 @@ class NaivePortfolio(Portfolio):
         if event.type == "FILL":
             self.update_positions_from_fill(event)
             self.update_holdings_from_fill(event)
-            print(f"Updated: {self.current_holdings}")
 
     def generate_naive_order(self, signal, size):
         """

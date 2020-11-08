@@ -53,7 +53,7 @@ def plot_benchmark(stock_list_fp, symbol_list, start_date, freq="daily"):
 
                     elif event.type == 'ORDER':
                         broker.execute_order(event)
-                        event.print_order()
+                        # event.print_order()
 
                     elif event.type == 'FILL':
                         port.update_fill(event)
@@ -72,7 +72,3 @@ def plot_benchmark(stock_list_fp, symbol_list, start_date, freq="daily"):
     plt.plot(port.equity_curve["total"], label="benchmark_total")
     plt.plot(port.equity_curve['cash'], label="benchmark_cash")
     plt.tight_layout()
-
-plot_benchmark("data/stock_list.txt", \
-    symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"], \
-    start_date = "2000-01-25")
