@@ -5,16 +5,15 @@ import time, datetime
 import queue
 import random
 import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestClassifier
 
 from backtest import utils, execution
+from backtest.benchmark.benchmark import plot_benchmark
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import PercentagePortFolio
+from backtest.portfolio.rebalance.base import BaseRebalance
 from backtest.strategy.sk.data import ClassificationData
 from backtest.strategy.sk.strategy import SKCStrategy
-from backtest.benchmark.benchmark import plot_benchmark
-
-## sklearn modules
-from sklearn.ensemble import RandomForestClassifier
 
 with open("data/stock_list.txt", 'r') as fin:
     stock_list = fin.readlines()
@@ -41,8 +40,8 @@ train = HistoricCSVDataHandler(None, csv_dir="data/data/daily",
                                            )
 
 clf = RandomForestClassifier()
-strategy = SKCStrategy(bars, event_queue, clf, processor=ClassificationData(train, 14,2))
-port = PercentagePortFolio(bars, event_queue, percentage=0.05)
+strategy = SKCStrategy(bars, event_queue, clf, processor=ClassificationData(train, 14, 2))
+port = PercentagePortFolio(bars, event_queue, percentage=0.05, rebalance=BaseRebalance(event_queue))
 broker = execution.SimulatedExecutionHandler(event_queue)
 
 while True:

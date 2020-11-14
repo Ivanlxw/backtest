@@ -10,7 +10,7 @@ from math import floor, fabs
 
 from event import FillEvent, OrderEvent
 from performance import create_sharpe_ratio, create_drawdowns
-
+from backtest.portfolio.rebalance.base import NoRebalance
 
 class Portfolio(object):
     __metaclass__ = ABCMeta
@@ -27,23 +27,8 @@ class Portfolio(object):
         """
         raise NotImplementedError("Should implement update_fill()")
 
-    @abstractmethod
-    def need_rebalance(self, datetime):
-        """
-        The check for rebalancing portfolio
-        """
-        raise NotImplementedError("Should implement need_rebalance(). If not required, just return false")
-
-    @abstractmethod
-    def rebalance(self,):
-        """
-        Updates portfolio based on rebalancing criteria
-        """
-        raise NotImplementedError("Should implement rebalance(). If not required, just pass")
-
-
 class NaivePortfolio(Portfolio):
-    def __init__(self, bars, events, stock_size, initial_capital=100000.0):
+    def __init__(self, bars, events, stock_size, initial_capital=100000.0, rebalance=None):
         """ 
         Parameters:
         bars - The DataHandler object with current market data.
@@ -60,9 +45,10 @@ class NaivePortfolio(Portfolio):
 
         self.all_positions = self.construct_all_positions()
         self.current_positions = dict( (k,v) for k, v in [(s, 0) for s in self.symbol_list] )
-
         self.all_holdings = self.construct_all_holdings()
         self.current_holdings = self.construct_current_holdings()
+
+        self.rebalance = rebalance if rebalance is not None else NoRebalance()
 
     def construct_all_positions(self,):
         """
@@ -89,7 +75,6 @@ class NaivePortfolio(Portfolio):
         d = dict( (k,v) for k, v in [(s, 0.0) for s in self.symbol_list] )
         d['cash'] = self.initial_capital
         d['commission'] = 0.0
-        d['total'] = self.initial_capital
         return d
 
     def update_timeindex(self, event):
@@ -100,11 +85,6 @@ class NaivePortfolio(Portfolio):
         ## update positions
         dp = dict( (k,v) for k, v in [(s,0) for s in self.symbol_list ])
         dp['datetime'] = bars[self.symbol_list[0]][0][1]
-
-        if self.need_rebalance(dp['datetime']):
-            self.rebalance()
-        else:
-            pass
 
         for s in self.symbol_list:
             dp[s] = self.current_positions[s]
@@ -129,6 +109,7 @@ class NaivePortfolio(Portfolio):
         
         ## append current holdings
         self.all_holdings.append(dh)
+        self.rebalance.rebalance(self.symbol_list, self.all_holdings)
 
     def update_positions_from_fill(self, fill):
         """
@@ -151,12 +132,11 @@ class NaivePortfolio(Portfolio):
         elif fill.direction == "SELL":
             fill_dir = -1  
 
-        fill_cost = self.bars.get_latest_bars(fill.symbol)[0][5] ## close price
-        cost = fill_dir * fill_cost * fill.quantity
-        self.current_holdings[fill.symbol] += cost
+        close_price = self.bars.get_latest_bars(fill.symbol)[0][5] ## close price
+        cash = fill_dir * close_price * fill.quantity
+        self.current_holdings[fill.symbol] += fill_dir*fill.quantity
         self.current_holdings['commission'] += fill.commission
-        self.current_holdings['cash'] -= (cost + fill.commission)
-        self.current_holdings['total'] = sum([self.current_holdings[sym] for sym in self.symbol_list] + [self.current_holdings['cash']])
+        self.current_holdings['cash'] -= (cash + fill.commission)
     
     def update_fill(self, event):
         if event.type == "FILL":
@@ -171,7 +151,6 @@ class NaivePortfolio(Portfolio):
         order = None
         symbol = signal.symbol
         direction = signal.signal_type
-        # strength = signal.strength
 
         cur_quantity = self.current_positions[symbol]
         order_type = 'MKT'
@@ -199,15 +178,10 @@ class NaivePortfolio(Portfolio):
             if self.current_holdings["cash"] > (order_event.quantity * mkt_price): 
                 self.events.put(order_event)
 
-    def need_rebalance(self,datetime):
-        last_dt = self.all_holdings[-1]['datetime'] 
-        if datetime.year != last_dt.year:
-            return True
-        return False
 
     def rebalance(self,):
-        # print(self.all_holdings[-1])
-        pass
+        print(self.current_holdings)
+        print(self.all_holdings[-1])
 
     def create_equity_curve_df(self):
         curve = pd.DataFrame(self.all_holdings)
@@ -241,8 +215,8 @@ class NaivePortfolio(Portfolio):
             raise Exception("Error: equity_curve is not initialized.")
 
 class PercentagePortFolio(NaivePortfolio):
-    def __init__(self, bars, events, percentage, initial_capital=100000.0, mode='cash'):
-        super().__init__(bars, events, stock_size=0, initial_capital=100000.0)
+    def __init__(self, bars, events, percentage, initial_capital=100000.0, rebalance=None, mode='cash'):
+        super().__init__(bars, events, stock_size=0, initial_capital=initial_capital, rebalance=rebalance)
         if mode not in ('cash', 'asset'):
             raise Exception('mode has to be cash or asset')
         self.mode = mode
@@ -253,7 +227,7 @@ class PercentagePortFolio(NaivePortfolio):
     
     def generate_perc_order(self, signal, mkt_price):
         size = int(self.current_holdings["cash"] * self.perc / mkt_price) if self.mode == 'cash' \
-            else int(self.current_holdings["total"] * self.perc / mkt_price)
+            else int(self.all_holdings[-1]["total"] * self.perc / mkt_price)
         return self.generate_naive_order(signal, size)
 
     def update_signal(self, event):
@@ -262,5 +236,5 @@ class PercentagePortFolio(NaivePortfolio):
             order_event = self.generate_perc_order(event, mkt_price)
             if order_event == None: 
                 return
-            if self.current_holdings["total"] > (order_event.quantity * mkt_price): 
+            if self.all_holdings[-1]["total"] > (order_event.quantity * mkt_price): 
                 self.events.put(order_event)

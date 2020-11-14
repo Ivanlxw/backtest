@@ -102,16 +102,17 @@ class BaseSkData(ProcessData, SKData):
         return (all_df.drop('target',axis=1), all_df['target']) 
 
 class ClassificationData(BaseSkData):
-    def __init__(self, bars, shift, lag:int=0):
+    def __init__(self, bars, shift, lag:int=0, perc_change:float=0.03):
         super().__init__(bars, shift)
         self.lag = lag
+        self.perc_chg = perc_change
         if self.lag != 0:
             self.lag = lag + 1
     
     def to_buy_or_sell(self, perc):
-        if perc > 0.05:
+        if perc > self.perc_chg:
             return 1
-        elif perc < -0.05:
+        elif perc < 1-self.perc_chg:
             return -1
         else:
             return 0
@@ -120,7 +121,7 @@ class ClassificationData(BaseSkData):
         Y = {}
         for k,v in X.items():
             v["target_num"] = v["Close"].shift(self.shift)
-            v["target"] = (v["target_num"] - v["Close"]) / v["Close"]
+            v["target"] = v["target_num"] / v["Close"]
             v["target"] = v["target"].apply(self.to_buy_or_sell)
             Y[k] = v["target"]
             del v["target_num"]
