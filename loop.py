@@ -1,14 +1,16 @@
 """
 Actual file to run for backtesting 
 """
-import time, datetime
+import time
 import queue
 import matplotlib.pyplot as plt
+import random
+import talib 
 
 from backtest import utils, execution
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import NaivePortfolio, PercentagePortFolio
-from backtest.strategy.cross_strategy import SimpleCrossStrategy, MeanReversionTA
+from backtest.strategy.ma import SimpleCrossStrategy, MeanReversionTA, ExponentialMA
 from backtest.strategy.naive import BuyAndHoldStrategy
 from backtest.benchmark.benchmark import plot_benchmark
 
@@ -19,14 +21,16 @@ stock_list = list(map(utils.remove_bs, stock_list))
 
 event_queue = queue.LifoQueue()
 start_date = "2010-01-05"  ## YYYY-MM-DD
+symbol_list = random.sample(stock_list, 7)
 
 # Declare the components with relsspective parameters
 bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
-                                           symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"],
+                                           symbol_list=symbol_list,
                                            start_date=start_date,
                                            end_date="2016-12-01")
-strategy = MeanReversionTA(bars, event_queue, cross_type="sma", timeperiod=50, sd=1.5, exit="cross")
-port = PercentagePortFolio(bars, event_queue, percentage=0.10)
+strategy = SimpleCrossStrategy(bars, event_queue, 50, talib.SMA)                                       
+# strategy = MeanReversionTA(bars, event_queue, cross_type="sma", timeperiod=50, sd=1.5, exit="cross")
+port = PercentagePortFolio(bars, event_queue, percentage=1/len(symbol_list), mode='asset')
 broker = execution.SimulatedExecutionHandler(event_queue)
 
 start = time.time()

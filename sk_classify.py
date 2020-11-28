@@ -1,7 +1,7 @@
 """
 Actual file to run for backtesting 
 """
-import time, datetime
+import time
 import queue
 import random
 import matplotlib.pyplot as plt
