@@ -24,7 +24,7 @@ stock_list = list(map(utils.remove_bs, stock_list))
 event_queue = queue.LifoQueue()
 start_date = "2000-01-25"  ## YYYY-MM-DD
 end_train_date = "2010-12-31"
-symbol_list = random.sample(stock_list, 7)
+symbol_list = random.sample(stock_list, 15)
 
 start = time.time()
 # Declare the components with respective parameters
@@ -91,7 +91,7 @@ plt.plot(port.equity_curve['cash'], label="strat_cash")
 plt.tight_layout()
 
 plot_benchmark("data/stock_list.txt", \
-    symbol_list=stock_list, \
+    symbol_list=symbol_list, \
     start_date = end_train_date)
 
 plt.legend()

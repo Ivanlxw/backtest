@@ -6,10 +6,10 @@ import pandas as pd
 import queue
 
 from abc import ABCMeta, abstractmethod
-from math import floor, fabs
+from math import fabs
 
-from event import FillEvent, OrderEvent
-from performance import create_sharpe_ratio, create_drawdowns
+from backtest.event import FillEvent, OrderEvent
+from backtest.performance import create_sharpe_ratio, create_drawdowns
 from backtest.portfolio.rebalance.base import NoRebalance
 
 class Portfolio(object):
@@ -102,7 +102,6 @@ class NaivePortfolio(Portfolio):
 
         for s in self.symbol_list:
             ## position size * close price
-            # print(bars[s])
             market_val = self.current_positions[s] * bars[s][0][5]
             dh[s] = market_val
             dh['total'] += market_val
@@ -155,33 +154,35 @@ class NaivePortfolio(Portfolio):
         cur_quantity = self.current_positions[symbol]
         order_type = 'MKT'
 
-        if direction == 'REVERSE':
-            if cur_quantity < 0:
-                order = OrderEvent(symbol, order_type, size*2, 'BUY')
-            else:
-                order = OrderEvent(symbol, order_type, size*2, 'SELL')
-        elif direction == 'EXIT':
+        if direction == 'EXIT':
             if cur_quantity > 0:
                 order = OrderEvent(symbol, order_type, cur_quantity, 'SELL')
             else:
-                order = OrderEvent(symbol, order_type, fabs(cur_quantity), 'BUY')            
+                order = OrderEvent(symbol, order_type, -cur_quantity, 'BUY')            
         elif direction == 'LONG':
-            order = OrderEvent(symbol, order_type, size, 'BUY')
+            if cur_quantity < 0:
+                order = OrderEvent(symbol, order_type, size-cur_quantity, 'BUY')
+            else:
+                order = OrderEvent(symbol, order_type, size, 'BUY')
         elif direction == 'SHORT':
-            order = OrderEvent(symbol, order_type, size, 'SELL')
+            if cur_quantity > 0:
+                order = OrderEvent(symbol, order_type, size+cur_quantity, 'SELL')
+            else:
+                order = OrderEvent(symbol, order_type, size, 'SELL')
         return order
+    
+    def generate_order(self, signal) -> OrderEvent:
+        return self.generate_naive_order(signal, self.qty)
     
     def update_signal(self, event):
         if event.type == 'SIGNAL':
             mkt_price = self.bars.get_latest_bars(event.symbol)[0][5]
-            order_event = self.generate_naive_order(event, self.qty)
-            if self.current_holdings["cash"] > (order_event.quantity * mkt_price): 
-                self.events.put(order_event)
-
-
-    def rebalance(self,):
-        print(self.current_holdings)
-        print(self.all_holdings[-1])
+            order_event = self.generate_order(event)
+            if order_event is not None: 
+                order_value = fabs(order_event.quantity * mkt_price)
+                if (self.current_holdings["cash"] > order_value and order_event.direction == 'BUY') or \
+                    (self.all_holdings[-1]["total"] > order_value and order_event.direction == 'SELL'): 
+                    self.events.put(order_event)
 
     def create_equity_curve_df(self):
         curve = pd.DataFrame(self.all_holdings)
@@ -209,32 +210,25 @@ class NaivePortfolio(Portfolio):
         return stats
 
     def get_backtest_results(self,fp):
-        if self.equity_curve != None:
-            self.equity_curve.to_csv(fp)
-        else:
+        if self.equity_curve == None:
             raise Exception("Error: equity_curve is not initialized.")
+        self.equity_curve.to_csv(fp)
 
 class PercentagePortFolio(NaivePortfolio):
     def __init__(self, bars, events, percentage, initial_capital=100000.0, rebalance=None, mode='cash'):
         super().__init__(bars, events, stock_size=0, initial_capital=initial_capital, rebalance=rebalance)
         if mode not in ('cash', 'asset'):
-            raise Exception('mode has to be cash or asset')
+            raise Exception('mode options: cash | asset')
         self.mode = mode
         if percentage > 1:
             self.perc = percentage / 100
         else:
             self.perc = percentage
     
-    def generate_perc_order(self, signal, mkt_price):
+    def generate_order(self, signal):
+        mkt_price = self.bars.get_latest_bars(signal.symbol)[0][5]
+        if mkt_price == 0:
+            return
         size = int(self.current_holdings["cash"] * self.perc / mkt_price) if self.mode == 'cash' \
             else int(self.all_holdings[-1]["total"] * self.perc / mkt_price)
         return self.generate_naive_order(signal, size)
-
-    def update_signal(self, event):
-        if event.type == 'SIGNAL':
-            mkt_price = self.bars.get_latest_bars(event.symbol)[0][5]
-            order_event = self.generate_perc_order(event, mkt_price)
-            if order_event == None: 
-                return
-            if self.all_holdings[-1]["total"] > (order_event.quantity * mkt_price): 
-                self.events.put(order_event)

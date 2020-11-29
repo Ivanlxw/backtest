@@ -5,6 +5,7 @@ import time
 import queue
 import matplotlib.pyplot as plt
 import random
+from pandas.io.formats import style
 import talib 
 
 from backtest import utils, execution
@@ -21,16 +22,17 @@ stock_list = list(map(utils.remove_bs, stock_list))
 
 event_queue = queue.LifoQueue()
 start_date = "2010-01-05"  ## YYYY-MM-DD
-symbol_list = random.sample(stock_list, 7)
+# start_date = "2019-12-03"  ## YYYY-MM-DD
+symbol_list = random.sample(stock_list, 10)
 
 # Declare the components with relsspective parameters
 bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
-                                           symbol_list=symbol_list,
+                                           symbol_list=symbol_list, 
                                            start_date=start_date,
-                                           end_date="2016-12-01")
+                                           )
 strategy = SimpleCrossStrategy(bars, event_queue, 50, talib.SMA)                                       
-# strategy = MeanReversionTA(bars, event_queue, cross_type="sma", timeperiod=50, sd=1.5, exit="cross")
-port = PercentagePortFolio(bars, event_queue, percentage=1/len(symbol_list), mode='asset')
+# strategy = MeanReversionTA(bars, event_queue, 50, talib.SMA, sd=1.5, exit="ma")
+port = PercentagePortFolio(bars, event_queue, percentage=1/len(symbol_list), mode='cash')
 broker = execution.SimulatedExecutionHandler(event_queue)
 
 start = time.time()
@@ -80,7 +82,7 @@ plt.plot(port.equity_curve['cash'], label="strat_cash")
 plt.tight_layout()
 
 plot_benchmark("data/stock_list.txt", \
-    symbol_list=stock_list, \
+    symbol_list=symbol_list, \
     start_date = start_date)
 
 plt.legend()

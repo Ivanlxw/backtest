@@ -6,18 +6,13 @@ import time, datetime
 import queue
 import matplotlib.pyplot as plt
 
-from backtest import utils, execution
+from backtest import execution
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import NaivePortfolio, PercentagePortFolio
 from backtest.strategy.naive import BuyAndHoldStrategy
 
 def plot_benchmark(stock_list_fp, symbol_list, start_date, freq="daily"):
-    with open(stock_list_fp, 'r') as fin:
-        stock_list = fin.readlines()
-
-    stock_list = list(map(utils.remove_bs, stock_list))
     event_queue = queue.LifoQueue()
-    symbol_list=["GS", "WMT", "BAC","MSFT", "AMZN", "VZ", "PG"]
     # Declare the components with relsspective parameters
     csv_dir = os.path.dirname(os.getcwd() + "/" +stock_list_fp) + f"/data/{freq}" 
     bars = HistoricCSVDataHandler(event_queue, csv_dir=csv_dir,

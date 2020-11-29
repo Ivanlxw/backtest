@@ -36,6 +36,7 @@ class SignalEvent(Event):
         self.type = 'SIGNAL'
         self.symbol = symbol
         self.datetime = datetime
+        assert signal_type in ('SHORT', 'LONG', 'EXIT')
         self.signal_type = signal_type
 
 class OrderEvent(Event):

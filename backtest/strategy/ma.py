@@ -27,8 +27,8 @@ class SimpleCrossStrategy(Strategy):
     def calculate_signals(self, event):
         if event.type == "MARKET":
             for s in self.symbol_list:
-                bars = self.bars.get_latest_bars(s, N=(self.timeperiod+1)) ## list of tuples
-                if len(bars) != self.timeperiod+1:
+                bars = self.bars.get_latest_bars(s, N=(self.timeperiod+3)) ## list of tuples
+                if len(bars) != self.timeperiod+3:
                     break
                 TAs = self._get_MA(bars)
                 if bars[-2][5] > TAs[-2] and bars[-1][5] < TAs[-1]:
@@ -45,11 +45,11 @@ class MeanReversionTA(SimpleCrossStrategy):
     the confidence interval, calculated with sd - and Vice-versa works as well
     which method to use is denoted in exit - "cross" or "bb"
     '''
-    def __init__(self, bars, events, cross_type:str, timeperiod:int, sd:float=2, exit="cross"):
-        if cross_type.lower() not in supported_types:
-            raise Exception(f"TA strategy not available. Choose from the following:\n{supported_types}") 
-        super().__init__(bars, events, cross_type, timeperiod)
+    def __init__(self, bars, events, timeperiod:int, ma_type, sd:float=2, exit=None):
+        super().__init__(bars, events, timeperiod, ma_type)
         self.sd_multiplier = sd
+        if exit is not None and exit not in ('ma', 'bb'):
+            raise Exception("Acceptable options for exit: 'ma' | 'bb' | None")
         self.exit = exit
   
     def _get_sd(self, ta_array):
@@ -62,37 +62,21 @@ class MeanReversionTA(SimpleCrossStrategy):
         employ mean reversion.
         '''
         if event.type == "MARKET":
-            if cross_type == "sma":
-                self.cross_function = self._get_SMA
-            elif cross_type == "ema":
-                self.cross_function = self._get_EMA
             for s in self.symbol_list:
-                bars = self.bars.get_latest_bars(s, N=(self.timeperiod*2)) ## list of tuples
-                if len(bars) < self.timeperiod*2:
+                bars = self.bars.get_latest_bars(s, N=(self.timeperiod+3)) ## list of tuples
+                if len(bars) < self.timeperiod+3:
                     break
-                TAs = self.cross_function(bars)
+                TAs = self._get_MA(bars)
                 sd_TA = self._get_sd(TAs)
                 boundary = sd_TA*self.sd_multiplier
 
-                if self.exit == "cross":
-                    if bars[-2][5] > TAs[-2] and bars[-1][5] < TAs[-1] or \
-                        bars[-2][5] < TAs[-2] and bars[-1][5] > TAs[-1]:
-                        signal = SignalEvent(bars[-1][0], bars[-1][1], 'REVERSE')
-                        self.events.put(signal)
-                    elif bars[-1][5] > (TAs[-1] + boundary):
-                        signal = SignalEvent(bars[-1][0], bars[-1][1], 'SHORT')
-                        self.events.put(signal)
-                    elif bars[-1][5] < (TAs[-1] - boundary):
-                        signal = SignalEvent(bars[-1][0], bars[-1][1], 'LONG')
-                        self.events.put(signal)
-
-                elif self.exit == "bb":
-                    if bars[-2][5] > TAs[-2] and bars[-1][5] < TAs[-1]:
-                        signal = SignalEvent(bars[-1][0], bars[-1][1], 'SHORT')
-                        self.events.put(signal)
-                    elif bars[-2][5] < TAs[-2] and bars[-1][5] > TAs[-1]:
-                        signal =  SignalEvent(bars[-1][0], bars[-1][1], 'LONG')
-                        self.events.put(signal)
-                    elif bars[-1][5] > (TAs[-1] + boundary) or bars[-1][5] < (TAs[-1] - boundary):
-                        signal = SignalEvent(bars[-1][0], bars[-1][1], 'REVERSE')
-                        self.events.put(signal)
+                if bars[-2][5] > TAs[-2] and bars[-1][5] < TAs[-1]:
+                    signal = SignalEvent(bars[-1][0], bars[-1][1], 'SHORT')
+                    self.events.put(signal)
+                elif bars[-2][5] < TAs[-2] and bars[-1][5] > TAs[-1]:
+                    signal = SignalEvent(bars[-1][0], bars[-1][1], 'LONG')
+                    self.events.put(signal)
+                elif (bars[-1][5] > (TAs[-1] - boundary) and bars[-2][5] < (TAs[-2] - boundary)) or \
+                    (bars[-1][5] < (TAs[-1] + boundary) and bars[-2][5] > (TAs[-2] + boundary)):
+                    signal = SignalEvent(bars[-1][0], bars[-1][1], 'REVERSE')
+                    self.events.put(signal)
