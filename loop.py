@@ -11,8 +11,7 @@ import talib
 from backtest import utils, execution
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import NaivePortfolio, PercentagePortFolio
-from backtest.strategy.ma import SimpleCrossStrategy, MeanReversionTA, ExponentialMA
-from backtest.strategy.naive import BuyAndHoldStrategy
+from backtest.strategy.ma import SimpleCrossStrategy, DoubleMAStrategy, MeanReversionTA, ExponentialMA
 from backtest.benchmark.benchmark import plot_benchmark
 
 with open("data/stock_list.txt", 'r') as fin:
@@ -30,9 +29,10 @@ bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
                                            symbol_list=symbol_list, 
                                            start_date=start_date,
                                            )
-strategy = SimpleCrossStrategy(bars, event_queue, 50, talib.SMA)                                       
-# strategy = MeanReversionTA(bars, event_queue, 50, talib.SMA, sd=1.5, exit="ma")
-port = PercentagePortFolio(bars, event_queue, percentage=1/len(symbol_list), mode='cash')
+strategy = DoubleMAStrategy(bars, event_queue, [20,50], talib.SMA)                                       
+strategy = MeanReversionTA(bars, event_queue, 50, talib.SMA, sd=2.5, exit=True)
+# strategy = SimpleCrossStrategy(bars, event_queue, 50, talib.SMA)
+port = PercentagePortFolio(bars, event_queue, percentage=1/len(symbol_list), mode='asset')
 broker = execution.SimulatedExecutionHandler(event_queue)
 
 start = time.time()
@@ -61,7 +61,7 @@ while True:
 
                 elif event.type == 'ORDER':
                     broker.execute_order(event)
-                    # event.print_order()
+                    event.print_order()
 
                 elif event.type == 'FILL':
                     port.update_fill(event)
