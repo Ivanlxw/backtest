@@ -73,7 +73,7 @@ class FillEvent(Event):
     Once an order has been transacted it generates a FillEvent
     """
     ## FillEvent(timeindex, 'GOOG', 'S&P500', 20, 'BUY', )
-    def __init__(self, timeindex, symbol, exchange, quantity, direciton, fill_cost, \
+    def __init__(self, timeindex, symbol, exchange, quantity, direction, fill_cost, \
         calculate_commission, commission=None,):
         """
         Parameters:
@@ -90,7 +90,7 @@ class FillEvent(Event):
         self.symbol = symbol
         self.exchange = exchange
         self.quantity = quantity
-        self.direction = direciton
+        self.direction = direction
         self.fill_cost = fill_cost
 
         self.calculate_commission = calculate_commission

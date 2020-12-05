@@ -13,14 +13,15 @@ from backtest.strategy.naive import BuyAndHoldStrategy
 
 def plot_benchmark(stock_list_fp, symbol_list, start_date, freq="daily"):
     event_queue = queue.LifoQueue()
+    order_queue = queue.Queue()
     # Declare the components with relsspective parameters
     csv_dir = os.path.dirname(os.getcwd() + "/" +stock_list_fp) + f"/data/{freq}" 
     bars = HistoricCSVDataHandler(event_queue, csv_dir=csv_dir,
                                             symbol_list=symbol_list,
                                             start_date=start_date)
     strategy = BuyAndHoldStrategy(bars, event_queue)
-    port = PercentagePortFolio(bars, event_queue, percentage=1/len(symbol_list), mode='asset')
-    broker = execution.SimulatedExecutionHandler(event_queue)
+    port = PercentagePortFolio(bars, event_queue, order_queue, percentage=1/len(symbol_list), mode='asset')
+    broker = execution.SimulatedExecutionHandler(bars, event_queue)
 
     start = time.time()
     while True:
@@ -41,6 +42,8 @@ def plot_benchmark(stock_list_fp, symbol_list, start_date, freq="daily"):
                     if event.type == 'MARKET':
                         strategy.calculate_signals(event)
                         port.update_timeindex(event)
+                        while not order_queue.empty():
+                            event_queue.put(order_queue.get())
 
                     elif event.type == 'SIGNAL':
                         port.update_signal(event)

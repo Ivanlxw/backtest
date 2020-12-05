@@ -20,6 +20,7 @@ with open("data/stock_list.txt", 'r') as fin:
 stock_list = list(map(utils.remove_bs, stock_list))
 
 event_queue = queue.LifoQueue()
+order_queue = queue.Queue()
 start_date = "2010-01-05"  ## YYYY-MM-DD
 # start_date = "2019-12-03"  ## YYYY-MM-DD
 symbol_list = random.sample(stock_list, 10)
@@ -32,8 +33,8 @@ bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
 strategy = DoubleMAStrategy(bars, event_queue, [20,50], talib.SMA)                                       
 strategy = MeanReversionTA(bars, event_queue, 50, talib.SMA, sd=2.5, exit=True)
 # strategy = SimpleCrossStrategy(bars, event_queue, 50, talib.SMA)
-port = PercentagePortFolio(bars, event_queue, percentage=1/len(symbol_list), mode='asset')
-broker = execution.SimulatedExecutionHandler(event_queue)
+port = PercentagePortFolio(bars, event_queue, order_queue, percentage=1/len(symbol_list), mode='asset')
+broker = execution.SimulatedExecutionHandler(bars, event_queue)
 
 start = time.time()
 while True:
@@ -54,6 +55,8 @@ while True:
                 if event.type == 'MARKET':
                     port.update_timeindex(event)
                     strategy.calculate_signals(event)
+                    while not order_queue.empty():
+                        event_queue.put(order_queue.get())
 
                 elif event.type == 'SIGNAL':
                     port.update_signal(event)
@@ -61,7 +64,7 @@ while True:
 
                 elif event.type == 'ORDER':
                     broker.execute_order(event)
-                    event.print_order()
+                    # event.print_order()
 
                 elif event.type == 'FILL':
                     port.update_fill(event)

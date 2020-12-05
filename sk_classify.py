@@ -21,6 +21,7 @@ with open("data/stock_list.txt", 'r') as fin:
 stock_list = list(map(utils.remove_bs, stock_list))
 
 event_queue = queue.LifoQueue()
+order_queue = queue.Queue()
 start_date = "2000-01-25"  ## YYYY-MM-DD
 end_train_date = "2010-12-31"
 symbol_list = random.sample(stock_list, 7)
@@ -40,8 +41,8 @@ train = HistoricCSVDataHandler(None, csv_dir="data/data/daily",
                                            )
 
 clf = RandomForestClassifier()
-strategy = SKCStrategy(bars, event_queue, clf, processor=ClassificationData(train, 14, 2))
-port = PercentagePortFolio(bars, event_queue, percentage=0.05, rebalance=BaseRebalance(event_queue))
+strategy = SKCStrategy(bars, event_queue, order_queue, clf, processor=ClassificationData(train, 14, 2))
+port = PercentagePortFolio(bars, event_queue, order_queue, percentage=0.05, rebalance=BaseRebalance(event_queue))
 broker = execution.SimulatedExecutionHandler(event_queue)
 
 while True:
@@ -61,7 +62,9 @@ while True:
             if event is not None:
                 if event.type == 'MARKET':
                     port.update_timeindex(event)
-                    strategy.calculate_signals(event)
+                    strategy.calculate_signals(event)     
+                    while not order_queue.empty():
+                        event_queue.put(order_queue.get())
 
                 elif event.type == 'SIGNAL':
                     port.update_signal(event)

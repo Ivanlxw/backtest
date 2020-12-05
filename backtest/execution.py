@@ -2,7 +2,7 @@ import datetime
 import time
 
 from abc import ABC, abstractmethod
-from event import FillEvent, OrderEvent
+from backtest.event import FillEvent
 
 # from ib.ext.Contract import Contract
 # from ib.ext.Order import Order
@@ -26,7 +26,8 @@ TODO:
 
 ## arbitrary. Might be used to route orders to a broker in future.
 class SimulatedExecutionHandler(ExecutionHandler):
-    def __init__(self, events):
+    def __init__(self, bars, events):
+        self.bars = bars
         self.events = events
     
     def calculate_commission(self,quantity, fill_cost):
@@ -34,6 +35,10 @@ class SimulatedExecutionHandler(ExecutionHandler):
 
     def execute_order(self, event):
         if event.type == 'ORDER':
+            price_data = self.bars.get_latest_bars(event.symbol, 2)
+            assert len(price_data) == 2
+            if price_data[0][5] > price_data[1][3] or price_data[0][5] < price_data[1][4]:
+                return
             fill_event = FillEvent(datetime.datetime.utcnow(), event.symbol,
                 "ARCA", event.quantity, event.direction, None, self.calculate_commission)
             self.events.put(fill_event)

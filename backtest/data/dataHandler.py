@@ -98,7 +98,7 @@ class HistoricCSVDataHandler(DataHandler):
     def _get_new_bar(self, symbol):
         """
         Returns latest bar from data feed as tuple of
-        (symbol, datetime, open, low, high, close, volume)
+        (symbol, datetime, open, high, low, close, volume)
         """
         for b in self.symbol_data[symbol]:
             ## need to change strptime format depending on format of datatime in csv

@@ -28,7 +28,7 @@ class Portfolio(object):
         raise NotImplementedError("Should implement update_fill()")
 
 class NaivePortfolio(Portfolio):
-    def __init__(self, bars, events, stock_size, initial_capital=100000.0, rebalance=None):
+    def __init__(self, bars, events, order_events, stock_size, initial_capital=100000.0, rebalance=None):
         """ 
         Parameters:
         bars - The DataHandler object with current market data.
@@ -38,6 +38,7 @@ class NaivePortfolio(Portfolio):
         """
         self.bars = bars  
         self.events = events
+        self.order_events = order_events
         self.symbol_list = self.bars.symbol_list
         self.start_date = self.bars.start_date
         self.initial_capital = initial_capital
@@ -182,7 +183,8 @@ class NaivePortfolio(Portfolio):
                 order_value = fabs(order_event.quantity * mkt_price)
                 if (self.current_holdings["cash"] > order_value and order_event.direction == 'BUY') or \
                     (self.all_holdings[-1]["total"] > order_value and order_event.direction == 'SELL'): 
-                    self.events.put(order_event)
+                    ## ExecutionEvent should execute previous EOD orders
+                    self.order_events.put(order_event)
 
     def create_equity_curve_df(self):
         curve = pd.DataFrame(self.all_holdings)
@@ -215,8 +217,8 @@ class NaivePortfolio(Portfolio):
         self.equity_curve.to_csv(fp)
 
 class PercentagePortFolio(NaivePortfolio):
-    def __init__(self, bars, events, percentage, initial_capital=100000.0, rebalance=None, mode='cash'):
-        super().__init__(bars, events, stock_size=0, initial_capital=initial_capital, rebalance=rebalance)
+    def __init__(self, bars, events, order_events, percentage, initial_capital=100000.0, rebalance=None, mode='cash'):
+        super().__init__(bars, events, order_events, stock_size=0, initial_capital=initial_capital, rebalance=rebalance)
         if mode not in ('cash', 'asset'):
             raise Exception('mode options: cash | asset')
         self.mode = mode
