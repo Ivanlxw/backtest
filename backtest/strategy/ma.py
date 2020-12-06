@@ -7,10 +7,6 @@ import talib
 from backtest.event import SignalEvent
 from backtest.strategy.naive import Strategy
 
-def ExponentialMA(close_prices, timeperiod):
-    EMA = talib.EMA(pd.Series(close_prices), timeperiod) 
-    return EMA.ema_indicator().values
-
 class SimpleCrossStrategy(Strategy):
     '''
     Buy/Sell when it crosses the smoothed line (SMA, etc.)
