@@ -6,11 +6,11 @@ import pandas as pd
 import queue
 
 from abc import ABCMeta, abstractmethod
-from math import fabs
 
 from backtest.event import FillEvent, OrderEvent
 from backtest.performance import create_sharpe_ratio, create_drawdowns
 from backtest.portfolio.rebalance.base import NoRebalance
+from backtest.portfolio.strategy.base import DefaultPortfolioStrategy, PortfolioStrategy
 
 class Portfolio(object):
     __metaclass__ = ABCMeta
@@ -28,7 +28,8 @@ class Portfolio(object):
         raise NotImplementedError("Should implement update_fill()")
 
 class NaivePortfolio(Portfolio):
-    def __init__(self, bars, events, order_events, stock_size, initial_capital=100000.0, rebalance=None):
+    def __init__(self, bars, events, order_events, stock_size, initial_capital=100000.0, 
+                 portfolio_strategy: PortfolioStrategy = DefaultPortfolioStrategy,rebalance=None):
         """ 
         Parameters:
         bars - The DataHandler object with current market data.
@@ -38,7 +39,6 @@ class NaivePortfolio(Portfolio):
         """
         self.bars = bars  
         self.events = events
-        self.order_events = order_events
         self.symbol_list = self.bars.symbol_list
         self.start_date = self.bars.start_date
         self.initial_capital = initial_capital
@@ -48,6 +48,8 @@ class NaivePortfolio(Portfolio):
         self.current_positions = dict( (k,v) for k, v in [(s, 0) for s in self.symbol_list] )
         self.all_holdings = self.construct_all_holdings()
         self.current_holdings = self.construct_current_holdings()
+        self.portfolio_strat = portfolio_strategy(self.bars, self.current_positions,
+                                                  self.current_holdings, order_events)
 
         self.rebalance = rebalance if rebalance is not None else NoRebalance()
 
@@ -142,49 +144,16 @@ class NaivePortfolio(Portfolio):
         if event.type == "FILL":
             self.update_positions_from_fill(event)
             self.update_holdings_from_fill(event)
-
-    def generate_naive_order(self, signal, size):
-        """
-        takes a signal to long or short an asset and then sends an order 
-        of size=size of such an asset
-        """
-        order = None
-        symbol = signal.symbol
-        direction = signal.signal_type
-
-        cur_quantity = self.current_positions[symbol]
-        order_type = 'MKT'
-
-        if direction == 'EXIT':
-            if cur_quantity > 0:
-                order = OrderEvent(symbol, order_type, cur_quantity, 'SELL')
-            else:
-                order = OrderEvent(symbol, order_type, -cur_quantity, 'BUY')            
-        elif direction == 'LONG':
-            if cur_quantity < 0:
-                order = OrderEvent(symbol, order_type, size-cur_quantity, 'BUY')
-            else:
-                order = OrderEvent(symbol, order_type, size, 'BUY')
-        elif direction == 'SHORT':
-            if cur_quantity > 0:
-                order = OrderEvent(symbol, order_type, size+cur_quantity, 'SELL')
-            else:
-                order = OrderEvent(symbol, order_type, size, 'SELL')
-        return order
     
     def generate_order(self, signal) -> OrderEvent:
-        return self.generate_naive_order(signal, self.qty)
-    
+        return self.portfolio_strat.generate_basic_order(signal, self.qty)
+
     def update_signal(self, event):
         if event.type == 'SIGNAL':
-            mkt_price = self.bars.get_latest_bars(event.symbol)[0][5]
             order_event = self.generate_order(event)
             if order_event is not None: 
-                order_value = fabs(order_event.quantity * mkt_price)
-                if (self.current_holdings["cash"] > order_value and order_event.direction == 'BUY') or \
-                    (self.all_holdings[-1]["total"] > order_value and order_event.direction == 'SELL'): 
-                    ## ExecutionEvent should execute previous EOD orders
-                    self.order_events.put(order_event)
+                self.portfolio_strat.filter_order_to_send(order_event)
+
 
     def create_equity_curve_df(self):
         curve = pd.DataFrame(self.all_holdings)
@@ -217,8 +186,8 @@ class NaivePortfolio(Portfolio):
         self.equity_curve.to_csv(fp)
 
 class PercentagePortFolio(NaivePortfolio):
-    def __init__(self, bars, events, order_events, percentage, initial_capital=100000.0, rebalance=None, mode='cash'):
-        super().__init__(bars, events, order_events, stock_size=0, initial_capital=initial_capital, rebalance=rebalance)
+    def __init__(self, bars, events, order_events, percentage, initial_capital=100000.0, rebalance=None, portfolio_strategy=DefaultPortfolioStrategy, mode='cash'):
+        super().__init__(bars, events, order_events, stock_size=0, initial_capital=initial_capital, rebalance=rebalance, portfolio_strategy=portfolio_strategy)
         if mode not in ('cash', 'asset'):
             raise Exception('mode options: cash | asset')
         self.mode = mode
@@ -233,4 +202,4 @@ class PercentagePortFolio(NaivePortfolio):
             return
         size = int(self.current_holdings["cash"] * self.perc / mkt_price) if self.mode == 'cash' \
             else int(self.all_holdings[-1]["total"] * self.perc / mkt_price)
-        return self.generate_naive_order(signal, size)
+        return self.portfolio_strat.generate_order(signal, size)

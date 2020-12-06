@@ -62,15 +62,15 @@ class DoubleMAStrategy(SimpleCrossStrategy):
             short_ma = self._get_MA(bars, self.shorter)
             long_ma = self._get_MA(bars, self.longer)
 
-            if self._break_down(bars, short_ma):
+            if short_ma[-1] < long_ma[-1]:
                 signal = SignalEvent(bars[-1][0], bars[-1][1], 'SHORT')
                 self.events.put(signal) 
-            elif self._break_up(bars, long_ma):
+            elif short_ma[-1] > long_ma[-1]:
                 signal = SignalEvent(bars[-1][0], bars[-1][1], 'LONG')
                 self.events.put(signal) 
-            elif self._break_up(bars, short_ma) or self._break_down(bars, long_ma):
-                signal = SignalEvent(bars[-1][0], bars[-1][1], 'EXIT')
-                self.events.put(signal) 
+            # elif self._break_up(bars, short_ma) or self._break_down(bars, long_ma):
+            #     signal = SignalEvent(bars[-1][0], bars[-1][1], 'EXIT')
+            #     self.events.put(signal) 
 
 class MeanReversionTA(SimpleCrossStrategy):
     '''
