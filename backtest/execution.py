@@ -35,10 +35,11 @@ class SimulatedExecutionHandler(ExecutionHandler):
 
     def execute_order(self, event):
         if event.type == 'ORDER':
-            price_data = self.bars.get_latest_bars(event.symbol, 2)
-            assert len(price_data) == 2
-            if price_data[0][5] > price_data[1][3] or price_data[0][5] < price_data[1][4]:
-                return
+            if event.order_type == "LMT":
+                price_data = self.bars.get_latest_bars(event.symbol, 2)
+                assert len(price_data) == 2
+                if price_data[0][5] > price_data[1][3] or price_data[0][5] < price_data[1][4]:
+                    return
             fill_event = FillEvent(datetime.datetime.utcnow(), event.symbol,
                 "ARCA", event.quantity, event.direction, None, self.calculate_commission)
             self.events.put(fill_event)

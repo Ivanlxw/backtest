@@ -49,6 +49,16 @@ class DoubleMAStrategy(SimpleCrossStrategy):
         self.shorter = min(timeperiods)
         self.longer = max(timeperiods) 
     
+    def cross(self, short_ma_list, long_ma_list)-> int: 
+        '''
+        returns 1, 0 or -1 corresponding cross up, nil and cross down
+        '''
+        if short_ma_list[-1] > long_ma_list[-1] and short_ma_list[-2] < long_ma_list[-2]:
+            return 1
+        elif short_ma_list[-1] < long_ma_list[-1] and short_ma_list[-2] > long_ma_list[-2]:
+            return -1
+        return 0
+    
     def calculate_signals(self, event):
         '''
         Earn from the gap between shorter and longer ma
@@ -61,16 +71,13 @@ class DoubleMAStrategy(SimpleCrossStrategy):
                 continue
             short_ma = self._get_MA(bars, self.shorter)
             long_ma = self._get_MA(bars, self.longer)
-
-            if short_ma[-1] < long_ma[-1]:
+            sig = self.cross(short_ma, long_ma)
+            if sig == -1:
                 signal = SignalEvent(bars[-1][0], bars[-1][1], 'SHORT')
                 self.events.put(signal) 
-            elif short_ma[-1] > long_ma[-1]:
+            elif sig == 1:
                 signal = SignalEvent(bars[-1][0], bars[-1][1], 'LONG')
                 self.events.put(signal) 
-            # elif self._break_up(bars, short_ma) or self._break_down(bars, long_ma):
-            #     signal = SignalEvent(bars[-1][0], bars[-1][1], 'EXIT')
-            #     self.events.put(signal) 
 
 class MeanReversionTA(SimpleCrossStrategy):
     '''

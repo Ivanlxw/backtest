@@ -21,7 +21,7 @@ stock_list = list(map(utils.remove_bs, stock_list))
 
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
-start_date = "2010-01-05"  ## YYYY-MM-DD
+start_date = "2015-01-05"  ## YYYY-MM-DD
 # start_date = "2019-12-03"  ## YYYY-MM-DD
 symbol_list = random.sample(stock_list, 10)
 

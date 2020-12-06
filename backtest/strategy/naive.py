@@ -4,14 +4,9 @@ Strategy object take market data as input and produce trading signal events as o
 
 # strategy.py
 
-import datetime
-import numpy as np
-import pandas as pd
-import queue
-
 from abc import ABCMeta, abstractmethod
 
-from event import SignalEvent
+from backtest.event import SignalEvent
 
 class Strategy(object):
     """
@@ -23,6 +18,8 @@ class Strategy(object):
     obtains the bar tuples from a queue object.
     """
     __metaclass__ = ABCMeta
+
+    @abstractmethod
     def calculate_signals(self):
         raise NotImplementedError("Should implement calculate_signals()")
 
@@ -42,8 +39,14 @@ class BuyAndHoldStrategy(Strategy):
 
         self.bars = bars  ## datahandler
         self.symbol_list = self.bars.symbol_list
-        self.events = events 
-    
+        self.events = events
+        self._initialize_bought_status()
+
+    def _initialize_bought_status(self,):
+        self.bought = {}
+        for s in self.bars.symbol_list:
+            self.bought[s] = False
+
     def calculate_signals(self, event):
         if event.type == "MARKET":
             for s in self.symbol_list:
@@ -51,3 +54,4 @@ class BuyAndHoldStrategy(Strategy):
                 if bars is not None and bars != []: ## there's an entry
                     signal = SignalEvent(bars[0][0], bars[0][1], 'LONG')
                     self.events.put(signal)
+                    self.bought[s] = True
