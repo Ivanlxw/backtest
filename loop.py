@@ -30,7 +30,7 @@ bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
                                            symbol_list=symbol_list, 
                                            start_date=start_date,
                                            )
-strategy = DoubleMAStrategy(bars, event_queue, [14,26], talib.EMA)                                       
+strategy = DoubleMAStrategy(bars, event_queue, [14,50], talib.EMA)                                       
 # strategy = MeanReversionTA(bars, event_queue, 50, talib.SMA, sd=2.5, exit=True)
 # strategy = SimpleCrossStrategy(bars, event_queue, 50, talib.SMA)
 port = PercentagePortFolio(bars, event_queue, order_queue, percentage=1/len(symbol_list), mode='asset')

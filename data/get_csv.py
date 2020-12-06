@@ -32,6 +32,7 @@ def get_av_csv(symbol, csv_dir, key, full=False, interval=None,):
     parsed_data = requests.get(url).json()
     df = pd.DataFrame.from_dict(parsed_data['Time Series (Daily)'], orient='index')
     df = df.iloc[::-1]  ## reverse from start to end instead of end to start
+    df.columns = ["open", "high", "low", "close", "volume"]
     merge_n_save(filepath, df)
 
 def get_tiingo_eod(ticker, fp, full:bool, key):

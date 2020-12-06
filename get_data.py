@@ -22,8 +22,10 @@ stock_list = list(map(utils.remove_bs, stock_list))
 
 for idx, symbol in enumerate(stock_list):
     if args.alphavantage:
+        print("Using alphavantage")
         if idx % 5 == 0 and idx > 0:
             time.sleep(65)
         get_av_csv(symbol, csv_dir="./data/data/daily", full=True, key=KEY)    
     else:
+        print("Using tiingo")
         get_tiingo_eod(symbol, f"data/data/daily/{symbol}.csv", full=True, key=KEY)
