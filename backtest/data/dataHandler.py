@@ -55,12 +55,12 @@ class HistoricCSVDataHandler(DataHandler):
         else:
             self.end_date = None
         self.symbol_data = {}
+        self.raw_data = {}
         self.latest_symbol_data = {}
         self.continue_backtest = True
 
         self._open_convert_csv_files()
-        if datahandler:
-            self._to_generator()
+        self._to_generator()
 
     def _open_convert_csv_files(self):
         comb_index = None
@@ -78,22 +78,22 @@ class HistoricCSVDataHandler(DataHandler):
             if self.end_date is not None and self.end_date in temp.index:
                 filtered = filtered.iloc[:temp.index.get_loc(self.end_date),]
 
-            self.symbol_data[s] = filtered
+            self.raw_data[s] = filtered
 
             ## combine index to pad forward values
             if comb_index is None:
-                comb_index = self.symbol_data[s].index
+                comb_index = self.raw_data[s].index
             else: 
-                comb_index.union(self.symbol_data[s].index.drop_duplicates())
+                comb_index.union(self.raw_data[s].index.drop_duplicates())
             
             self.latest_symbol_data[s] = []
         ## reindex
         for s in self.symbol_list:
-            self.symbol_data[s] = self.symbol_data[s].reindex(index=comb_index, method='pad',fill_value=0)
+            self.raw_data[s] = self.raw_data[s].reindex(index=comb_index, method='pad',fill_value=0)
     
     def _to_generator(self):
         for s in self.symbol_list:
-            self.symbol_data[s] = self.symbol_data[s].iterrows()
+            self.symbol_data[s] = self.raw_data[s].iterrows()
         
     def _get_new_bar(self, symbol):
         """
@@ -104,6 +104,9 @@ class HistoricCSVDataHandler(DataHandler):
             ## need to change strptime format depending on format of datatime in csv
             yield tuple([symbol, datetime.datetime.strptime(b[0], '%Y-%m-%d'),  ##strptime format - 
                         b[1][0], b[1][1], b[1][2], b[1][3], b[1][4]])
+
+    def get_raw_data(self, symbol):
+        return self.raw_data[symbol]
 
     def get_latest_bars(self, symbol, N=1):
         try: 

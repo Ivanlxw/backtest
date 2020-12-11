@@ -12,14 +12,15 @@ from backtest.portfolio.base import PercentagePortFolio
 from backtest.portfolio.strategy.base import DefaultMarketOrder
 from backtest.strategy.naive import BuyAndHoldStrategy
 
-def plot_benchmark(stock_list_fp, symbol_list, start_date, freq="daily"):
+def plot_benchmark(stock_list_fp, symbol_list, start_date, end_date:str=None, freq="daily"):
     event_queue = queue.LifoQueue()
     order_queue = queue.Queue()
     # Declare the components with relsspective parameters
     csv_dir = os.path.dirname(os.getcwd() + "/" +stock_list_fp) + f"/data/{freq}" 
     bars = HistoricCSVDataHandler(event_queue, csv_dir=csv_dir,
                                             symbol_list=symbol_list,
-                                            start_date=start_date)
+                                            start_date=start_date,
+                                            end_date=end_date)
     strategy = BuyAndHoldStrategy(bars, event_queue)
     port = PercentagePortFolio(bars, event_queue, order_queue, 
                                percentage=1/len(symbol_list), mode='asset',

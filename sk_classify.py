@@ -12,8 +12,8 @@ from backtest.benchmark.benchmark import plot_benchmark
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import PercentagePortFolio
 from backtest.portfolio.rebalance.base import BaseRebalance
-from backtest.strategy.sk.data import ClassificationData
-from backtest.strategy.sk.strategy import SKCStrategy
+from backtest.strategy.statistics.data import ClassificationData
+from backtest.strategy.statistics.strategy import RawClassification
 
 with open("data/stock_list.txt", 'r') as fin:
     stock_list = fin.readlines()
@@ -23,27 +23,20 @@ stock_list = list(map(utils.remove_bs, stock_list))
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
 start_date = "2000-01-25"  ## YYYY-MM-DD
-end_train_date = "2010-12-31"
-symbol_list = random.sample(stock_list, 7)
+symbol_list = random.sample(stock_list, 15)
 
 start = time.time()
 # Declare the components with respective parameters
 ## bars_test dates should not overlap with bars_train
 bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
                                            symbol_list=symbol_list,
-                                           start_date=end_train_date,
-                                           )
-train = HistoricCSVDataHandler(None, csv_dir="data/data/daily",
-                                           symbol_list=symbol_list,
                                            start_date=start_date,
-                                           end_date=end_train_date,
-                                           datahandler=False
+                                           end_date = "2010-12-31"
                                            )
 
-clf = RandomForestClassifier()
-strategy = SKCStrategy(bars, event_queue, order_queue, clf, processor=ClassificationData(train, 14, 2))
+strategy = RawClassification(bars, event_queue, RandomForestClassifier, processor=ClassificationData(bars, 14, 2), reoptimize_days=30)
 port = PercentagePortFolio(bars, event_queue, order_queue, percentage=0.05, rebalance=BaseRebalance(event_queue))
-broker = execution.SimulatedExecutionHandler(event_queue)
+broker = execution.SimulatedExecutionHandler(bars, event_queue)
 
 while True:
     # Update the bars (specific backtest code, as opposed to live trading)
@@ -65,6 +58,10 @@ while True:
                     strategy.calculate_signals(event)     
                     while not order_queue.empty():
                         event_queue.put(order_queue.get())
+                
+                elif event.type == 'OPTIMIZE' and \
+                    callable(strategy.optimize):
+                    strategy.optimize()
 
                 elif event.type == 'SIGNAL':
                     port.update_signal(event)
@@ -94,7 +91,8 @@ plt.tight_layout()
 
 plot_benchmark("data/stock_list.txt", \
     symbol_list=stock_list, \
-    start_date = end_train_date)
+    start_date = start_date,
+    end_date = "2010-12-31")
 
 plt.legend()
 plt.show()

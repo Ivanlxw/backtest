@@ -7,7 +7,7 @@ import queue
 
 from abc import ABCMeta, abstractmethod
 
-from backtest.event import FillEvent, OrderEvent
+from backtest.event import FillEvent, OptimizeEvent, OrderEvent
 from backtest.performance import create_sharpe_ratio, create_drawdowns
 from backtest.portfolio.rebalance.base import NoRebalance
 from backtest.portfolio.strategy.base import DefaultLimitOrder, PortfolioStrategy
@@ -112,6 +112,11 @@ class NaivePortfolio(Portfolio):
         ## append current holdings
         self.all_holdings.append(dh)
         self.rebalance.rebalance(self.symbol_list, self.all_holdings)
+        
+        ## reoptimizing conditions
+        if dh['datetime'].month % 6 == 0 and \
+            self.all_holdings[-2]['datetime'].month % 6 != 0:
+            self.events.put(OptimizeEvent())
 
     def update_positions_from_fill(self, fill):
         """

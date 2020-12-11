@@ -99,3 +99,10 @@ class FillEvent(Event):
             self.commission = self.calculate_commission(quantity, fill_cost)
         else:
             self.commission = commission
+
+class OptimizeEvent(Event):
+    """
+    Gives signal for strategy to optimize statistical models
+    """
+    def __init__(self):
+        self.type = "OPTIMIZE"

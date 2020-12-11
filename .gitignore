@@ -3,3 +3,4 @@ real_credentials.json
 ## directories
 data/data/
 backtest.egg-info/
+data/stock_tiingo_issues.txt

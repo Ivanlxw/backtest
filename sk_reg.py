@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 from backtest import utils, execution
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import PercentagePortFolio
-from backtest.strategy.sk.data import BaseSkData
-from backtest.strategy.sk.strategy import SKRStrategy
+from backtest.strategy.statistics.data import BaseStatisticalData
+from backtest.strategy.statistics.strategy import RawRegression
 from backtest.benchmark.benchmark import plot_benchmark
 
 ## sklearn modules
@@ -23,8 +23,7 @@ stock_list = list(map(utils.remove_bs, stock_list))
 
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
-start_date = "2000-01-25"  ## YYYY-MM-DD
-end_train_date = "2010-12-31"
+start_date = "2000-01-03"  ## YYYY-MM-DD
 symbol_list = random.sample(stock_list, 15)
 
 start = time.time()
@@ -32,17 +31,10 @@ start = time.time()
 ## bars_test dates should not overlap with bars_train
 bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
                                            symbol_list=symbol_list,
-                                           start_date=end_train_date,
-                                           )
-train = HistoricCSVDataHandler(None, csv_dir="data/data/daily",
-                                           symbol_list=symbol_list,
                                            start_date=start_date,
-                                           end_date=end_train_date,
-                                           datahandler=False
                                            )
 
-regressor = LinearRegression()
-strategy = SKRStrategy(bars, event_queue, regressor, processor=BaseSkData(train, 14, 2))
+strategy = RawRegression(bars, event_queue, LinearRegression, BaseStatisticalData(bars, 30, 2), 50)
 port = PercentagePortFolio(bars, event_queue, order_queue, percentage=0.05)
 broker = execution.SimulatedExecutionHandler(bars, event_queue)
 
@@ -66,6 +58,9 @@ while True:
                     strategy.calculate_signals(event)
                     while not order_queue.empty():
                         event_queue.put(order_queue.get())
+
+                elif event.type == 'OPTIMIZE':
+                    strategy.optimize()
 
                 elif event.type == 'SIGNAL':
                     port.update_signal(event)
@@ -95,7 +90,7 @@ plt.tight_layout()
 
 plot_benchmark("data/stock_list.txt", \
     symbol_list=symbol_list, \
-    start_date = end_train_date)
+    start_date = start_date)
 
 plt.legend()
 plt.show()
