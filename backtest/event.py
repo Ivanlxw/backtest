@@ -57,10 +57,11 @@ class OrderEvent(Event):
         self.order_type = order_type
         self.quantity = quantity
         self.direction = direction
+        self.trade_price = None
     
     def print_order(self,):
-        print("Order: Symbol={}, Type={}, Quantity={}, Direction={}".format(self.symbol, \
-            self.order_type, self.quantity, self.direction))
+        print("Order: Symbol={}, Type={}, Trade Price = {}, Quantity={}, Direction={}".format(self.symbol, \
+            self.order_type, self.trade_price, self.quantity, self.direction))
 
 class FillEvent(Event):
     """
@@ -73,8 +74,8 @@ class FillEvent(Event):
     Once an order has been transacted it generates a FillEvent
     """
     ## FillEvent(timeindex, 'GOOG', 'S&P500', 20, 'BUY', )
-    def __init__(self, timeindex, symbol, exchange, quantity, direction, fill_cost, \
-        calculate_commission, commission=None,):
+    def __init__(self, timeindex, symbol, exchange, trade_price, quantity, direction, fill_cost, \
+        calculate_commission, commission=None):
         """
         Parameters:
         timeindex - The bar-resolution when the order was filled.
@@ -89,6 +90,7 @@ class FillEvent(Event):
         self.timeindex = timeindex
         self.symbol = symbol
         self.exchange = exchange
+        self.trade_price = trade_price
         self.quantity = quantity
         self.direction = direction
         self.fill_cost = fill_cost

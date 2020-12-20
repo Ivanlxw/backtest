@@ -5,6 +5,7 @@ import time
 import queue
 import random
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
 
 from backtest import utils, execution
@@ -79,6 +80,8 @@ while True:
 print(f"Backtest finished in {time.time() - start}. Getting summary stats")
 port.create_equity_curve_df()
 print(port.output_summary_stats())
+sns.set()
+sns.set_style('darkgrid')
 plt.subplot(2,1,1)
 plt.title("Equity curve")
 plt.plot(port.equity_curve['equity_curve'], label="strat_eq")

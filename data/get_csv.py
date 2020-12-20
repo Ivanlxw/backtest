@@ -41,7 +41,7 @@ def get_tiingo_eod(ticker, fp, full:bool, key):
     }
     if full:
             start_date = "2000-1-1"
-            end_date = "2020-1-1"
+            end_date = datetime.today().strftime('%Y-%m-%d')
     else:
             start_date = "2020-1-1"
             end_date = datetime.today().strftime('%Y-%m-%d')
@@ -71,3 +71,4 @@ def merge_n_save(filepath, df):
 
     df.to_csv(filepath)
     print("Data is stored at {}".format(filepath))
+    

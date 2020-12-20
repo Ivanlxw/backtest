@@ -64,6 +64,7 @@ class DefaultLimitOrder(PortfolioStrategy):
         if (self.current_holdings["cash"] > order_value and order_event.direction == 'BUY') or \
             (sum(self.current_holdings.values()) > order_value and order_event.direction == 'SELL'): 
             ## ExecutionEvent should execute previous EOD orders
+            order_event.trade_price = mkt_price
             if order_event.order_type == "LMT":
                 self.order_events.put(order_event)
             else:
