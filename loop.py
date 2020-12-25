@@ -22,8 +22,7 @@ stock_list = list(map(utils.remove_bs, stock_list))
 
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
-start_date = "2015-01-05"  ## YYYY-MM-DD
-# start_date = "2019-12-03"  ## YYYY-MM-DD
+start_date = "2010-01-05"  ## YYYY-MM-DD
 symbol_list = random.sample(stock_list, 10)
 
 # Declare the components with relsspective parameters
@@ -32,7 +31,7 @@ bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
                                            start_date=start_date,
                                            )
 strategy = DoubleMAStrategy(bars, event_queue, [14,50], talib.EMA)                                       
-# strategy = MeanReversionTA(bars, event_queue, 50, talib.SMA, sd=2.5, exit=True)
+strategy = MeanReversionTA(bars, event_queue, 50, talib.SMA, sd=2.5, exit=True)
 # strategy = SimpleCrossStrategy(bars, event_queue, 50, talib.SMA)
 port = PercentagePortFolio(bars, event_queue, order_queue, percentage=1/len(symbol_list), mode='asset')
 broker = execution.SimulatedExecutionHandler(bars, event_queue)
@@ -75,17 +74,10 @@ while True:
 print(f"Backtest finished in {time.time() - start}. Getting summary stats")
 port.create_equity_curve_df()
 print(port.output_summary_stats())
-sns.set()
-sns.set_style('darkgrid')
-plt.subplot(2,1,1)
-plt.title("Equity curve")
-plt.plot(port.equity_curve['equity_curve'], label="strat_eq")
-plt.plot(port.equity_curve['liquidity_curve'], label="strat_cash")
-plt.subplot(2,1,2)
-plt.title("Assets over time")
-plt.plot(port.equity_curve["total"], label="strat_total")
-plt.plot(port.equity_curve['cash'], label="strat_cash")
-plt.tight_layout()
+
+from backtest.Plots.plot import PlotTradePrices
+plotter = PlotTradePrices(port, bars)
+plotter.plot()
 
 plot_benchmark("data/stock_list.txt", \
     symbol_list=symbol_list, \
@@ -93,3 +85,5 @@ plot_benchmark("data/stock_list.txt", \
 
 plt.legend()
 plt.show()
+
+plotter.plot_trade_prices()

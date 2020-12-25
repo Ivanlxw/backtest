@@ -44,6 +44,7 @@ class NaivePortfolio(Portfolio):
         self.initial_capital = initial_capital
         self.qty = stock_size
 
+        self.trade_details = []
         self.all_positions = self.construct_all_positions()
         self.current_positions = dict( (k,v) for k, v in [(s, 0) for s in self.symbol_list] )
         self.all_holdings = self.construct_all_holdings()
@@ -67,10 +68,7 @@ class NaivePortfolio(Portfolio):
         Constructs the holdings list using the start_date
         to determine when the time index will begin.
         """
-        d = dict( (k,{
-            f"market_value_{k}": v,
-            f"latest_trade_price_{k}": np.nan,
-        }) for k, v in [(s, 0.0) for s in self.symbol_list] )
+        d = dict( (k,v) for k, v in [(s, 0.0) for s in self.symbol_list] )
         d['datetime'] = datetime.datetime.strptime(self.start_date, '%Y-%m-%d')
         d['cash'] = self.initial_capital
         d['commission'] = 0.0
@@ -100,10 +98,7 @@ class NaivePortfolio(Portfolio):
         self.all_positions.append(dp)
 
         ## update holdings
-        dh = dict((k,{
-            f"market_value_{k}": v,
-            f"latest_trade_price_{k}": np.nan,
-        }) for k, v in [(s,0) for s in self.symbol_list])
+        dh = dict((k,v) for k, v in [(s,0) for s in self.symbol_list])
         dh['datetime'] = bars[self.symbol_list[0]][0][1]
         dh['cash'] = self.current_holdings['cash']
         dh['commission'] = self.current_holdings['commission']
@@ -112,8 +107,7 @@ class NaivePortfolio(Portfolio):
         for s in self.symbol_list:
             ## position size * close price
             market_val = self.current_positions[s] * bars[s][0][5]
-            dh[s][f"market_value_{s}"] = market_val
-            dh[s][f"latest_trade_price_{s}"] = self.all_holdings[-1][s][f"latest_trade_price_{s}"]
+            dh[s] = market_val
             dh['total'] += market_val
         
         ## append current holdings
@@ -151,9 +145,9 @@ class NaivePortfolio(Portfolio):
         self.current_holdings[fill.symbol] += fill_dir*fill.quantity
         self.current_holdings['commission'] += fill.commission
         self.current_holdings['cash'] -= (cash + fill.commission)
+        
+        self.trade_details.append(self.bars.get_latest_bars(fill.symbol)[0])
 
-        self.all_holdings[-1][fill.symbol][f"latest_trade_price_{fill.symbol}"] = fill.trade_price
-    
     def update_fill(self, event):
         if event.type == "FILL":
             self.update_positions_from_fill(event)
@@ -176,10 +170,6 @@ class NaivePortfolio(Portfolio):
         curve['equity_curve'] = (1.0+curve['equity_returns']).cumprod()
         curve['liquidity_returns'] = curve['cash'].pct_change()
         curve['liquidity_curve'] = (1.0+curve['liquidity_returns']).cumprod()
-        self.stock_info = pd.DataFrame(index=curve.index)
-        for s in self.symbol_list:
-            self.stock_info = pd.concat([self.stock_info, curve[s].apply(pd.Series)], axis=1)
-            curve.drop([s], axis=1, inplace=True)
         self.equity_curve = curve.dropna()
 
     def output_summary_stats(self):
