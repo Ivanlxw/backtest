@@ -146,7 +146,7 @@ class NaivePortfolio(Portfolio):
         self.current_holdings['commission'] += fill.commission
         self.current_holdings['cash'] -= (cash + fill.commission)
         
-        self.trade_details.append(self.bars.get_latest_bars(fill.symbol)[0])
+        self.trade_details.append([x for x in self.bars.get_latest_bars(fill.symbol)[0]] + [fill.direction])
 
     def update_fill(self, event):
         if event.type == "FILL":
