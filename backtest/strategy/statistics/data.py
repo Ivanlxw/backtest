@@ -1,6 +1,6 @@
 import os, sys
 # sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))  ## 2 dirs above
-
+import talib
 from abc import abstractmethod, ABC
 import pandas as pd
 
@@ -25,10 +25,18 @@ class StatisticalData(ABC):
 
 
 class BaseStatisticalData(StatisticalData):
-    def __init__(self, bars, shift: int, lag: int=0):
+    def __init__(self, bars, shift: int, lag: int=0, add_ta=None):
+        '''
+        Arguments
+        * lag - generates t-1, ..., t-n for close prices
+        * shift - how much forward should y-var be
+        * add_ta - add TA indicators to the dataset. A list of functions to apply on close price
+            - CCI applies on more than 1 variables so string argument is needed for CCI
+        '''
         print("Basic Data Model for supervised models")
         ##  one whole dataframe concatnated in a dict
         self.lag = lag
+        self.add_ta = dict() if add_ta == None else add_ta 
         if lag < 0:
             raise Exception("self.lag variable should not be negative")
         elif lag != 0:
@@ -51,17 +59,27 @@ class BaseStatisticalData(StatisticalData):
         if self.lag > 0:
             for i in range(1,self.lag):
                 df.loc[:, "lag_"+str(i)] = df["Close"].shift(-i)
+        df = self._add_col_TA(df)
+        df.drop(['Open', 'High', 'Low'],axis=1, inplace=True)
         return df.dropna()
     
     def preprocess_Y(self, X):
         ## derive Y from transformed X
         ## In this basic example, our reference is the price self.shift days from now.
-        X.loc[:, "target"] = X["Close"].shift(self.shift)
+        # (X["Close"] - X["EMA"]) / X["Close"]
+        X.loc[:, "target"] = talib.EMA(X["Close"], timeperiod=-self.shift).shift(self.shift)
     
+    def _add_col_TA(self, df:pd.DataFrame):
+        for ta, ta_func in self.add_ta.items():
+            if ta == 'CCI':
+                df[ta] = ta_func(df['High'], df['Low'], df['Close'], timeperiod=-self.shift).shift(self.shift)
+            else:
+                df[ta] = ta_func[0](df['Close'], timeperiod=ta_func[1]).shift(-ta_func[1])
+        return df
+
     # must be implemented
     ## appends all data into 1 large dataframe with extra col - ticker
-    ## returns (pd.DataFrame, pd.Series)
-    def process_data(self, data):
+    def process_data(self, data) -> pd.DataFrame:
         X = self.preprocess_X(data)
         self.preprocess_Y(X)
         final_data = X.dropna()

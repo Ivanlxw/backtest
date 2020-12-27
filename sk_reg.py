@@ -6,6 +6,7 @@ import queue
 import random
 import matplotlib.pyplot as plt
 import seaborn as sns
+import talib
 
 from backtest import utils, execution
 from backtest.data.dataHandler import HistoricCSVDataHandler
@@ -24,8 +25,8 @@ stock_list = list(map(utils.remove_bs, stock_list))
 
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
-start_date = "2000-01-03"  ## YYYY-MM-DD
-symbol_list = random.sample(stock_list, 15)
+start_date = "2010-01-04"  ## YYYY-MM-DD
+symbol_list = random.sample(stock_list, 10)
 
 start = time.time()
 # Declare the components with respective parameters
@@ -35,7 +36,9 @@ bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
                                            start_date=start_date,
                                            )
 
-strategy = RawRegression(bars, event_queue, LinearRegression, BaseStatisticalData(bars, 30, 2), 50)
+strategy = RawRegression(bars, event_queue, LinearRegression, BaseStatisticalData(bars, 30, 2, add_ta={
+    'RSI': [talib.RSI, 14]
+}), 100)
 port = PercentagePortFolio(bars, event_queue, order_queue, percentage=0.05)
 broker = execution.SimulatedExecutionHandler(bars, event_queue)
 

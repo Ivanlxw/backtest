@@ -33,19 +33,20 @@ class RawRegression(StatisticalStrategy, Strategy):
     def __init__(self, bars, events, model, processor, reoptimize_days:int):
         StatisticalStrategy.__init__(self, bars, events, model, processor)
         self.model = {}
-        for sym in self.bars.symbol_list:
-            self.model[sym] = model()
-            temp = pd.DataFrame(self.bars.get_raw_data(sym)[:50], columns=self.columns)
-            X,y = self.processor.process_data(temp.drop(['symbol', 'date'], axis=1).dropna())          
-            self.model[sym].fit(X,y)
+        self.reg = model
         self.reoptimize_days = reoptimize_days
-        
+        for sym in self.bars.symbol_list:
+            self.model[sym] = None
+
     def optimize(self):
         '''
         We have unique models for each symbol and fit each one of them. Not ideal for large stocklist
         '''
         ## data is dict of ndarray
         for sym in self.bars.symbol_list:
+            if self.model[sym] is None:
+                self.model[sym] = self.reg()
+
             temp_data = self.bars.get_latest_bars(sym, N=self.reoptimize_days)
             data = pd.DataFrame(temp_data, columns=self.columns)
             data.set_index('date', inplace=True)
@@ -56,7 +57,7 @@ class RawRegression(StatisticalStrategy, Strategy):
     def _prepare_flow_data(self, bars, sym):
         temp_df = pd.DataFrame(bars, columns = self.columns)
         temp_df = temp_df.drop(["symbol", "date"], axis=1)
-        return self.model[sym].predict(self.processor._transform_X(temp_df))
+        return None if self.model[sym] is None else self.model[sym].predict(self.processor._transform_X(temp_df))
 
     def calculate_signals(self, event):
         if event.type == "MARKET":
@@ -69,6 +70,8 @@ class RawRegression(StatisticalStrategy, Strategy):
 
                 ## this is slow and should be optimized.
                 preds = self._prepare_flow_data(bars_list, s)
+                if preds is None:
+                    return
                 diff = (preds[-1] - close_price)/ close_price
                 if diff > 0.05:
                     signal = SignalEvent(bars_list[-1][0], bars_list[-1][1], 'LONG')
@@ -94,6 +97,8 @@ class RawClassification(RawRegression, Strategy):
 
                 ## this is slow and should be optimized.
                 preds = self._prepare_flow_data(bars_list, s)
+                if preds is None:
+                    return
                 diff = (preds[-1] - close_price)/ close_price
                 if diff > 0.05:
                     signal = SignalEvent(bars_list[-1][0], bars_list[-1][1], 'LONG')
