@@ -44,16 +44,15 @@ class RawRegression(StatisticalStrategy, Strategy):
         '''
         ## data is dict of ndarray
         for sym in self.bars.symbol_list:
-            if self.model[sym] is None:
-                self.model[sym] = self.reg()
-
             temp_data = self.bars.get_latest_bars(sym, N=self.reoptimize_days)
             data = pd.DataFrame(temp_data, columns=self.columns)
             data.set_index('date', inplace=True)
             data.drop('symbol', axis=1, inplace=True)
             X, y = self.processor.process_data(data)
-            self.model[sym].fit(X,y)
-
+            if self.model[sym] is None and not (X["Close"]==0).all():
+                self.model[sym] = self.reg()
+                self.model[sym].fit(X,y)
+            
     def _prepare_flow_data(self, bars, sym):
         temp_df = pd.DataFrame(bars, columns = self.columns)
         temp_df = temp_df.drop(["symbol", "date"], axis=1)
@@ -72,11 +71,10 @@ class RawRegression(StatisticalStrategy, Strategy):
                 preds = self._prepare_flow_data(bars_list, s)
                 if preds is None:
                     return
-                diff = (preds[-1] - close_price)/ close_price
-                if diff > 0.05:
+                if preds[-1] > 0.07:
                     signal = SignalEvent(bars_list[-1][0], bars_list[-1][1], 'LONG')
                     self.events.put(signal)
-                elif diff < -0.04:
+                elif preds[-1] < -0.07:
                     signal = SignalEvent(bars_list[-1][0], bars_list[-1][1], 'SHORT')
                     self.events.put(signal)
 

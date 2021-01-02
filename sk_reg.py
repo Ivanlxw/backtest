@@ -39,7 +39,7 @@ bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
 strategy = RawRegression(bars, event_queue, LinearRegression, BaseStatisticalData(bars, 30, 2, add_ta={
     'RSI': [talib.RSI, 14]
 }), 100)
-port = PercentagePortFolio(bars, event_queue, order_queue, percentage=0.05)
+port = PercentagePortFolio(bars, event_queue, order_queue, percentage=0.01)
 broker = execution.SimulatedExecutionHandler(bars, event_queue)
 
 while True:

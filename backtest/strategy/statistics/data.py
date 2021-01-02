@@ -1,4 +1,5 @@
 import os, sys
+from typing import final
 # sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))  ## 2 dirs above
 import talib
 from abc import abstractmethod, ABC
@@ -63,12 +64,14 @@ class BaseStatisticalData(StatisticalData):
         df.drop(['Open', 'High', 'Low'],axis=1, inplace=True)
         return df.dropna()
     
-    def preprocess_Y(self, X):
+    def preprocess_Y(self, X:pd.DataFrame):
         ## derive Y from transformed X
-        ## In this basic example, our reference is the price self.shift days from now.
-        # (X["Close"] - X["EMA"]) / X["Close"]
-        X.loc[:, "target"] = talib.EMA(X["Close"], timeperiod=-self.shift).shift(self.shift)
-    
+        ## In this basic example, our reference is the EMA self.shift days from now.
+        X.loc[:, "EMA"] = talib.EMA(X["Close"], timeperiod=-self.shift).shift(self.shift)  ## for target
+        X.loc[:, "target"] = (X["EMA"]- X["Close"]) / X["Close"]
+        X.drop("EMA", axis=1, inplace=True)
+        return X.loc[:,"target"]
+        
     def _add_col_TA(self, df:pd.DataFrame):
         for ta, ta_func in self.add_ta.items():
             if ta == 'CCI':
@@ -81,8 +84,8 @@ class BaseStatisticalData(StatisticalData):
     ## appends all data into 1 large dataframe with extra col - ticker
     def process_data(self, data) -> pd.DataFrame:
         X = self.preprocess_X(data)
-        self.preprocess_Y(X)
-        final_data = X.dropna()
+        y = self.preprocess_Y(data)
+        final_data = pd.concat([X,y],axis=1).dropna()
         return final_data.drop('target', axis=1), final_data['target']
 
 class ClassificationData(BaseStatisticalData):

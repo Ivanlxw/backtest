@@ -90,9 +90,6 @@ class MeanReversionTA(SimpleCrossStrategy):
         super().__init__(bars, events, timeperiod, ma_type)
         self.sd_multiplier = sd
         self.exit = exit
-  
-    def _get_sd(self, ta_array):
-        return np.std(ta_array[-self.timeperiod:])
     
     def _exit_ma_cross(self, bars, TAs, boundary):
         if self._break_down(bars, TAs) or self._break_up(bars, TAs):
@@ -120,7 +117,7 @@ class MeanReversionTA(SimpleCrossStrategy):
             if len(bars) < self.timeperiod+3:
                 continue
             TAs = self._get_MA(bars, self.timeperiod)
-            sd_TA = self._get_sd(TAs)
+            sd_TA = np.std(TAs[-self.timeperiod:])
             boundary = sd_TA*self.sd_multiplier
 
             if self.exit:
