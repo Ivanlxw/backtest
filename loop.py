@@ -4,9 +4,7 @@ Actual file to run for backtesting
 import time
 import queue
 import matplotlib.pyplot as plt
-import seaborn as sns
 import random
-from pandas.io.formats import style
 import talib 
 
 from backtest import utils, execution

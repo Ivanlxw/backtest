@@ -82,17 +82,10 @@ while True:
 print(f"Backtest finished in {time.time() - start}. Getting summary stats")
 port.create_equity_curve_df()
 print(port.output_summary_stats())
-sns.set()
-sns.set_style('darkgrid')
-plt.subplot(2,1,1)
-plt.title("Equity curve")
-plt.plot(port.equity_curve['equity_curve'], label="strat_eq")
-plt.plot(port.equity_curve['liquidity_curve'], label="strat_cash")
-plt.subplot(2,1,2)
-plt.title("Assets over time")
-plt.plot(port.equity_curve["total"], label="strat_total")
-plt.plot(port.equity_curve['cash'], label="strat_cash")
-plt.tight_layout()
+
+from backtest.Plots.plot import PlotTradePrices
+plotter = PlotTradePrices(port, bars)
+plotter.plot()
 
 plot_benchmark("data/stock_list.txt", \
     symbol_list=symbol_list, \
@@ -100,3 +93,5 @@ plot_benchmark("data/stock_list.txt", \
 
 plt.legend()
 plt.show()
+
+plotter.plot_trade_prices()

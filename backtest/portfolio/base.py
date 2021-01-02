@@ -50,7 +50,7 @@ class NaivePortfolio(Portfolio):
         self.all_holdings = self.construct_all_holdings()
         self.current_holdings = self.construct_current_holdings()
         self.portfolio_strat = portfolio_strategy(self.bars, self.current_positions,
-                                                  self.current_holdings, order_events, self.events)
+                                                  self.all_holdings, order_events, self.events)
 
         self.rebalance = rebalance if rebalance is not None else NoRebalance()
 
@@ -158,10 +158,7 @@ class NaivePortfolio(Portfolio):
 
     def update_signal(self, event):
         if event.type == 'SIGNAL':
-            order_event = self.generate_order(event)
-            if order_event is not None: 
-                self.portfolio_strat.filter_order_to_send(order_event)
-
+            self.generate_order(event)
 
     def create_equity_curve_df(self):
         curve = pd.DataFrame(self.all_holdings)
