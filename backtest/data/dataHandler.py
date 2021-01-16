@@ -3,6 +3,8 @@ import os, os.path
 import pandas as pd
 
 from abc import ABC, abstractmethod
+import os
+import requests
 
 from event import MarketEvent
 
@@ -39,7 +41,7 @@ class HistoricCSVDataHandler(DataHandler):
     """
 
     def __init__(self, events, csv_dir, symbol_list, start_date, 
-        end_date=None, datahandler: bool=True):
+        end_date=None, datahandler: bool=True, fundamental:bool=False):
         """
         Args:
         - Event Queue on which to push MarketEvent information to
@@ -58,9 +60,18 @@ class HistoricCSVDataHandler(DataHandler):
         self.raw_data = {}
         self.latest_symbol_data = {}
         self.continue_backtest = True
+        self.fundamental_data = None
+        if fundamental:
+            self._obtain_fundamental_data()
 
         self._open_convert_csv_files()
         self._to_generator()
+    
+    def _obtain_fundamental_data(self):
+        self.fundamental_data = {}
+        for sym in self.symbol_list:
+            url = f"https://api.tiingo.com/tiingo/fundamentals/{sym}/statements?startDate={self.start_date}&token={os.environ['TIINGO_API']}"
+            self.fundamental_data[sym] = requests.get(url, headers={ 'Content-Type': 'application/json' }).json()
 
     def _open_convert_csv_files(self):
         comb_index = None

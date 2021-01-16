@@ -16,7 +16,7 @@ from backtest.portfolio.rebalance.base import BaseRebalance
 from backtest.strategy.statistics.data import ClassificationData
 from backtest.strategy.statistics.strategy import RawClassification
 
-with open("data/stock_list.txt", 'r') as fin:
+with open("data/stock_universe.txt", 'r') as fin:
     stock_list = fin.readlines()
 
 stock_list = list(map(utils.remove_bs, stock_list))

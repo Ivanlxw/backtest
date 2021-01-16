@@ -40,7 +40,7 @@ class SimpleCrossStrategy(Strategy):
                 signal = SignalEvent(bars[-1][0], bars[-1][1], 'SHORT')
                 self.events.put(signal)
             elif bars[-2][5] < TAs[-2] and bars[-1][5] > TAs[-1]:
-                signal =  SignalEvent(bars[-1][0], bars[-1][1], 'LONG')
+                signal = SignalEvent(bars[-1][0], bars[-1][1], 'LONG')
                 self.events.put(signal)
 
 class DoubleMAStrategy(SimpleCrossStrategy):

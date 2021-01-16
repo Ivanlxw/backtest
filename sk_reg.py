@@ -5,7 +5,6 @@ import time
 import queue
 import random
 import matplotlib.pyplot as plt
-import seaborn as sns
 import talib
 
 from backtest import utils, execution
@@ -87,7 +86,7 @@ from backtest.Plots.plot import PlotTradePrices
 plotter = PlotTradePrices(port, bars)
 plotter.plot()
 
-plot_benchmark("data/stock_list.txt", \
+plot_benchmark("data/stock_universe.txt", \
     symbol_list=symbol_list, \
     start_date = start_date)
 

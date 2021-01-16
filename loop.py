@@ -6,31 +6,51 @@ import queue
 import matplotlib.pyplot as plt
 import random
 import talib 
+import os 
+import json
+import argparse
 
 from backtest import utils, execution
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import NaivePortfolio, PercentagePortFolio
 from backtest.strategy.ma import SimpleCrossStrategy, DoubleMAStrategy, MeanReversionTA
+from backtest.strategy.fundamental import FundamentalFScoreStrategy
 from backtest.benchmark.benchmark import plot_benchmark
 
-with open("data/stock_list.txt", 'r') as fin:
+def parse_args():
+    parser = argparse.ArgumentParser(description='Configs for running main.')
+    parser.add_argument('-b', '--backtest', required=False, type=bool, default=True,
+                    help='backtest filters?')
+    parser.add_argument('-c', '--credentials', required=False, type=str, help="credentials filepath")
+    parser.add_argument('-f', '--fundamental', required=False, type=bool, default=False, help="Use fundamental data or not")
+    parser.add_argument('--data_dir', default="./data/daily", required=False, type=str, help="filepath to dir of csv files")
+    return parser.parse_args()
+args = parse_args()
+
+with open("data/dow_stock_list.txt", 'r') as fin:
     stock_list = fin.readlines()
-
 stock_list = list(map(utils.remove_bs, stock_list))
-
+if args.fundamental:
+    with open(args.credentials, 'r') as f:
+        credentials = json.load(f)
+        for k,v in credentials.items():
+            os.environ[k]= v
+            
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
-start_date = "2010-01-05"  ## YYYY-MM-DD
-symbol_list = random.sample(stock_list, 10)
+start_date = "2016-01-05"  ## YYYY-MM-DD
+symbol_list = random.sample(stock_list, 8)
 
 # Declare the components with relsspective parameters
 bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
                                            symbol_list=symbol_list, 
                                            start_date=start_date,
+                                           fundamental=args.fundamental
                                            )
 strategy = DoubleMAStrategy(bars, event_queue, [14,50], talib.EMA)                                       
 strategy = MeanReversionTA(bars, event_queue, 50, talib.SMA, sd=2.5, exit=True)
-# strategy = SimpleCrossStrategy(bars, event_queue, 50, talib.SMA)
+if args.fundamental:
+    strategy = FundamentalFScoreStrategy(bars, event_queue)
 port = PercentagePortFolio(bars, event_queue, order_queue, percentage=1/len(symbol_list), mode='asset')
 broker = execution.SimulatedExecutionHandler(bars, event_queue)
 
