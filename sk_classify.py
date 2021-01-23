@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
 
-from backtest import utils, execution
+from backtest import execution
+from backtest.utilities.utils import remove_bs
 from backtest.benchmark.benchmark import plot_benchmark
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import PercentagePortFolio
@@ -19,7 +20,7 @@ from backtest.strategy.statistics.strategy import RawClassification
 with open("data/stock_universe.txt", 'r') as fin:
     stock_list = fin.readlines()
 
-stock_list = list(map(utils.remove_bs, stock_list))
+stock_list = list(map(remove_bs, stock_list))
 
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()

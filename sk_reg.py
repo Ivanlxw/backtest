@@ -7,7 +7,8 @@ import random
 import matplotlib.pyplot as plt
 import talib
 
-from backtest import utils, execution
+from backtest import execution
+from backtest.utilities.utils import remove_bs
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import PercentagePortFolio
 from backtest.strategy.statistics.data import BaseStatisticalData
@@ -20,7 +21,7 @@ from sklearn.linear_model import LinearRegression
 with open("data/stock_list.txt", 'r') as fin:
     stock_list = fin.readlines()
 
-stock_list = list(map(utils.remove_bs, stock_list))
+stock_list = list(map(remove_bs, stock_list))
 
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()

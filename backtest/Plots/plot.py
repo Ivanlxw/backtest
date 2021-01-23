@@ -1,3 +1,4 @@
+from backtest.utilities.enums import OrderPosition
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -43,8 +44,8 @@ class PlotTradePrices(Plot):
         A look at where trade happens
         '''
         for idx,ticker in enumerate(self.port.symbol_list):
-            buy_signals = self.signals[np.where((self.signals[:,0] == ticker) & (self.signals[:,-1] == 'BUY'))]
-            sell_signals = self.signals[np.where((self.signals[:,0] == ticker) & (self.signals[:,-1] == 'SELL'))]
+            buy_signals = self.signals[np.where((self.signals[:,0] == ticker) & (self.signals[:,-1] == OrderPosition.BUY))]
+            sell_signals = self.signals[np.where((self.signals[:,0] == ticker) & (self.signals[:,-1] == OrderPosition.SELL))]
             self.bars.raw_data[ticker].index = self.bars.raw_data[ticker].index.map(lambda x: datetime.strptime(x, '%Y-%m-%d'))
 
             plt.subplot(len(self.port.symbol_list), 1, idx+1)

@@ -1,3 +1,4 @@
+from backtest.utilities.enums import OrderPosition
 import os, sys
 sys.path.append((os.path.dirname(os.path.abspath(__file__))))  ## 2 dirs above
 
@@ -72,10 +73,10 @@ class RawRegression(StatisticalStrategy, Strategy):
                 if preds is None:
                     return
                 if preds[-1] > 0.07:
-                    signal = SignalEvent(bars_list[-1][0], bars_list[-1][1], 'LONG')
+                    signal = SignalEvent(bars_list[-1][0], bars_list[-1][1], OrderPosition.BUY)
                     self.events.put(signal)
                 elif preds[-1] < -0.07:
-                    signal = SignalEvent(bars_list[-1][0], bars_list[-1][1], 'SHORT')
+                    signal = SignalEvent(bars_list[-1][0], bars_list[-1][1], OrderPosition.SELL)
                     self.events.put(signal)
 
 ## Sklearn classifier (combined)
@@ -99,8 +100,8 @@ class RawClassification(RawRegression, Strategy):
                     return
                 diff = (preds[-1] - close_price)/ close_price
                 if diff > 0.05:
-                    signal = SignalEvent(bars_list[-1][0], bars_list[-1][1], 'LONG')
+                    signal = SignalEvent(bars_list[-1][0], bars_list[-1][1], OrderPosition.BUY)
                     self.events.put(signal)
                 elif diff < -0.04:
-                    signal = SignalEvent(bars_list[-1][0], bars_list[-1][1], 'SHORT')
+                    signal = SignalEvent(bars_list[-1][0], bars_list[-1][1], OrderPosition.SELL)
                     self.events.put(signal)

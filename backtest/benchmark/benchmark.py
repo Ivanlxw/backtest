@@ -1,6 +1,7 @@
 """
 Actual file to run for backtesting 
 """
+from backtest.utilities.enums import OrderType
 import os
 import time, datetime
 import queue
@@ -24,7 +25,7 @@ def plot_benchmark(stock_list_fp, symbol_list, start_date, end_date:str=None, fr
     strategy = BuyAndHoldStrategy(bars, event_queue)
     port = PercentagePortFolio(bars, event_queue, order_queue, 
                                percentage=1/len(symbol_list), mode='asset',
-                               order_type="MKT")
+                               order_type=OrderType.MARKET)
     broker = execution.SimulatedExecutionHandler(bars, event_queue)
 
     start = time.time()

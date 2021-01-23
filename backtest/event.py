@@ -1,3 +1,6 @@
+from backtest.utilities.enums import OrderPosition, OrderType
+
+
 class Event(object):
     """
     Event is base class providing an interface for all subsequent 
@@ -31,12 +34,11 @@ class SignalEvent(Event):
     The SignalEvents are utilised by the Portfolio object as advice for how to trade.
     """
 
-    def __init__(self, symbol, datetime, signal_type,):
-        ## SignalEvent('GOOG', timestamp, 'LONG')    # timestamp can be a string or the big numbers
+    def __init__(self, symbol, datetime, signal_type: OrderPosition):
+        ## SignalEvent('GOOG', timestamp, OrderPosition.LONG)    # timestamp can be a string or the big numbers
         self.type = 'SIGNAL'
         self.symbol = symbol
         self.datetime = datetime
-        assert signal_type in ('SHORT', 'LONG', 'EXIT')
         self.signal_type = signal_type
 
 class OrderEvent(Event):
@@ -45,17 +47,18 @@ class OrderEvent(Event):
     in terms of risk and position sizing. 
     This ultimately leads to OrderEvents that will be sent to an ExecutionHandler.
     """
-    def __init__(self, symbol, order_type, quantity, direction):
+    def __init__(self, symbol, order_type:OrderType, quantity, direction: OrderPosition):
         """ Params
-        order_type - 'MKT' or 'LMT' for Market or Limit
+        order_type - MARKET or LIMIT for Market or Limit
         quantity - non-nevgative integer
-        direction - 'BUY' or 'SELL' for long or short
+        direction - BUY or SELL for long or short
         """
 
         self.type = 'ORDER'
         self.symbol = symbol
         self.order_type = order_type
         self.quantity = quantity
+        assert (direction == OrderPosition.BUY or direction == OrderPosition.SELL)
         self.direction = direction
         self.trade_price = None
     
@@ -82,7 +85,7 @@ class FillEvent(Event):
         symbol - The instrument which was filled.
         exchange - The exchange where the order was filled.
         quantity - The filled quantity.
-        direction - The direction of fill ('BUY' or 'SELL')
+        direction - The direction of fill (BUY or SELL)
         fill_cost - The holdings value in dollars.
         commission - An optional commission sent from IB.
         """

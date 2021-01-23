@@ -1,5 +1,6 @@
 # portfolio.py
 
+from backtest.utilities.enums import OrderPosition, OrderType
 import datetime
 import numpy as np
 import pandas as pd
@@ -29,7 +30,7 @@ class Portfolio(object):
 
 class NaivePortfolio(Portfolio):
     def __init__(self, bars, events, order_events, stock_size, initial_capital=100000.0, 
-                 portfolio_strategy: PortfolioStrategy = DefaultOrder, order_type="LMT", rebalance=None):
+                 portfolio_strategy: PortfolioStrategy = DefaultOrder, order_type=OrderType.LIMIT, rebalance=None):
         """ 
         Parameters:
         bars - The DataHandler object with current market data.
@@ -126,18 +127,18 @@ class NaivePortfolio(Portfolio):
         """
 
         fill_dir = 0
-        if fill.direction == "BUY":
+        if fill.direction == OrderPosition.BUY:
             fill_dir = 1
-        elif fill.direction == "SELL":
+        elif fill.direction == OrderPosition.SELL:
             fill_dir = -1
 
         self.current_positions[fill.symbol] += fill_dir*fill.quantity
 
     def update_holdings_from_fill(self, fill: FillEvent):
         fill_dir = 0
-        if fill.direction == "BUY":
+        if fill.direction == OrderPosition.BUY:
             fill_dir = 1
-        elif fill.direction == "SELL":
+        elif fill.direction == OrderPosition.SELL:
             fill_dir = -1  
 
         close_price = self.bars.get_latest_bars(fill.symbol)[0][5] ## close price
@@ -191,7 +192,7 @@ class NaivePortfolio(Portfolio):
         self.equity_curve.to_csv(fp)
 
 class PercentagePortFolio(NaivePortfolio):
-    def __init__(self, bars, events, order_events, percentage, initial_capital=100000.0, rebalance=None, portfolio_strategy=DefaultOrder, order_type="LMT", mode='cash'):
+    def __init__(self, bars, events, order_events, percentage, initial_capital=100000.0, rebalance=None, portfolio_strategy=DefaultOrder, order_type=OrderType.LIMIT, mode='cash'):
         super().__init__(bars, events, order_events, stock_size=0, initial_capital=initial_capital, rebalance=rebalance, portfolio_strategy=portfolio_strategy, order_type=order_type)
         if mode not in ('cash', 'asset'):
             raise Exception('mode options: cash | asset')

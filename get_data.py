@@ -1,7 +1,7 @@
 import argparse
 import json
 import time
-from backtest import utils
+from backtest.utilities.utils import remove_bs
 from data.get_csv import get_av_csv, get_tiingo_eod
 
 def parse_args():
@@ -18,7 +18,7 @@ with open(args.credentials, 'r') as fin:
 with open("data/stock_list.txt", 'r') as fin:
     stock_list = fin.readlines()
 
-stock_list = list(map(utils.remove_bs, stock_list))
+stock_list = list(map(remove_bs, stock_list))
 
 for idx, symbol in enumerate(stock_list):
     try:

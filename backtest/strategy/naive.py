@@ -5,6 +5,7 @@ Strategy object take market data as input and produce trading signal events as o
 # strategy.py
 
 from abc import ABCMeta, abstractmethod
+from backtest.utilities.enums import OrderPosition
 
 from backtest.event import SignalEvent
 
@@ -52,6 +53,6 @@ class BuyAndHoldStrategy(Strategy):
             for s in self.symbol_list:
                 bars = self.bars.get_latest_bars(s, N=1)
                 if bars is not None and bars != []: ## there's an entry
-                    signal = SignalEvent(bars[0][0], bars[0][1], 'LONG')
+                    signal = SignalEvent(bars[0][0], bars[0][1], OrderPosition.BUY)
                     self.events.put(signal)
                     self.bought[s] = True

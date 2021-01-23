@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+from backtest.utilities.enums import OrderPosition
 
 from numpy.lib.stride_tricks import broadcast_arrays
 from backtest.event import SignalEvent
@@ -56,7 +57,7 @@ class FundamentalFScoreStrategy(FundamentalStrategy):
             if len(self.scores[sym]) < 30:
                 continue 
             if score > np.percentile(self.scores[sym][-min(50, len(self.scores)):], 95):
-                self.events.put(SignalEvent(bars_list[-1][0], bars_list[-1][1], 'LONG'))
+                self.events.put(SignalEvent(bars_list[-1][0], bars_list[-1][1], OrderPosition.BUY))
             elif score < np.percentile(self.scores[sym][-min(50, len(self.scores)):], 5):
-                self.events.put(SignalEvent(bars_list[-1][0], bars_list[-1][1], 'SHORT'))
+                self.events.put(SignalEvent(bars_list[-1][0], bars_list[-1][1], OrderPosition.SELL))
             

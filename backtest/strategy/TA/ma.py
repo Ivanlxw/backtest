@@ -1,3 +1,4 @@
+from backtest.utilities.enums import OrderPosition
 from time import time
 from matplotlib.pyplot import bar
 import numpy as np
@@ -37,10 +38,10 @@ class SimpleCrossStrategy(Strategy):
                 continue
             TAs = self._get_MA(bars, self.timeperiod)
             if bars[-2][5] > TAs[-2] and bars[-1][5] < TAs[-1]:
-                signal = SignalEvent(bars[-1][0], bars[-1][1], 'SHORT')
+                signal = SignalEvent(bars[-1][0], bars[-1][1], OrderPosition.SELL)
                 self.events.put(signal)
             elif bars[-2][5] < TAs[-2] and bars[-1][5] > TAs[-1]:
-                signal = SignalEvent(bars[-1][0], bars[-1][1], 'LONG')
+                signal = SignalEvent(bars[-1][0], bars[-1][1], OrderPosition.BUY)
                 self.events.put(signal)
 
 class DoubleMAStrategy(SimpleCrossStrategy):
@@ -73,10 +74,10 @@ class DoubleMAStrategy(SimpleCrossStrategy):
             long_ma = self._get_MA(bars, self.longer)
             sig = self.cross(short_ma, long_ma)
             if sig == -1:
-                signal = SignalEvent(bars[-1][0], bars[-1][1], 'SHORT')
+                signal = SignalEvent(bars[-1][0], bars[-1][1], OrderPosition.SELL)
                 self.events.put(signal) 
             elif sig == 1:
-                signal = SignalEvent(bars[-1][0], bars[-1][1], 'LONG')
+                signal = SignalEvent(bars[-1][0], bars[-1][1], OrderPosition.BUY)
                 self.events.put(signal) 
 
 class MeanReversionTA(SimpleCrossStrategy):
@@ -93,14 +94,14 @@ class MeanReversionTA(SimpleCrossStrategy):
     
     def _exit_ma_cross(self, bars, TAs, boundary):
         if self._break_down(bars, TAs) or self._break_up(bars, TAs):
-            signal = SignalEvent(bars[-1][0], bars[-1][1], 'EXIT')
+            signal = SignalEvent(bars[-1][0], bars[-1][1], OrderPosition.EXIT)
             self.events.put(signal)            
         
         if (bars[-1][5] < (TAs[-1] + boundary) and bars[-2][5] > (TAs[-2] + boundary)):
-            signal = SignalEvent(bars[-1][0], bars[-1][1], 'SHORT')
+            signal = SignalEvent(bars[-1][0], bars[-1][1], OrderPosition.SELL)
             self.events.put(signal)
         elif (bars[-1][5] > (TAs[-1] - boundary) and bars[-2][5] < (TAs[-2] - boundary)):
-            signal = SignalEvent(bars[-1][0], bars[-1][1], 'LONG')
+            signal = SignalEvent(bars[-1][0], bars[-1][1], OrderPosition.BUY)
             self.events.put(signal)
     
     def calculate_signals(self, event):
@@ -126,10 +127,10 @@ class MeanReversionTA(SimpleCrossStrategy):
 
             if self._break_down(bars, TAs) or \
                 (bars[-1][5] < (TAs[-1] + boundary) and bars[-2][5] > (TAs[-2] + boundary)):
-                signal = SignalEvent(bars[-1][0], bars[-1][1], 'SHORT')
+                signal = SignalEvent(bars[-1][0], bars[-1][1], OrderPosition.SELL)
                 self.events.put(signal)
             elif self._break_up(bars, TAs) or \
                 (bars[-1][5] > (TAs[-1] - boundary) and bars[-2][5] < (TAs[-2] - boundary)):
-                signal = SignalEvent(bars[-1][0], bars[-1][1], 'LONG')
+                signal = SignalEvent(bars[-1][0], bars[-1][1], OrderPosition.BUY)
                 self.events.put(signal)
     

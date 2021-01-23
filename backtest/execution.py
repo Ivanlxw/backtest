@@ -1,3 +1,4 @@
+from backtest.utilities.enums import OrderType
 import datetime
 import time
 
@@ -35,7 +36,7 @@ class SimulatedExecutionHandler(ExecutionHandler):
 
     def execute_order(self, event):
         if event.type == 'ORDER':
-            if event.order_type == "LMT":
+            if event.order_type == OrderType.LIMIT:
                 price_data = self.bars.get_latest_bars(event.symbol, 1)
                 if event.trade_price > price_data[0][3] or event.trade_price < price_data[0][4]:
                     return
@@ -118,7 +119,7 @@ class IBExecutionHandler(ExecutionHandler):
 
     def create_order(self, order_type, quantity, action):
         """
-            order_type - 'MKT', 'LMT' for Market or Limit orders
+            order_type - MARKET, LIMIT for Market or Limit orders
             quantity - Integral number of assets to order
             action - 'BUY' or 'SELL'
         """

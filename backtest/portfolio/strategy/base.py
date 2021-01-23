@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+from backtest.utilities.enums import OrderPosition, OrderType
 from backtest.event import OrderEvent
 from math import fabs
 
@@ -41,38 +42,38 @@ class DefaultOrder(PortfolioStrategy):
 
         cur_quantity = self.current_positions[symbol]
 
-        if direction == 'EXIT':
+        if direction == OrderPosition.EXIT:
             if cur_quantity > 0:
-                order = OrderEvent(symbol, self.order_type, cur_quantity, 'SELL')
+                order = OrderEvent(symbol, self.order_type, cur_quantity, OrderPosition.SELL)
             else:
-                order = OrderEvent(symbol, self.order_type, -cur_quantity, 'BUY')            
-        elif direction == 'LONG':
+                order = OrderEvent(symbol, self.order_type, -cur_quantity, OrderPosition.BUY)            
+        elif direction == OrderPosition.BUY:
             if cur_quantity < 0:
-                order = OrderEvent(symbol, self.order_type, size-cur_quantity, 'BUY')
+                order = OrderEvent(symbol, self.order_type, size-cur_quantity, direction)
             else:
-                order = OrderEvent(symbol, self.order_type, size, 'BUY')
-        elif direction == 'SHORT':
+                order = OrderEvent(symbol, self.order_type, size, direction)
+        elif direction == OrderPosition.SELL:
             if cur_quantity > 0:
-                order = OrderEvent(symbol, self.order_type, size+cur_quantity, 'SELL')
+                order = OrderEvent(symbol, self.order_type, size+cur_quantity, direction)
             else:
-                order = OrderEvent(symbol, self.order_type, size, 'SELL')
+                order = OrderEvent(symbol, self.order_type, size, direction)
         if order is not None:
             self.filter_order_to_send(order)
 
     def filter_order_to_send(self, order_event:OrderEvent):
         mkt_price = self.bars.get_latest_bars(order_event.symbol)[0][5]
         order_value = fabs(order_event.quantity * mkt_price)
-        if order_event.direction == 'BUY' and self.all_holdings[-1]["cash"] > order_value or \
-            self.all_holdings[-1]['total'] > order_value and order_event.direction == 'SELL':
+        if order_event.direction == OrderPosition.BUY and self.all_holdings[-1]["cash"] > order_value or \
+            self.all_holdings[-1]['total'] > order_value and order_event.direction == OrderPosition.SELL:
             order_event.trade_price = mkt_price
 
-            if order_event.order_type == "LMT":
+            if order_event.order_type == OrderType.LIMIT:
                 self.order_events.put(order_event)
             else:
                 self.events.put(order_event)
 
 class LongOnly(PortfolioStrategy):
-    def __init__(self, bars, current_positions, all_holdings, order_events, events, order_type="MKT"):
+    def __init__(self, bars, current_positions, all_holdings, order_events, events, order_type=OrderType.MARKET):
         super().__init__(bars, current_positions, all_holdings, order_events, events, order_type)
         self.order_type = order_type
     
@@ -85,22 +86,20 @@ class LongOnly(PortfolioStrategy):
         symbol = signal.symbol
         direction = signal.signal_type
         
-        if direction == 'LONG':
-            order = OrderEvent(symbol, self.order_type, size, 'BUY')
-        elif direction == 'SHORT' or direction == 'EXIT':
-            cur_quantity = self.current_positions[symbol]
-            if cur_quantity > 0:
-                order = OrderEvent(symbol, self.order_type, cur_quantity, 'SELL')
+        if direction == OrderPosition.BUY:
+            order = OrderEvent(symbol, self.order_type, size, direction)
+        elif (direction == OrderPosition.SELL or direction == OrderPosition.EXIT) and self.current_positions[symbol] > 0:
+            order = OrderEvent(symbol, self.order_type, self.current_positions[symbol], OrderPosition.SELL)
         if order is not None:
             self.filter_order_to_send(order)
 
     def filter_order_to_send(self, order_event: OrderEvent):
         mkt_price = self.bars.get_latest_bars(order_event.symbol)[0][5]
         order_value = fabs(order_event.quantity * mkt_price)
-        if order_event.direction == 'BUY' and self.all_holdings[-1]["cash"] < order_value:
+        if order_event.direction == OrderPosition.BUY and self.all_holdings[-1]["cash"] < order_value:
             return
         order_event.trade_price = mkt_price
-        if order_event.order_type == "LMT":
+        if order_event.order_type == OrderType.LIMIT:
             self.order_events.put(order_event)
         else:
             self.events.put(order_event)

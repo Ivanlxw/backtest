@@ -10,7 +10,8 @@ import os
 import json
 import argparse
 
-from backtest import utils, execution
+from backtest import execution
+from backtest.utilities.utils import remove_bs
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import NaivePortfolio, PercentagePortFolio
 from backtest.strategy.multiple import MultipleStrategy
@@ -31,7 +32,7 @@ args = parse_args()
 
 with open("data/dow_stock_list.txt", 'r') as fin:
     stock_list = fin.readlines()
-stock_list = list(map(utils.remove_bs, stock_list))
+stock_list = list(map(remove_bs, stock_list))
 if args.fundamental:
     with open(args.credentials, 'r') as f:
         credentials = json.load(f)
@@ -40,8 +41,8 @@ if args.fundamental:
             
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
-start_date = "2019-01-02"  ## YYYY-MM-DD
-symbol_list = random.sample(stock_list, 10)
+start_date = "2015-01-05"  ## YYYY-MM-DD
+symbol_list = random.sample(stock_list, 8)
 
 # Declare the components with relsspective parameters
 bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
@@ -57,7 +58,7 @@ strategy = MultipleStrategy([
 if args.fundamental:
     strategy = FundamentalFScoreStrategy(bars, event_queue)
 port = PercentagePortFolio(bars, event_queue, order_queue, 
-    percentage=1/len(symbol_list), 
+    percentage=0.05, 
     mode='asset',
     portfolio_strategy=LongOnly
 )
@@ -87,7 +88,6 @@ while True:
 
                 elif event.type == 'SIGNAL':
                     port.update_signal(event)
-                    # print(event.datetime)
 
                 elif event.type == 'ORDER':
                     broker.execute_order(event)
