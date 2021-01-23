@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from backtest import execution
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import PercentagePortFolio
-from backtest.portfolio.strategy.base import DefaultMarketOrder
+from backtest.portfolio.strategy.base import DefaultOrder
 from backtest.strategy.naive import BuyAndHoldStrategy
 
 def plot_benchmark(stock_list_fp, symbol_list, start_date, end_date:str=None, freq="daily"):
@@ -24,7 +24,7 @@ def plot_benchmark(stock_list_fp, symbol_list, start_date, end_date:str=None, fr
     strategy = BuyAndHoldStrategy(bars, event_queue)
     port = PercentagePortFolio(bars, event_queue, order_queue, 
                                percentage=1/len(symbol_list), mode='asset',
-                               portfolio_strategy=DefaultMarketOrder)
+                               order_type="MKT")
     broker = execution.SimulatedExecutionHandler(bars, event_queue)
 
     start = time.time()

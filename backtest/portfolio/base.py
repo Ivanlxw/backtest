@@ -10,7 +10,7 @@ from abc import ABCMeta, abstractmethod
 from backtest.event import FillEvent, OptimizeEvent, OrderEvent
 from backtest.performance import create_sharpe_ratio, create_drawdowns
 from backtest.portfolio.rebalance.base import NoRebalance
-from backtest.portfolio.strategy.base import DefaultLimitOrder, PortfolioStrategy
+from backtest.portfolio.strategy.base import DefaultOrder, PortfolioStrategy
 
 class Portfolio(object):
     __metaclass__ = ABCMeta
@@ -29,7 +29,7 @@ class Portfolio(object):
 
 class NaivePortfolio(Portfolio):
     def __init__(self, bars, events, order_events, stock_size, initial_capital=100000.0, 
-                 portfolio_strategy: PortfolioStrategy = DefaultLimitOrder,rebalance=None):
+                 portfolio_strategy: PortfolioStrategy = DefaultOrder, order_type="LMT", rebalance=None):
         """ 
         Parameters:
         bars - The DataHandler object with current market data.
@@ -50,7 +50,7 @@ class NaivePortfolio(Portfolio):
         self.all_holdings = self.construct_all_holdings()
         self.current_holdings = self.construct_current_holdings()
         self.portfolio_strat = portfolio_strategy(self.bars, self.current_positions,
-                                                  self.all_holdings, order_events, self.events)
+                                                  self.all_holdings, order_events, self.events, order_type)
 
         self.rebalance = rebalance if rebalance is not None else NoRebalance()
 
@@ -191,8 +191,8 @@ class NaivePortfolio(Portfolio):
         self.equity_curve.to_csv(fp)
 
 class PercentagePortFolio(NaivePortfolio):
-    def __init__(self, bars, events, order_events, percentage, initial_capital=100000.0, rebalance=None, portfolio_strategy=DefaultLimitOrder, mode='cash'):
-        super().__init__(bars, events, order_events, stock_size=0, initial_capital=initial_capital, rebalance=rebalance, portfolio_strategy=portfolio_strategy)
+    def __init__(self, bars, events, order_events, percentage, initial_capital=100000.0, rebalance=None, portfolio_strategy=DefaultOrder, order_type="LMT", mode='cash'):
+        super().__init__(bars, events, order_events, stock_size=0, initial_capital=initial_capital, rebalance=rebalance, portfolio_strategy=portfolio_strategy, order_type=order_type)
         if mode not in ('cash', 'asset'):
             raise Exception('mode options: cash | asset')
         self.mode = mode

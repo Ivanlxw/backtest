@@ -17,6 +17,7 @@ from backtest.strategy.multiple import MultipleStrategy
 from backtest.strategy.TA.ma import SimpleCrossStrategy, DoubleMAStrategy, MeanReversionTA
 from backtest.strategy.fundamental import FundamentalFScoreStrategy
 from backtest.benchmark.benchmark import plot_benchmark
+from backtest.portfolio.strategy.base import LongOnly
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Configs for running main.')
@@ -39,8 +40,8 @@ if args.fundamental:
             
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
-start_date = "2016-01-05"  ## YYYY-MM-DD
-symbol_list = random.sample(stock_list, 8)
+start_date = "2019-01-02"  ## YYYY-MM-DD
+symbol_list = random.sample(stock_list, 10)
 
 # Declare the components with relsspective parameters
 bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
@@ -55,7 +56,11 @@ strategy = MultipleStrategy([
                                      
 if args.fundamental:
     strategy = FundamentalFScoreStrategy(bars, event_queue)
-port = PercentagePortFolio(bars, event_queue, order_queue, percentage=1/len(symbol_list), mode='asset')
+port = PercentagePortFolio(bars, event_queue, order_queue, 
+    percentage=1/len(symbol_list), 
+    mode='asset',
+    portfolio_strategy=LongOnly
+)
 broker = execution.SimulatedExecutionHandler(bars, event_queue)
 
 start = time.time()
