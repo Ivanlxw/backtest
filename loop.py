@@ -13,7 +13,8 @@ import argparse
 from backtest import utils, execution
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import NaivePortfolio, PercentagePortFolio
-from backtest.strategy.ma import SimpleCrossStrategy, DoubleMAStrategy, MeanReversionTA
+from backtest.strategy.multiple import MultipleStrategy
+from backtest.strategy.TA.ma import SimpleCrossStrategy, DoubleMAStrategy, MeanReversionTA
 from backtest.strategy.fundamental import FundamentalFScoreStrategy
 from backtest.benchmark.benchmark import plot_benchmark
 
@@ -47,8 +48,11 @@ bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
                                            start_date=start_date,
                                            fundamental=args.fundamental
                                            )
-strategy = DoubleMAStrategy(bars, event_queue, [14,50], talib.EMA)                                       
-strategy = MeanReversionTA(bars, event_queue, 50, talib.SMA, sd=2.5, exit=True)
+strategy = MultipleStrategy([
+    DoubleMAStrategy(bars, event_queue, [14,50], talib.EMA),
+    SimpleCrossStrategy(bars, event_queue, 20, talib.SMA)
+])
+                                     
 if args.fundamental:
     strategy = FundamentalFScoreStrategy(bars, event_queue)
 port = PercentagePortFolio(bars, event_queue, order_queue, percentage=1/len(symbol_list), mode='asset')
