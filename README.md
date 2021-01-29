@@ -3,6 +3,11 @@
 A simple backtester to test trading algorithms and portfolio optimization strategies.
 
 ## Setup
+`docker build . && docker run`
+Take note:
+- First time this is run, it takes awhile to set up docker environment
+- `plt.show()` wont work. Save it in a file instead (**TODO**) 
+
 `python -m pip install -r requirements.txt && python -m pip install -e .`
 
 ## Usage

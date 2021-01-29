@@ -3,3 +3,5 @@ pandas
 sklearn
 matplotlib
 TA-Lib
+requests
+seaborn
