@@ -8,6 +8,9 @@ import requests
 
 from event import MarketEvent
 
+def get_tiingo_endpoint(endpoint:str, args:str):
+    return f"https://api.tiingo.com/tiingo/{endpoint}?{args}&token={os.environ['TIINGO_API']}"
+
 class DataHandler(ABC):
     """
     The goal of a (derived) DataHandler object is to output a generated
@@ -64,6 +67,7 @@ class HistoricCSVDataHandler(DataHandler):
         if fundamental:
             self._obtain_fundamental_data()
 
+        self._download_files()
         self._open_convert_csv_files()
         self._to_generator()
     
@@ -73,6 +77,20 @@ class HistoricCSVDataHandler(DataHandler):
             url = f"https://api.tiingo.com/tiingo/fundamentals/{sym}/statements?startDate={self.start_date}&token={os.environ['TIINGO_API']}"
             self.fundamental_data[sym] = requests.get(url, headers={ 'Content-Type': 'application/json' }).json()
 
+    def _download_files(self, ):
+        if not os.path.exists(self.csv_dir):
+            os.makedirs(self.csv_dir)
+        for sym in self.symbol_list:
+            if not os.path.exists(os.path.join(self.csv_dir, f"{sym}.csv")):
+                ## api call
+                res_data = requests.get(get_tiingo_endpoint(f'daily/{sym}/prices', 'startDate=2000-1-1'), headers={
+                    'Content-Type': 'application/json'
+                }).json()
+                res_data = pd.DataFrame(res_data)
+                res_data.set_index('date', inplace=True)
+                res_data.index = res_data.index.map(lambda x: x.replace("T00:00:00.000Z", ""))
+                res_data.to_csv(os.path.join(self.csv_dir, f"{sym}.csv"))
+
     def _open_convert_csv_files(self):
         comb_index = None
         for s in self.symbol_list:
@@ -80,7 +98,7 @@ class HistoricCSVDataHandler(DataHandler):
                 os.path.join(self.csv_dir, f"{s}.csv"),
                 header = 0, index_col= 0,
             ).drop_duplicates()
-            temp.columns = ["Open", "High", "Low", "Close", "Volume"]
+            temp = temp.loc[:, ["open", "high", "low", "close", "volume"]]
             if self.start_date in temp.index:
                 filtered = temp.iloc[temp.index.get_loc(self.start_date):,]
             else:
@@ -88,7 +106,7 @@ class HistoricCSVDataHandler(DataHandler):
             
             if self.end_date is not None and self.end_date in temp.index:
                 filtered = filtered.iloc[:temp.index.get_loc(self.end_date),]
-
+    
             self.raw_data[s] = filtered
 
             ## combine index to pad forward values

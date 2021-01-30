@@ -49,7 +49,7 @@ class PlotTradePrices(Plot):
             self.bars.raw_data[ticker].index = self.bars.raw_data[ticker].index.map(lambda x: datetime.strptime(x, '%Y-%m-%d'))
 
             plt.subplot(len(self.port.symbol_list), 1, idx+1)
-            plt.plot(self.bars.raw_data[ticker]['Close'])
+            plt.plot(self.bars.raw_data[ticker]['close'])
             plt.scatter(buy_signals[:,1], buy_signals[:,5], c='g', marker="x")
             plt.scatter(sell_signals[:,1], sell_signals[:,5], c='r', marker="x")
             plt.title(f"Trade prices for {ticker}")

@@ -11,12 +11,10 @@ Take note:
 
 **Local**
 `python -m pip install -r requirements.txt && python -m pip install -e .`
-`python loop.py`
+`python loop.py -c credentials.json`
 
 ## Usage
-`python loop.py`
-
-`loop.py` - runs the backtester. 
+`python loop.py -c credentials.json` - runs the backtester. 
 
 This repo is meant to be as low-level as possible to get greater control of the backtesting environment. Edit the various scripts explained below and import them to `loop.py` to test your strategies. 
 

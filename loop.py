@@ -33,11 +33,11 @@ args = parse_args()
 with open("data/dow_stock_list.txt", 'r') as fin:
     stock_list = fin.readlines()
 stock_list = list(map(remove_bs, stock_list))
-if args.fundamental:
-    with open(args.credentials, 'r') as f:
-        credentials = json.load(f)
-        for k,v in credentials.items():
-            os.environ[k]= v
+
+with open(args.credentials, 'r') as f:
+    credentials = json.load(f)
+    for k,v in credentials.items():
+        os.environ[k]= v
             
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
