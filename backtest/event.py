@@ -47,7 +47,7 @@ class OrderEvent(Event):
     in terms of risk and position sizing. 
     This ultimately leads to OrderEvents that will be sent to an ExecutionHandler.
     """
-    def __init__(self, symbol, order_type:OrderType, quantity, direction: OrderPosition):
+    def __init__(self, symbol, quantity, direction: OrderPosition):
         """ Params
         order_type - MARKET or LIMIT for Market or Limit
         quantity - non-nevgative integer
@@ -56,7 +56,7 @@ class OrderEvent(Event):
 
         self.type = 'ORDER'
         self.symbol = symbol
-        self.order_type = order_type
+        self.order_type = None
         self.quantity = quantity
         assert (direction == OrderPosition.BUY or direction == OrderPosition.SELL)
         self.direction = direction

@@ -41,7 +41,7 @@ with open(args.credentials, 'r') as f:
             
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
-start_date = "2015-01-05"  ## YYYY-MM-DD
+start_date = "2012-01-04"  ## YYYY-MM-DD
 symbol_list = random.sample(stock_list, 8)
 
 # Declare the components with relsspective parameters
@@ -50,10 +50,7 @@ bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
                                            start_date=start_date,
                                            fundamental=args.fundamental
                                            )
-strategy = MultipleStrategy([
-    DoubleMAStrategy(bars, event_queue, [14,50], talib.EMA),
-    SimpleCrossStrategy(bars, event_queue, 20, talib.SMA)
-])
+strategy = DoubleMAStrategy(bars, event_queue, [14,50], talib.SMA)
                                      
 if args.fundamental:
     strategy = FundamentalFScoreStrategy(bars, event_queue)
@@ -62,7 +59,7 @@ port = PercentagePortFolio(bars, event_queue, order_queue,
     mode='asset',
     portfolio_strategy=LongOnly
 )
-broker = execution.SimulatedExecutionHandler(bars, event_queue)
+broker = execution.SimulatedExecutionHandler(bars, event_queue, order_queue)
 
 start = time.time()
 while True:

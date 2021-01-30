@@ -29,8 +29,8 @@ class Portfolio(object):
         raise NotImplementedError("Should implement update_fill()")
 
 class NaivePortfolio(Portfolio):
-    def __init__(self, bars, events, order_events, stock_size, initial_capital=100000.0, 
-                 portfolio_strategy: PortfolioStrategy = DefaultOrder, order_type=OrderType.LIMIT, rebalance=None):
+    def __init__(self, bars, events, order_queue, stock_size, initial_capital=100000.0, 
+                 portfolio_strategy: PortfolioStrategy = DefaultOrder(), order_type=OrderType.LIMIT, rebalance=None):
         """ 
         Parameters:
         bars - The DataHandler object with current market data.
@@ -40,6 +40,7 @@ class NaivePortfolio(Portfolio):
         """
         self.bars = bars  
         self.events = events
+        self.order_queue = order_queue
         self.symbol_list = self.bars.symbol_list
         self.start_date = self.bars.start_date
         self.initial_capital = initial_capital
@@ -50,9 +51,8 @@ class NaivePortfolio(Portfolio):
         self.current_positions = dict( (k,v) for k, v in [(s, 0) for s in self.symbol_list] )
         self.all_holdings = self.construct_all_holdings()
         self.current_holdings = self.construct_current_holdings()
-        self.portfolio_strat = portfolio_strategy(self.bars, self.current_positions,
-                                                  self.all_holdings, order_events, self.events, order_type)
-
+        self.portfolio_strat = portfolio_strategy
+        self.order_type = order_type
         self.rebalance = rebalance if rebalance is not None else NoRebalance()
 
     def construct_all_positions(self,):
@@ -155,11 +155,21 @@ class NaivePortfolio(Portfolio):
             self.update_holdings_from_fill(event)
     
     def generate_order(self, signal) -> OrderEvent:
-        return self.portfolio_strat.generate_basic_order(signal, self.qty)
+        latest_snapshot = self.bars.get_latest_bars(signal.symbol)[0]
+        return self.portfolio_strategy.generate_order(signal, latest_snapshot, self.current_holdings, self.all_holdings[-1], 50)
+    
+    def _put_to_event(self, order):
+        if order is not None:
+            order.order_type = self.order_type
+            if order.order_type == OrderType.LIMIT:
+                self.order_queue.put(order)
+            elif order.order_type == OrderType.MARKET:
+                self.events.put(order)
 
     def update_signal(self, event):
         if event.type == 'SIGNAL':
-            self.generate_order(event)
+            order = self.generate_order(event)
+            self._put_to_event(order)
 
     def create_equity_curve_df(self):
         curve = pd.DataFrame(self.all_holdings)
@@ -192,8 +202,8 @@ class NaivePortfolio(Portfolio):
         self.equity_curve.to_csv(fp)
 
 class PercentagePortFolio(NaivePortfolio):
-    def __init__(self, bars, events, order_events, percentage, initial_capital=100000.0, rebalance=None, portfolio_strategy=DefaultOrder, order_type=OrderType.LIMIT, mode='cash'):
-        super().__init__(bars, events, order_events, stock_size=0, initial_capital=initial_capital, rebalance=rebalance, portfolio_strategy=portfolio_strategy, order_type=order_type)
+    def __init__(self, bars, events, order_queue, percentage, initial_capital=100000.0, rebalance=None, portfolio_strategy=DefaultOrder(), order_type=OrderType.LIMIT, mode='cash'):
+        super().__init__(bars, events, order_queue, stock_size=0, initial_capital=initial_capital, rebalance=rebalance, portfolio_strategy=portfolio_strategy, order_type=order_type)
         if mode not in ('cash', 'asset'):
             raise Exception('mode options: cash | asset')
         self.mode = mode
@@ -202,10 +212,10 @@ class PercentagePortFolio(NaivePortfolio):
         else:
             self.perc = percentage
     
-    def generate_order(self, signal):
-        mkt_price = self.bars.get_latest_bars(signal.symbol)[0][5]
-        if mkt_price == 0:
+    def generate_order(self, signal) -> OrderEvent:
+        snapshot = self.bars.get_latest_bars(signal.symbol)[0]
+        if snapshot[5] == 0:
             return
-        size = int(self.current_holdings["cash"] * self.perc / mkt_price) if self.mode == 'cash' \
-            else int(self.all_holdings[-1]["total"] * self.perc / mkt_price)
-        return self.portfolio_strat.generate_order(signal, size)
+        size = int(self.current_holdings["cash"] * self.perc / snapshot[5]) if self.mode == 'cash' \
+            else int(self.all_holdings[-1]["total"] * self.perc / snapshot[5])
+        return self.portfolio_strat.generate_order(signal, snapshot, self.current_holdings, self.all_holdings[-1], size)

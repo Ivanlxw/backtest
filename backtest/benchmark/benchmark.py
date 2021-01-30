@@ -26,7 +26,7 @@ def plot_benchmark(stock_list_fp, symbol_list, start_date, end_date:str=None, fr
     port = PercentagePortFolio(bars, event_queue, order_queue, 
                                percentage=1/len(symbol_list), mode='asset',
                                order_type=OrderType.MARKET)
-    broker = execution.SimulatedExecutionHandler(bars, event_queue)
+    broker = execution.SimulatedExecutionHandler(bars, event_queue, order_queue)
 
     start = time.time()
     while True:

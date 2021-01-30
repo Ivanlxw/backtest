@@ -27,9 +27,10 @@ TODO:
 
 ## arbitrary. Might be used to route orders to a broker in future.
 class SimulatedExecutionHandler(ExecutionHandler):
-    def __init__(self, bars, events):
+    def __init__(self, bars, events, order_queue):
         self.bars = bars
         self.events = events
+        self.order_queue = order_queue
     
     def calculate_commission(self,quantity=None, fill_cost=None) -> float:
         return 0.0
@@ -39,6 +40,7 @@ class SimulatedExecutionHandler(ExecutionHandler):
             if event.order_type == OrderType.LIMIT:
                 price_data = self.bars.get_latest_bars(event.symbol, 1)
                 if event.trade_price > price_data[0][3] or event.trade_price < price_data[0][4]:
+                    self.order_queue.put(event)
                     return
             fill_event = FillEvent(event, self.calculate_commission())
             self.events.put(fill_event)
