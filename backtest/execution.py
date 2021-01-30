@@ -31,8 +31,8 @@ class SimulatedExecutionHandler(ExecutionHandler):
         self.bars = bars
         self.events = events
     
-    def calculate_commission(self,quantity, fill_cost):
-        return 0
+    def calculate_commission(self,quantity=None, fill_cost=None) -> float:
+        return 0.0
 
     def execute_order(self, event):
         if event.type == 'ORDER':
@@ -40,8 +40,7 @@ class SimulatedExecutionHandler(ExecutionHandler):
                 price_data = self.bars.get_latest_bars(event.symbol, 1)
                 if event.trade_price > price_data[0][3] or event.trade_price < price_data[0][4]:
                     return
-            fill_event = FillEvent(datetime.datetime.utcnow(), event.symbol,
-                "ARCA", event.trade_price, event.quantity, event.direction, None, self.calculate_commission)
+            fill_event = FillEvent(event, self.calculate_commission())
             self.events.put(fill_event)
 
 class IBExecutionHandler(ExecutionHandler):

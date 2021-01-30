@@ -76,9 +76,8 @@ class FillEvent(Event):
     When an ExecutionHandler receives an OrderEvent it must transact the order. 
     Once an order has been transacted it generates a FillEvent
     """
-    ## FillEvent(timeindex, 'GOOG', 'S&P500', 20, 'BUY', )
-    def __init__(self, timeindex, symbol, exchange, trade_price, quantity, direction, fill_cost, \
-        calculate_commission, commission=None):
+    ## FillEvent(order_event, calculate_commission())
+    def __init__(self, order_event, commission):
         """
         Parameters:
         timeindex - The bar-resolution when the order was filled.
@@ -90,20 +89,8 @@ class FillEvent(Event):
         commission - An optional commission sent from IB.
         """
         self.type= 'FILL'
-        self.timeindex = timeindex
-        self.symbol = symbol
-        self.exchange = exchange
-        self.trade_price = trade_price
-        self.quantity = quantity
-        self.direction = direction
-        self.fill_cost = fill_cost
-
-        self.calculate_commission = calculate_commission
-
-        if commission is None:
-            self.commission = self.calculate_commission(quantity, fill_cost)
-        else:
-            self.commission = commission
+        self.order_event = order_event
+        self.commission = commission
 
 class OptimizeEvent(Event):
     """

@@ -127,27 +127,27 @@ class NaivePortfolio(Portfolio):
         """
 
         fill_dir = 0
-        if fill.direction == OrderPosition.BUY:
+        if fill.order_event.direction == OrderPosition.BUY:
             fill_dir = 1
-        elif fill.direction == OrderPosition.SELL:
+        elif fill.order_event.direction == OrderPosition.SELL:
             fill_dir = -1
 
-        self.current_positions[fill.symbol] += fill_dir*fill.quantity
+        self.current_positions[fill.order_event.symbol] += fill_dir*fill.order_event.quantity
 
     def update_holdings_from_fill(self, fill: FillEvent):
         fill_dir = 0
-        if fill.direction == OrderPosition.BUY:
+        if fill.order_event.direction == OrderPosition.BUY:
             fill_dir = 1
-        elif fill.direction == OrderPosition.SELL:
+        elif fill.order_event.direction == OrderPosition.SELL:
             fill_dir = -1  
 
-        close_price = self.bars.get_latest_bars(fill.symbol)[0][5] ## close price
-        cash = fill_dir * close_price * fill.quantity
-        self.current_holdings[fill.symbol] += fill_dir*fill.quantity
+        close_price = self.bars.get_latest_bars(fill.order_event.symbol)[0][5] ## close price
+        cash = fill_dir * close_price * fill.order_event.quantity
+        self.current_holdings[fill.order_event.symbol] += fill_dir*fill.order_event.quantity
         self.current_holdings['commission'] += fill.commission
         self.current_holdings['cash'] -= (cash + fill.commission)
         
-        self.trade_details.append([x for x in self.bars.get_latest_bars(fill.symbol)[0]] + [fill.direction])
+        self.trade_details.append([x for x in self.bars.get_latest_bars(fill.order_event.symbol)[0]] + [fill.order_event.direction])
 
     def update_fill(self, event):
         if event.type == "FILL":
