@@ -8,18 +8,22 @@ import matplotlib.pyplot as plt
 import talib
 
 from backtest import execution
-from backtest.utilities.utils import remove_bs
+from backtest.utilities.utils import load_credentials, parse_args, remove_bs
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import PercentagePortFolio
-from backtest.strategy.statistics.data import BaseStatisticalData
-from backtest.strategy.statistics.strategy import RawRegression
+from backtest.strategy.stat_data import BaseStatisticalData
+from backtest.strategy.statistics import RawRegression
 from backtest.benchmark.benchmark import plot_benchmark
 
 ## sklearn modules
 from sklearn.linear_model import LinearRegression
 
-with open("data/stock_list.txt", 'r') as fin:
+args = parse_args()
+
+with open("data/stock_universe.txt", 'r') as fin:
     stock_list = fin.readlines()
+
+load_credentials(args.credentials)
 
 stock_list = list(map(remove_bs, stock_list))
 
@@ -40,7 +44,7 @@ strategy = RawRegression(bars, event_queue, LinearRegression, BaseStatisticalDat
     'RSI': [talib.RSI, 14]
 }), 100)
 port = PercentagePortFolio(bars, event_queue, order_queue, percentage=0.01)
-broker = execution.SimulatedExecutionHandler(bars, event_queue)
+broker = execution.SimulatedExecutionHandler(bars, event_queue, order_queue)
 
 while True:
     # Update the bars (specific backtest code, as opposed to live trading)

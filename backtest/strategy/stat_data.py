@@ -1,6 +1,3 @@
-import os, sys
-from typing import final
-# sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))  ## 2 dirs above
 import talib
 from abc import abstractmethod, ABC
 import pandas as pd
@@ -107,5 +104,5 @@ class ClassificationData(BaseStatisticalData):
     def preprocess_Y(self, X):
         X.loc[:, "target_num"] = X["Close"].shift(self.shift)
         X.loc[:, "target"] = (X["target_num"] / X["Close"])
-        X["target"] = X["target"].apply(self.to_buy_or_sell)
         del X["target_num"]
+        return X["target"].apply(self.to_buy_or_sell)

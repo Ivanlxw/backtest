@@ -1,5 +1,6 @@
 from backtest.utilities.enums import OrderPosition
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
@@ -32,6 +33,10 @@ class PlotTradePrices(Plot):
         super().__init__(port)
         self.bars = bars
         self.signals = np.array(port.trade_details)
+
+    def get_plot_dims_(self,):
+        x = int(np.sqrt(len(self.port.symbol_list)))
+        return x, np.ceil(len(self.port.symbol_list)/x)
     
     def plot_indi_equity_value(self, ):
         for sym in self.port.symbol_list:
@@ -43,12 +48,13 @@ class PlotTradePrices(Plot):
         '''
         A look at where trade happens
         '''
+        x,y = self.get_plot_dims_()
         for idx,ticker in enumerate(self.port.symbol_list):
             buy_signals = self.signals[np.where((self.signals[:,0] == ticker) & (self.signals[:,-1] == OrderPosition.BUY))]
             sell_signals = self.signals[np.where((self.signals[:,0] == ticker) & (self.signals[:,-1] == OrderPosition.SELL))]
-            self.bars.raw_data[ticker].index = self.bars.raw_data[ticker].index.map(lambda x: datetime.strptime(x, '%Y-%m-%d'))
-
-            plt.subplot(len(self.port.symbol_list), 1, idx+1)
+            if not isinstance(self.bars.raw_data[ticker].index, pd.DatetimeIndex):
+                self.bars.raw_data[ticker].index = pd.to_datetime(self.bars.raw_data[ticker].index)
+            plt.subplot(x, y, idx+1)
             plt.plot(self.bars.raw_data[ticker]['close'])
             plt.scatter(buy_signals[:,1], buy_signals[:,5], c='g', marker="x")
             plt.scatter(sell_signals[:,1], sell_signals[:,5], c='r', marker="x")

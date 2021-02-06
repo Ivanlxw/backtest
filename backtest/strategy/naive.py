@@ -20,6 +20,18 @@ class Strategy(object):
     """
     __metaclass__ = ABCMeta
 
+    def __init__(self, bars, events):
+        """
+        Args:
+        bars - DataHandler object that provides bar info
+        events - event queue object
+        """
+        self.bars = bars
+        self.events = events
+
+    def put_to_queue_(self, sym, datetime, order_position): 
+        self.events.put(SignalEvent(sym, datetime, order_position))
+
     @abstractmethod
     def calculate_signals(self):
         raise NotImplementedError("Should implement calculate_signals()")
@@ -37,10 +49,7 @@ class BuyAndHoldStrategy(Strategy):
         bars - DataHandler object that provides bar info
         events - event queue object
         """
-
-        self.bars = bars  ## datahandler
-        self.symbol_list = self.bars.symbol_list
-        self.events = events
+        super().__init__(bars, events)
         self._initialize_bought_status()
 
     def _initialize_bought_status(self,):
@@ -50,9 +59,8 @@ class BuyAndHoldStrategy(Strategy):
 
     def calculate_signals(self, event):
         if event.type == "MARKET":
-            for s in self.symbol_list:
+            for s in self.bars.symbol_list:
                 bars = self.bars.get_latest_bars(s, N=1)
                 if bars is not None and bars != []: ## there's an entry
-                    signal = SignalEvent(bars[0][0], bars[0][1], OrderPosition.BUY)
-                    self.events.put(signal)
+                    self.put_to_queue_(bars[0][0], bars[0][1], OrderPosition.BUY)
                     self.bought[s] = True

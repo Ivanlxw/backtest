@@ -78,6 +78,7 @@ class HistoricCSVDataHandler(DataHandler):
             self.fundamental_data[sym] = requests.get(url, headers={ 'Content-Type': 'application/json' }).json()
 
     def _download_files(self, ):
+        dne = []
         if not os.path.exists(self.csv_dir):
             os.makedirs(self.csv_dir)
         for sym in self.symbol_list:
@@ -87,9 +88,13 @@ class HistoricCSVDataHandler(DataHandler):
                     'Content-Type': 'application/json'
                 }).json()
                 res_data = pd.DataFrame(res_data)
+                if res_data.empty:
+                    dne.append(sym)
+                    continue
                 res_data.set_index('date', inplace=True)
                 res_data.index = res_data.index.map(lambda x: x.replace("T00:00:00.000Z", ""))
                 res_data.to_csv(os.path.join(self.csv_dir, f"{sym}.csv"))
+        self.symbol_list = [sym for sym in self.symbol_list if sym not in dne]
 
     def _open_convert_csv_files(self):
         comb_index = None

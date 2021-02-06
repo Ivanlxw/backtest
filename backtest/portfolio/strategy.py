@@ -43,7 +43,7 @@ class DefaultOrder(PortfolioStrategy):
         if direction == OrderPosition.EXIT:
             if cur_quantity > 0:
                 order = OrderEvent(symbol, cur_quantity, OrderPosition.SELL)
-            else:
+            elif cur_quantity < 0:
                 order = OrderEvent(symbol, -cur_quantity, OrderPosition.BUY)            
         elif direction == OrderPosition.BUY:
             if cur_quantity < 0:

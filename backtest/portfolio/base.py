@@ -10,8 +10,8 @@ from abc import ABCMeta, abstractmethod
 
 from backtest.event import FillEvent, OptimizeEvent, OrderEvent
 from backtest.performance import create_sharpe_ratio, create_drawdowns
-from backtest.portfolio.rebalance.base import NoRebalance
-from backtest.portfolio.strategy.base import DefaultOrder, PortfolioStrategy
+from backtest.portfolio.rebalance import NoRebalance
+from backtest.portfolio.strategy import DefaultOrder, PortfolioStrategy
 
 class Portfolio(object):
     __metaclass__ = ABCMeta
@@ -192,7 +192,7 @@ class NaivePortfolio(Portfolio):
                  ("Sharpe Ratio", "%0.2f" % sharpe_ratio),
                  ("Max Drawdown", "%0.2f%%" % (max_dd * 100.0)),
                  ("Drawdown Duration", "%d" % dd_duration),
-                 ("Lowest point" , "%0.2f%%" % (np.amin(self.equity_curve["equity_curve"])*100)),
+                 ("Lowest point" , "%0.2f%%" % ((np.amin(self.equity_curve["equity_curve"]) -1) *100)),
                  ("Lowest Cash", "%f" % (np.amin(self.equity_curve["cash"])))]
         return stats
 
