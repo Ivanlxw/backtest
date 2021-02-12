@@ -20,7 +20,7 @@ from backtest.portfolio.strategy import DefaultOrder, LongOnly
 
 args = parse_args()
 
-with open("data/dow_stock_list.txt", 'r') as fin:
+with open("data/downloaded_universe.txt", 'r') as fin:
     stock_list = fin.readlines()
 stock_list = list(map(remove_bs, stock_list))
 
@@ -28,8 +28,8 @@ load_credentials(args.credentials)
             
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
-start_date = "2012-01-04"  ## YYYY-MM-DD
-symbol_list = random.sample(stock_list, 12)
+start_date = "2015-01-05"  ## YYYY-MM-DD
+symbol_list = random.sample(stock_list, 16)
 
 # Declare the components with relsspective parameters
 bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
@@ -38,8 +38,8 @@ bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
                                            fundamental=args.fundamental
                                            )
 # strategy = DoubleMAStrategy(bars, event_queue, [14,50], talib.SMA)
-strategy = BuyDips(bars, event_queue, 10, 100)
-                                     
+strategy = BuyDips(bars, event_queue, 10, 60, consecutive=3)
+
 if args.fundamental:
     strategy = FundamentalFScoreStrategy(bars, event_queue)
 port = PercentagePortFolio(bars, event_queue, order_queue, 

@@ -29,11 +29,14 @@ class Strategy(object):
         self.bars = bars
         self.events = events
 
-    def put_to_queue_(self, sym, datetime, order_position): 
+    def put_to_queue_(self, sym, datetime, order_position):
         self.events.put(SignalEvent(sym, datetime, order_position))
-
+    
     @abstractmethod
-    def calculate_signals(self):
+    def calculate_signals(self, event) -> tuple:
+        '''
+          Tuple should be (data, OrderPosition)
+        '''
         raise NotImplementedError("Should implement calculate_signals()")
 
 class BuyAndHoldStrategy(Strategy):
