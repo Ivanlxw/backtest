@@ -30,7 +30,8 @@ class Portfolio(object):
 
 class NaivePortfolio(Portfolio):
     def __init__(self, bars, events, order_queue, stock_size, initial_capital=100000.0, 
-                 portfolio_strategy: PortfolioStrategy = DefaultOrder(), order_type=OrderType.LIMIT, rebalance=None):
+                 portfolio_strategy: PortfolioStrategy = DefaultOrder(), order_type=OrderType.LIMIT, 
+                 rebalance=None, expires:int=1):
         """ 
         Parameters:
         bars - The DataHandler object with current market data.
@@ -45,6 +46,7 @@ class NaivePortfolio(Portfolio):
         self.start_date = self.bars.start_date
         self.initial_capital = initial_capital
         self.qty = stock_size
+        self.expires = expires
 
         self.trade_details = []
         self.all_positions = self.construct_all_positions()
@@ -156,7 +158,7 @@ class NaivePortfolio(Portfolio):
     
     def generate_order(self, signal) -> OrderEvent:
         latest_snapshot = self.bars.get_latest_bars(signal.symbol)[0]
-        return self.portfolio_strategy.generate_order(signal, latest_snapshot, self.current_holdings, self.all_holdings[-1], 50)
+        return self.portfolio_strategy.generate_order(signal, latest_snapshot, self.current_holdings, self.all_holdings[-1], 50, self.expires)
     
     def _put_to_event(self, order):
         if order is not None:
@@ -202,8 +204,12 @@ class NaivePortfolio(Portfolio):
         self.equity_curve.to_csv(fp)
 
 class PercentagePortFolio(NaivePortfolio):
-    def __init__(self, bars, events, order_queue, percentage, initial_capital=100000.0, rebalance=None, portfolio_strategy=DefaultOrder(), order_type=OrderType.LIMIT, mode='cash'):
-        super().__init__(bars, events, order_queue, stock_size=0, initial_capital=initial_capital, rebalance=rebalance, portfolio_strategy=portfolio_strategy, order_type=order_type)
+    def __init__(self, bars, events, order_queue, percentage, initial_capital=100000.0, 
+                 rebalance=None, portfolio_strategy=DefaultOrder(), order_type=OrderType.LIMIT, 
+                 mode='cash', expires:int = 1):
+        super().__init__(bars, events, order_queue, stock_size=0, initial_capital=initial_capital, 
+                         rebalance=rebalance, portfolio_strategy=portfolio_strategy, 
+                         order_type=order_type, expires=expires)
         if mode not in ('cash', 'asset'):
             raise Exception('mode options: cash | asset')
         self.mode = mode
@@ -218,4 +224,4 @@ class PercentagePortFolio(NaivePortfolio):
             return
         size = int(self.current_holdings["cash"] * self.perc / snapshot[5]) if self.mode == 'cash' \
             else int(self.all_holdings[-1]["total"] * self.perc / snapshot[5])
-        return self.portfolio_strat.generate_order(signal, snapshot, self.current_holdings, self.all_holdings[-1], size)
+        return self.portfolio_strat.generate_order(signal, snapshot, self.current_holdings, self.all_holdings[-1], size, self.expires)

@@ -32,3 +32,4 @@ for idx, symbol in enumerate(stock_list):
             get_tiingo_eod(symbol, f"data/data/daily/{symbol}.csv", full=True, key=KEY)
     except Exception as e:
         raise KeyError(f"Symbol: {symbol}, error: {e}")
+        

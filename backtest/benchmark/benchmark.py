@@ -7,7 +7,7 @@ import time, datetime
 import queue
 import matplotlib.pyplot as plt
 
-from backtest import execution
+from backtest.broker import SimulatedBroker
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import PercentagePortFolio
 from backtest.portfolio.strategy import DefaultOrder
@@ -26,7 +26,7 @@ def plot_benchmark(stock_list_fp, symbol_list, start_date, end_date:str=None, fr
     port = PercentagePortFolio(bars, event_queue, order_queue, 
                                percentage=1/len(symbol_list), mode='asset',
                                order_type=OrderType.MARKET)
-    broker = execution.SimulatedExecutionHandler(bars, event_queue, order_queue)
+    broker = SimulatedBroker(bars, event_queue, order_queue)
 
     start = time.time()
     while True:

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
 
-from backtest import execution
+from backtest.broker import SimulatedBroker
 from backtest.utilities.utils import load_credentials, parse_args, remove_bs
 from backtest.benchmark.benchmark import plot_benchmark
 from backtest.data.dataHandler import HistoricCSVDataHandler
@@ -41,7 +41,7 @@ bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
 
 strategy = RawClassification(bars, event_queue, RandomForestClassifier, processor=ClassificationData(bars, 14, 2), reoptimize_days=30)
 port = PercentagePortFolio(bars, event_queue, order_queue, percentage=0.05, rebalance=BaseRebalance(event_queue))
-broker = execution.SimulatedExecutionHandler(bars, event_queue, order_queue)
+broker = SimulatedBroker(bars, event_queue, order_queue)
 
 while True:
     # Update the bars (specific backtest code, as opposed to live trading)

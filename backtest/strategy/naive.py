@@ -5,9 +5,10 @@ Strategy object take market data as input and produce trading signal events as o
 # strategy.py
 
 from abc import ABCMeta, abstractmethod
-from backtest.utilities.enums import OrderPosition
 
 from backtest.event import SignalEvent
+from backtest.utilities.enums import OrderPosition
+
 
 class Strategy(object):
     """
@@ -29,8 +30,8 @@ class Strategy(object):
         self.bars = bars
         self.events = events
 
-    def put_to_queue_(self, sym, datetime, order_position):
-        self.events.put(SignalEvent(sym, datetime, order_position))
+    def put_to_queue_(self, sym, datetime, order_position, price):
+        self.events.put(SignalEvent(sym, datetime, order_position, price))
     
     @abstractmethod
     def calculate_signals(self, event) -> tuple:
@@ -65,5 +66,5 @@ class BuyAndHoldStrategy(Strategy):
             for s in self.bars.symbol_list:
                 bars = self.bars.get_latest_bars(s, N=1)
                 if bars is not None and bars != []: ## there's an entry
-                    self.put_to_queue_(bars[0][0], bars[0][1], OrderPosition.BUY)
+                    self.put_to_queue_(bars[0][0], bars[0][1], OrderPosition.BUY, bars[0][5])
                     self.bought[s] = True

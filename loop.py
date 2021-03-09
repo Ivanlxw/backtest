@@ -7,12 +7,12 @@ import matplotlib.pyplot as plt
 import random
 import talib 
 
-from backtest import execution
+from backtest.broker import SimulatedBroker
 from backtest.utilities.utils import load_credentials, parse_args, remove_bs
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import NaivePortfolio, PercentagePortFolio
 from backtest.strategy.multiple import MultipleStrategy
-from backtest.strategy.ma import SimpleCrossStrategy, DoubleMAStrategy, MeanReversionTA
+from backtest.strategy.ta import SimpleCrossStrategy, DoubleMAStrategy, MeanReversionTA, CustomRSI
 from backtest.strategy.statistics import BuyDips
 from backtest.strategy.fundamental import FundamentalFScoreStrategy
 from backtest.benchmark.benchmark import plot_benchmark
@@ -29,7 +29,7 @@ load_credentials(args.credentials)
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
 start_date = "2015-01-05"  ## YYYY-MM-DD
-symbol_list = random.sample(stock_list, 16)
+symbol_list = random.sample(stock_list, 25)
 
 # Declare the components with relsspective parameters
 bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
@@ -38,16 +38,17 @@ bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
                                            fundamental=args.fundamental
                                            )
 # strategy = DoubleMAStrategy(bars, event_queue, [14,50], talib.SMA)
-strategy = BuyDips(bars, event_queue, 10, 60, consecutive=3)
+strategy = CustomRSI(bars, event_queue, 20, 50)
 
 if args.fundamental:
     strategy = FundamentalFScoreStrategy(bars, event_queue)
 port = PercentagePortFolio(bars, event_queue, order_queue, 
     percentage=0.05, 
     mode='asset',
-    portfolio_strategy=DefaultOrder
+    portfolio_strategy=DefaultOrder,
+    expires=7
 )
-broker = execution.SimulatedExecutionHandler(bars, event_queue, order_queue)
+broker = SimulatedBroker(bars, event_queue, order_queue)
 
 start = time.time()
 while True:

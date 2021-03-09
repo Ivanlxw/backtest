@@ -22,7 +22,7 @@ This repo is meant to be as low-level as possible to get greater control of the 
 ## Details
 This event-driven backtester consists of the following: 
 - DataHandler (Defines trading universe, reads in necessary data)
-- Execution Enironment (Details about the exchange that might affect backtesting strategies)
+- broker Enironment (Details about the exchange that might affect backtesting strategies)
 - Portfolio (Executes `OrderEvent` based on `SignalEvent`, updates portfolio as necessary)
 - Strategy (Looks for `SignalEvent` to be routed to portfolio)
 

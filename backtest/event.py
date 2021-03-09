@@ -34,20 +34,21 @@ class SignalEvent(Event):
     The SignalEvents are utilised by the Portfolio object as advice for how to trade.
     """
 
-    def __init__(self, symbol, datetime, signal_type: OrderPosition):
+    def __init__(self, symbol, datetime, signal_type: OrderPosition, price: float):
         ## SignalEvent('GOOG', timestamp, OrderPosition.LONG)    # timestamp can be a string or the big numbers
         self.type = 'SIGNAL'
         self.symbol = symbol
         self.datetime = datetime
         self.signal_type = signal_type
+        self.price = price
 
 class OrderEvent(Event):
     """
     assesses signalevents in the wider context of the portfolio, 
     in terms of risk and position sizing. 
-    This ultimately leads to OrderEvents that will be sent to an ExecutionHandler.
+    This ultimately leads to OrderEvents that will be sent to an brokerHandler.
     """
-    def __init__(self, symbol, quantity, direction: OrderPosition):
+    def __init__(self, symbol, quantity, direction: OrderPosition, price):
         """ Params
         order_type - MARKET or LIMIT for Market or Limit
         quantity - non-nevgative integer
@@ -60,11 +61,12 @@ class OrderEvent(Event):
         self.quantity = quantity
         assert (direction == OrderPosition.BUY or direction == OrderPosition.SELL)
         self.direction = direction
-        self.trade_price = None
-    
+        self.signal_price = price
+        self.trade_value = None
+
     def print_order(self,):
         print("Order: Symbol={}, Type={}, Trade Price = {}, Quantity={}, Direction={}".format(self.symbol, \
-            self.order_type, self.trade_price, self.quantity, self.direction))
+            self.order_type, self.price, self.quantity, self.direction))
 
 class FillEvent(Event):
     """
@@ -73,7 +75,7 @@ class FillEvent(Event):
     actually filled and at what price. In addition, stores
     the commission of the trade from the brokerage.
 
-    When an ExecutionHandler receives an OrderEvent it must transact the order. 
+    When an brokerHandler receives an OrderEvent it must transact the order. 
     Once an order has been transacted it generates a FillEvent
     """
     ## FillEvent(order_event, calculate_commission())

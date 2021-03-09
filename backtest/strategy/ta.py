@@ -1,12 +1,13 @@
-from backtest.utilities.enums import OrderPosition
 from time import time
-from matplotlib.pyplot import bar
+
 import numpy as np
 import pandas as pd
 import talib
-
 from backtest.event import SignalEvent
 from backtest.strategy.naive import Strategy
+from backtest.utilities.enums import OrderPosition
+from matplotlib.pyplot import bar
+
 
 class SimpleCrossStrategy(Strategy):
     '''
@@ -38,9 +39,9 @@ class SimpleCrossStrategy(Strategy):
                 continue
             TAs = self._get_MA(bars, self.timeperiod)
             if bars[-2][5] > TAs[-2] and bars[-1][5] < TAs[-1]:
-                self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.SELL)
+                self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.SELL, bars[-1][5])
             elif bars[-2][5] < TAs[-2] and bars[-1][5] > TAs[-1]:
-                self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.BUY)
+                self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.BUY,  bars[-1][5])
 
 class DoubleMAStrategy(SimpleCrossStrategy):
     def __init__(self, bars, events, timeperiods , ma_type):    
@@ -72,9 +73,9 @@ class DoubleMAStrategy(SimpleCrossStrategy):
             long_ma = self._get_MA(bars, self.longer)
             sig = self.cross(short_ma, long_ma)
             if sig == -1:
-                self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.SELL)
+                self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.SELL, bars[-1][5])
             elif sig == 1:
-                self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.BUY)
+                self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.BUY, bars[-1][5])
 
 class MeanReversionTA(SimpleCrossStrategy):
     '''
@@ -90,12 +91,12 @@ class MeanReversionTA(SimpleCrossStrategy):
     
     def _exit_ma_cross(self, bars, TAs, boundary):
         if self._break_down(bars, TAs) or self._break_up(bars, TAs):
-            self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.EXIT)          
+            self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.EXIT, bars[-1][5])          
 
         if (bars[-1][5] < (TAs[-1] + boundary) and bars[-2][5] > (TAs[-2] + boundary)):
-            self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.SELL)
+            self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.SELL, bars[-1][5])
         elif (bars[-1][5] > (TAs[-1] - boundary) and bars[-2][5] < (TAs[-2] - boundary)):
-            self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.BUY)
+            self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.BUY, bars[-1][5])
     
     def calculate_signals(self, event):
         '''
@@ -120,8 +121,25 @@ class MeanReversionTA(SimpleCrossStrategy):
 
             if self._break_down(bars, TAs) or \
                 (bars[-1][5] < (TAs[-1] + boundary) and bars[-2][5] > (TAs[-2] + boundary)):
-                self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.SELL)
+                self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.SELL, bars[-1][5])
             elif self._break_up(bars, TAs) or \
                 (bars[-1][5] > (TAs[-1] - boundary) and bars[-2][5] < (TAs[-2] - boundary)):
-                self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.BUY)
-    
+                self.put_to_queue_(bars[-1][0], bars[-1][1], OrderPosition.BUY, bars[-1][5])
+
+class CustomRSI(Strategy):
+    def __init__(self, bars, events, rsi_period, long_period):
+        self.bars = bars
+        self.events = events
+        self.rsi_period = rsi_period
+        self.period = long_period
+
+    def calculate_signals(self,event):
+        for sym in self.bars.symbol_list:
+            data = np.array(self.bars.get_latest_bars(sym, self.period+3))
+            rsi_values = talib.RSI(data[:,5].astype(np.double), self.rsi_period)
+            if rsi_values[-1] > 40 and all(rsi < 40 for rsi in rsi_values[-3:-1]) \
+                and np.corrcoef(np.arange(1, data.shape[0]+1), data[:, 5].astype(np.double))[0][1] > 0.30:
+                self.put_to_queue_(data[-1][0], data[-1][1], OrderPosition.BUY, data[-1][5])
+            elif rsi_values[-1] < 50 and all(rsi > 50 for rsi in rsi_values[-3:-1]) \
+                and np.corrcoef(np.arange(1,self.rsi_period+1), data[-self.rsi_period:, 5].astype(np.double))[0][1] < -0.75:
+                self.put_to_queue_(data[-1][0], data[-1][1], OrderPosition.SELL, data[-1][5])

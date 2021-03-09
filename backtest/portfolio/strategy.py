@@ -1,23 +1,27 @@
 from abc import ABCMeta, abstractmethod
-from backtest.utilities.enums import OrderPosition, OrderType
-from backtest.event import OrderEvent
 from math import fabs
+from datetime import timedelta
+
+from backtest.event import OrderEvent
+from backtest.utilities.enums import OrderPosition, OrderType
+
 
 class PortfolioStrategy(metaclass=ABCMeta):
   @classmethod
-  def generate_order(cls, signal, latest_snapshot, current_holdings, holdings_value:dict, size=None) -> OrderEvent:
+  def generate_order(cls, signal, latest_snapshot, current_holdings, holdings_value:dict, size, expires:int) -> OrderEvent:
     order = cls._filter_order_to_send(signal, latest_snapshot, current_holdings, holdings_value, size)
-    return cls._enough_credit(order, latest_snapshot, current_holdings, holdings_value, size)
+    return cls._enough_credit(order, latest_snapshot, current_holdings, holdings_value, size, expires)
 
   @classmethod
-  def _enough_credit(cls, order, latest_snapshot, current_holdings, holdings_value, size) -> OrderEvent:
+  def _enough_credit(cls, order, latest_snapshot, current_holdings, holdings_value, size, expires:int) -> OrderEvent:
         if order is None:
             return 
         mkt_price = latest_snapshot[5]
         order_value = fabs(size * mkt_price)
         if order.direction == OrderPosition.BUY and current_holdings["cash"] > order_value or \
             holdings_value["total"] > order_value and order.direction == OrderPosition.SELL:
-            order.trade_price = mkt_price
+            order.trade_value = mkt_price
+            order.expires = latest_snapshot[1] + timedelta(days=expires)
             return order
   @abstractmethod
   def _filter_order_to_send(signal, latest_snapshot):
@@ -42,20 +46,21 @@ class DefaultOrder(PortfolioStrategy):
 
         if direction == OrderPosition.EXIT:
             if cur_quantity > 0:
-                order = OrderEvent(symbol, cur_quantity, OrderPosition.SELL)
+                order = OrderEvent(symbol, cur_quantity, OrderPosition.SELL, signal.price)
             elif cur_quantity < 0:
-                order = OrderEvent(symbol, -cur_quantity, OrderPosition.BUY)            
+                order = OrderEvent(symbol, -cur_quantity, OrderPosition.BUY, signal.price)            
         elif direction == OrderPosition.BUY:
             if cur_quantity < 0:
-                order = OrderEvent(symbol, size-cur_quantity, direction)
+                order = OrderEvent(symbol, size-cur_quantity, direction, signal.price)
             else:
-                order = OrderEvent(symbol, size, direction)
+                order = OrderEvent(symbol, size, direction, signal.price)
         elif direction == OrderPosition.SELL:
             if cur_quantity > 0:
-                order = OrderEvent(symbol, size+cur_quantity, direction)
+                order = OrderEvent(symbol, size+cur_quantity, direction, signal.price)
             else:
-                order = OrderEvent(symbol, size, direction)
+                order = OrderEvent(symbol, size, direction, signal.price)
         return order
+
 class LongOnly(PortfolioStrategy):
     @classmethod
     def _filter_order_to_send(cls, signal, snapshot, current_holdings, holdings_value, size):
@@ -68,7 +73,7 @@ class LongOnly(PortfolioStrategy):
         direction = signal.signal_type
         
         if direction == OrderPosition.BUY:
-            order = OrderEvent(symbol, size, direction)
+            order = OrderEvent(symbol, size, direction, signal.price)
         elif (direction == OrderPosition.SELL or direction == OrderPosition.EXIT) and current_holdings[symbol] > 0:
-            order = OrderEvent(symbol, current_holdings[symbol], OrderPosition.SELL)
+            order = OrderEvent(symbol, current_holdings[symbol], OrderPosition.SELL, signal.price)
         return order

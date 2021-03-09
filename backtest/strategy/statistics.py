@@ -1,11 +1,12 @@
+from abc import ABCMeta, abstractmethod
+
 import numpy as np
 import pandas as pd
-from abc import ABCMeta, abstractmethod
+from backtest.event import SignalEvent
+from backtest.strategy.naive import Strategy
+from backtest.utilities.enums import OrderPosition
 from sklearn.preprocessing import LabelEncoder
 
-from backtest.strategy.naive import Strategy
-from backtest.event import SignalEvent
-from backtest.utilities.enums import OrderPosition
 
 class BuyDips(Strategy):
     def __init__(self, bars, events, short_time, long_time, consecutive=2) -> None:
@@ -22,10 +23,10 @@ class BuyDips(Strategy):
         ## dips
         if lt_corr[0][1] > 0.40 and np.percentile(temp_data[-self.st*2:, 5], 25) > temp_data[-1,5]:
             return OrderPosition.BUY
-        elif lt_corr[0][1] < -0.75 and np.percentile(temp_data[-self.st*2:, 5], 90) < temp_data[-1,5]:
-            return OrderPosition.SELL
-        #momentum
-        elif st_corr[0][1] > 0.75 and np.percentile(temp_data[:, 5], 30) > temp_data[-1,5]:
+        # elif lt_corr[0][1] < -0.40 and np.percentile(temp_data[-self.st*2:, 5], 90) < temp_data[-1,5]:
+        #     return OrderPosition.SELL
+        # #momentum
+        elif lt_corr[0][1] > 0.20 and st_corr[0][1] > 0.75 and np.percentile(temp_data[:, 5], 25) > temp_data[-1,5]:
             return OrderPosition.BUY
         ## currenly selling at dips
         elif st_corr[0][1] < -0.75 and np.percentile(temp_data[:, 5], 75) < temp_data[-1,5]:
@@ -33,14 +34,14 @@ class BuyDips(Strategy):
      
     def calculate_signals(self, event):
         if event.type == 'MARKET':
-            # corr_diff = dict((sym, None) for sym in self.bars.symbol_lis)
+            # corr_diff = dict((sym, None) for lt_corr[0][1] < -0.2540and sym in self.bars.symbol_lis)
             for sym in self.bars.symbol_list:
                 temp_data = np.array(self.bars.get_latest_bars(sym, N=self.lt+self.consecutive))
                 if len(temp_data) != self.lt+self.consecutive:
                     continue
                 psignals = [self.calculate_position(temp_data[:-i]) for i in range(1,self.consecutive)]
                 if all(elem == psignals[-1] for elem in psignals) and psignals[-1] is not None:
-                    self.put_to_queue_(temp_data[-1][0], temp_data[-1][1], psignals[-1])
+                    self.put_to_queue_(temp_data[-1][0], temp_data[-1][1], psignals[-1], temp_data[-1][5])
 
 class StatisticalStrategy():
     def __init__(self, bars, events, model, processor):
@@ -48,11 +49,11 @@ class StatisticalStrategy():
         self.columns = ["symbol", "date", "Open", "High", "Low", "Close", "Volume"]
         self.model = model
         self.bars = bars
-        self.symbol_list = self.bars.symbol_list
+        self.symbols_list = self.bars.symbol_list
         self.processor = processor
 
     @abstractmethod
-    def optimize(self,):
+    def optimize(self):
         raise NotImplementedError("Must implement optimize()")
     
     def _prepare_flow_data(self, bars):

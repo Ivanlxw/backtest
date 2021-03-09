@@ -7,7 +7,7 @@ import random
 import matplotlib.pyplot as plt
 import talib
 
-from backtest import execution
+from backtest.broker import SimulatedBroker
 from backtest.utilities.utils import load_credentials, parse_args, remove_bs
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.base import PercentagePortFolio
@@ -44,7 +44,7 @@ strategy = RawRegression(bars, event_queue, LinearRegression, BaseStatisticalDat
     'RSI': [talib.RSI, 14]
 }), 100)
 port = PercentagePortFolio(bars, event_queue, order_queue, percentage=0.01)
-broker = execution.SimulatedExecutionHandler(bars, event_queue, order_queue)
+broker = SimulatedBroker(bars, event_queue, order_queue)
 
 while True:
     # Update the bars (specific backtest code, as opposed to live trading)
