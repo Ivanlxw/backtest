@@ -65,8 +65,8 @@ class OrderEvent(Event):
         self.trade_value = None
 
     def print_order(self,):
-        print("Order: Symbol={}, Type={}, Trade Price = {}, Quantity={}, Direction={}".format(self.symbol, \
-            self.order_type, self.price, self.quantity, self.direction))
+        return "Order: Symbol={}, Type={}, Trade Price = {}, Quantity={}, Direction={}".format(self.symbol, \
+            self.order_type, self.price, self.quantity, self.direction)
 
 class FillEvent(Event):
     """

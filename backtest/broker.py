@@ -3,12 +3,14 @@ import os
 import threading
 import time
 from abc import ABC, abstractmethod
-
+from pandas.core import api
 import requests
 import pandas as pd
+
 from ibapi.client import EClient
 from ibapi.contract import Contract
 from ibapi.wrapper import EWrapper
+import alpaca_trade_api
 
 from backtest.event import FillEvent, OrderEvent
 from backtest.utilities.enums import OrderPosition, OrderType
@@ -279,11 +281,30 @@ class AlpacaBroker(Broker):
             "APCA-API-SECRET-KEY": os.environ["alpaca_secret_key"]
         }).json()
 
-    def execute_order(self, event):
-        pass
+    """ ORDERS """
+    def get_current_orders(self):
+        return self.api.list_orders()
+
+    def execute_order(self, event: OrderEvent):
+        side = 'buy' if OrderPosition.BUY else 'sell'
+        if event.order_type == OrderType.LIMIT:
+            return self.api.submit_order(
+                symbol=event.symbol,
+                qty=event.quantity, side=side, 
+                type='limit', time_in_force='day',
+                limit_price=OrderEvent.signal_price)
+        else:
+           return self.api.submit_order(
+                symbol=event.symbol,
+                qty=event.quantity, side=side, 
+                type='market', time_in_force='day')
 
     def calculate_commission(self):
         return 0
+    
+    """ PORTFOLIO RELATED """
+    def get_positions(self):
+        return self.api.list_positions()
 
     def get_historical_bars(self, ticker, timeframe, start, end, limit:int = None) -> pd.DataFrame:
         assert timeframe in ['1Min', '5Min', '15Min', 'day', '1D']
@@ -294,46 +315,3 @@ class AlpacaBroker(Broker):
     def get_quote(self, ticker):
         return self.api.get_last_quote(ticker)
 
-    def submit_order(self, event: OrderEvent):
-        side = 'buy' if OrderPosition.BUY else 'sell'
-        if event.order_type() == OrderType.LIMIT:
-           return self.api.submit_order(event.symbol, event.quantity, side, 'market', 'day', limit_price=OrderEvent.signal_price)
-        else:
-            return self.api.submit_order(event.symbol, event.quantity, side, 'market', 'day')
-
-if __name__ == "__main__":
-    import json
-    import pandas as pd
-
-    import alpaca_trade_api
-
-    with open("../real_credentials.json", 'r') as f:
-        credentials = json.load(f)
-        for k,v in credentials.items():
-            os.environ[k] = v
-
-    """
-
-    my_td_broker = IBBroker(queue.Queue())
-    # apple_contract = my_td_broker.create_contract("AAPL", "STK")
-    queryTime = (datetime.datetime.today() - datetime.timedelta(days=30)).strftime("%Y%m%d %H:%M:%S")
-    # my_td_broker.reqHistoricalData(4103, apple_contract, queryTime, "1 M", "1 day", "MIDPOINT", 1, 1, False, [])
-    eurusd_contract = my_td_broker.create_contract("EUR", "CASH", "IDEALPRO")
-    my_td_broker.reqHistoricalData(1005, eurusd_contract, '', '2 D', '1 hour', 'BID', 0, 2, False, [])
-    # my_td_broker.reqHistoricalData(4115, eurusd_contract, queryTime, "1 M", "15 mins", "MIDPOINT", 1, 1, False, [])
-    time.sleep(3)
-    print(my_td_broker.hist_data)
-    my_td_broker.disconnect()
-
-    """
-
-    my_tda = TDABroker()
-    print(my_tda.get_quote("AAPL"))
-
-    my_alpaca = AlpacaBroker()
-    NY = 'America/New_York'
-    SG = 'Singapore'
-    start = pd.Timestamp('2021-02-24 09:30', tz=NY).isoformat()
-    end = pd.Timestamp('2021-02-25 15:00', tz=NY).isoformat()
-    print(my_alpaca.get_quote("AAPL"))
-    # print(my_alpaca.get_historical_bars("AAPL", '15Min', start, end))

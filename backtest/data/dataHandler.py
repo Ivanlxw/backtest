@@ -1,12 +1,12 @@
 import datetime
-import os, os.path
-import pandas as pd
-
-from abc import ABC, abstractmethod
 import os
+from pandas.core import series
 import requests
+import pandas as pd
+from abc import ABC, abstractmethod
+import alpaca_trade_api
 
-from event import MarketEvent
+from backtest.event import MarketEvent
 
 def get_tiingo_endpoint(endpoint:str, args:str):
     return f"https://api.tiingo.com/tiingo/{endpoint}?{args}&token={os.environ['TIINGO_API']}"
@@ -163,3 +163,46 @@ class HistoricCSVDataHandler(DataHandler):
     
     def get_data(self):
         return self.symbol_data
+
+class AlpacaLiveData(DataHandler):
+    def __init__(self, symbol_list, timeframe='1D'):
+        self.symbol_list = symbol_list
+        assert timeframe in ['1Min', '5Min', '15Min', 'day', '1D']
+        self.timeframe = timeframe
+
+        self.continue_backtest = False
+        self.NY = 'America/New_York'
+        self.start_date = pd.Timestamp.now(tz=self.NY).strftime("%Y-%m-%d")
+
+        ## connect to Alpaca to call their symbols
+        self.base_url = "https://paper-api.alpaca.markets"
+        self.data_url = "https://data.alpaca.markets/v2" 
+        self.api = alpaca_trade_api.REST(
+            os.environ["alpaca_key_id"], 
+            os.environ["alpaca_secret_key"], 
+            self.base_url, api_version="v2"
+        )
+
+    def get_latest_bars(self, symbol, N=1):
+        today = pd.Timestamp.today(tz=self.NY)
+        start = (today - pd.DateOffset(N+4)).isoformat()
+        end = today.isoformat()
+        # end = pd.Timestamp(
+        #     f'{ytd.year}-{ytd.month}-{ytd.day} 15:00', tz=self.NY).isoformat()
+        return self.api.get_barset(symbol, '1D', 
+            start=start, end=end
+        ).df.iloc[-N:,:].to_dict()
+    
+    def get_historical_bars(self, ticker, start, end, limit:int = None) -> pd.DataFrame:
+        if limit is not None:
+            return self.api.get_barset(ticker, self.timeframe, start=start, end=end, limit=limit).df
+        return self.api.get_barset(ticker, self.timeframe, start=start, end=end).df.to_dict()
+   
+    def get_last_quote(self, ticker):
+        return self.api.get_last_quote(ticker)
+    
+    def get_last_price(self, ticker):
+        return self.api.get_last_trade(ticker).price
+
+    def update_bars(self,):
+        self.events.put(MarketEvent())

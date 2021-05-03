@@ -9,18 +9,24 @@ from backtest.strategy.naive import BuyAndHoldStrategy
 from backtest.utilities.enums import OrderType
 from backtest.utilities.utils import _backtest_loop
 
-def backtest(start_date, symbol_list, 
+def backtest(symbol_list, 
              bars, event_queue, order_queue, 
              strategy, port, broker, 
-             plot_trade_prices:bool=False):
-    plotter = _backtest_loop(bars, event_queue, order_queue, strategy, port, broker)
+             start_date=None,
+             plot_trade_prices:bool=False,
+             loop_live:bool=False):
+    if not loop_live and start_date is None:
+        raise Exception("If backtesting, start_date is required.")
+         
+    plotter = _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_live=loop_live)
 
-    plot_benchmark("data/stock_list.txt", \
-        symbol_list=symbol_list, \
-        start_date = start_date)
+    if not loop_live:
+        plot_benchmark("data/stock_list.txt", \
+            symbol_list=symbol_list, \
+            start_date = start_date)
 
-    plt.legend()
-    plt.show()
+        plt.legend()
+        plt.show()
 
     if plot_trade_prices:
         plotter.plot_trade_prices()

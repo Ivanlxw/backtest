@@ -3,6 +3,7 @@ import os
 import argparse
 import time
 import queue
+import logging
 
 from backtest.Plots.plot import PlotTradePrices
 
@@ -18,14 +19,15 @@ def load_credentials(credentials_fp):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Configs for running main.')
+    parser.add_argument('-c', '--credentials', required=True, type=str, help="credentials filepath")
+    parser.add_argument('-n', '--name', required=True, type=str, help="name of backtest/live strat run")
     parser.add_argument('-b', '--backtest', required=False, type=bool, default=True,
                     help='backtest filters?')
-    parser.add_argument('-c', '--credentials', required=False, type=str, help="credentials filepath")
     parser.add_argument('-f', '--fundamental', required=False, type=bool, default=False, help="Use fundamental data or not")
     parser.add_argument('--data_dir', default="./data/daily", required=False, type=str, help="filepath to dir of csv files")
     return parser.parse_args()
 
-def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker) -> PlotTradePrices:
+def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_live:bool =False) -> PlotTradePrices:
     start = time.time()
     while True:
         # Update the bars (specific backtest code, as opposed to live trading)
@@ -53,13 +55,15 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker) -> Pl
 
                     elif event.type == 'ORDER':
                         broker.execute_order(event)
-                        # event.print_order()
+                        logging.info(event.print_order())
 
                     elif event.type == 'FILL':
                         port.update_fill(event)
-
+    
+    if (loop_live):
         # 10-Minute heartbeat
-        # time.sleep(10*60)
+        logging.info("sleeping")
+        time.sleep(24*60*60)
     print(f"Backtest finished in {time.time() - start}. Getting summary stats")
     port.create_equity_curve_df()
     print(port.output_summary_stats())
