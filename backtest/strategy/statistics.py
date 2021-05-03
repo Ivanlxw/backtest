@@ -90,11 +90,12 @@ class RawRegression(StatisticalStrategy, Strategy):
     def _prepare_flow_data(self, bars, sym):
         temp_df = pd.DataFrame(bars, columns = self.columns)
         temp_df = temp_df.drop(["symbol", "date"], axis=1)
-        return None if self.model[sym] is None else self.model[sym].predict(self.processor._transform_X(temp_df))
+        return None if self.model[sym] is None else self.model[sym].predict(
+            self.processor._transform_X(temp_df))
 
     def calculate_signals(self, event):
         if event.type == "MARKET":
-            for s in self.symbol_list:
+            for s in self.bars.symbol_list:
                 bars_list = self.bars.get_latest_bars(s, N=self.processor.get_shift())
                 if len(bars_list) < self.processor.get_shift() or \
                     bars_list[-1][-1] == 0.0:
@@ -105,9 +106,11 @@ class RawRegression(StatisticalStrategy, Strategy):
                 if preds is None:
                     return
                 if preds[-1] > 0.07:
-                    self.put_to_queue_(bars_list[-1][0], bars_list[-1][1], OrderPosition.BUY)
+                    self.put_to_queue_(bars_list[-1][0], bars_list[-1][1], 
+                                       OrderPosition.BUY, bars_list[-1][5])
                 elif preds[-1] < -0.07:
-                    self.put_to_queue_(bars_list[-1][0], bars_list[-1][1], OrderPosition.SELL)
+                    self.put_to_queue_(bars_list[-1][0], bars_list[-1][1], 
+                                       OrderPosition.SELL, bars_list[-1][5])
 
 ## Sklearn classifier (combined)
 class RawClassification(RawRegression):
@@ -116,7 +119,7 @@ class RawClassification(RawRegression):
     
     def calculate_signals(self, event):
         if event.type == "MARKET":
-            for s in self.symbol_list:
+            for s in self.bars.symbol_list:
                 bars_list = self.bars.get_latest_bars(s, N=self.processor.get_shift())
 
                 close_price = bars_list[-1][5]

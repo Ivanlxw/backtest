@@ -47,6 +47,7 @@ class NaivePortfolio(Portfolio):
         self.initial_capital = initial_capital
         self.qty = stock_size
         self.expires = expires
+        self.name = portfolio_strategy.__class__.__name__
 
         self.trade_details = []
         self.all_positions = self.construct_all_positions()

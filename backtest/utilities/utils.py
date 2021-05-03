@@ -1,6 +1,10 @@
 import json
 import os
 import argparse
+import time
+import queue
+
+from backtest.Plots.plot import PlotTradePrices
 
 def remove_bs(s:str):
     ## remove backslash at the end from reading from a stock_list.txt 
@@ -20,3 +24,46 @@ def parse_args():
     parser.add_argument('-f', '--fundamental', required=False, type=bool, default=False, help="Use fundamental data or not")
     parser.add_argument('--data_dir', default="./data/daily", required=False, type=str, help="filepath to dir of csv files")
     return parser.parse_args()
+
+def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker) -> PlotTradePrices:
+    start = time.time()
+    while True:
+        # Update the bars (specific backtest code, as opposed to live trading)
+        if bars.continue_backtest == True:
+            bars.update_bars()
+        else:
+            break
+        
+        # Handle the events
+        while True:
+            try:
+                event = event_queue.get(block=False)
+            except queue.Empty:
+                break
+            else:
+                if event is not None:
+                    if event.type == 'MARKET':
+                        port.update_timeindex(event)
+                        strategy.calculate_signals(event)
+                        while not order_queue.empty():
+                            event_queue.put(order_queue.get())
+
+                    elif event.type == 'SIGNAL':
+                        port.update_signal(event)
+
+                    elif event.type == 'ORDER':
+                        broker.execute_order(event)
+                        # event.print_order()
+
+                    elif event.type == 'FILL':
+                        port.update_fill(event)
+
+        # 10-Minute heartbeat
+        # time.sleep(10*60)
+    print(f"Backtest finished in {time.time() - start}. Getting summary stats")
+    port.create_equity_curve_df()
+    print(port.output_summary_stats())
+
+    plotter = PlotTradePrices(port, bars)
+    plotter.plot()
+    return plotter

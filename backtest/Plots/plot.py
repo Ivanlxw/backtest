@@ -17,12 +17,11 @@ class Plot:
     def _plot_equity_curve(self):
         plt.subplot(2,1,1)
         plt.title("Equity curve")
-        plt.plot(self.port.equity_curve['equity_curve'], label="strat_eq")
-        plt.plot(self.port.equity_curve['liquidity_curve'], label="strat_cash")
+        plt.plot(self.port.equity_curve['equity_curve'], label=self.port.name + "_equity")
         plt.subplot(2,1,2)
         plt.title("Assets over time")
-        plt.plot(self.port.equity_curve["total"], label="strat_total")
-        plt.plot(self.port.equity_curve['cash'], label="strat_cash")
+        plt.plot(self.port.equity_curve["total"], label=self.port.name + "_total")
+        plt.plot(self.port.equity_curve['cash'], label=self.port.name + "_cash")
         plt.tight_layout()
 
     def plot(self):
