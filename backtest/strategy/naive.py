@@ -30,6 +30,9 @@ class Strategy(object):
         self.bars = bars
         self.events = events
 
+    def optimize(self,):
+        return
+    
     def put_to_queue_(self, sym, datetime, order_position, price):
         self.events.put(SignalEvent(sym, datetime, order_position, price))
     
@@ -66,5 +69,5 @@ class BuyAndHoldStrategy(Strategy):
             for s in self.bars.symbol_list:
                 bars = self.bars.get_latest_bars(s, N=1)
                 if bars is not None and bars != []: ## there's an entry
-                    self.put_to_queue_(bars[0][0], bars[0][1], OrderPosition.BUY, bars[0][5])
+                    self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
                     self.bought[s] = True

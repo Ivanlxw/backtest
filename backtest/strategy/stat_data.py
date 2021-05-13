@@ -56,25 +56,25 @@ class BaseStatisticalData(StatisticalData):
         ## obtains lagged data for lag days
         if self.lag > 0:
             for i in range(1,self.lag):
-                df.loc[:, "lag_"+str(i)] = df["Close"].shift(-i)
+                df.loc[:, "lag_"+str(i)] = df["close"].shift(-i)
         df = self._add_col_TA(df)
-        df.drop(['Open', 'High', 'Low'],axis=1, inplace=True)
+        df.drop(['open', 'high', 'low'],axis=1, inplace=True)
         return df.dropna()
     
     def preprocess_Y(self, X:pd.DataFrame):
         ## derive Y from transformed X
         ## In this basic example, our reference is the EMA self.shift days from now.
-        X.loc[:, "EMA"] = talib.EMA(X["Close"], timeperiod=-self.shift).shift(self.shift)  ## for target
-        X.loc[:, "target"] = (X["EMA"]- X["Close"]) / X["Close"]
+        X.loc[:, "EMA"] = talib.EMA(X["close"], timeperiod=-self.shift).shift(self.shift)  ## for target
+        X.loc[:, "target"] = (X["EMA"]- X["close"]) / X["close"]
         X.drop("EMA", axis=1, inplace=True)
         return X.loc[:,"target"]
         
     def _add_col_TA(self, df:pd.DataFrame):
         for ta, ta_func in self.add_ta.items():
             if ta == 'CCI':
-                df[ta] = ta_func(df['High'], df['Low'], df['Close'], timeperiod=-self.shift).shift(self.shift)
+                df[ta] = ta_func(df['high'], df['low'], df['close'], timeperiod=-self.shift).shift(self.shift)
             else:
-                df[ta] = ta_func[0](df['Close'], timeperiod=ta_func[1]).shift(-ta_func[1])
+                df[ta] = ta_func[0](df['close'], timeperiod=ta_func[1]).shift(-ta_func[1])
         return df
 
     # must be implemented
@@ -102,7 +102,7 @@ class ClassificationData(BaseStatisticalData):
             return 0
 
     def preprocess_Y(self, X):
-        X.loc[:, "target_num"] = X["Close"].shift(self.shift)
-        X.loc[:, "target"] = (X["target_num"] / X["Close"])
+        X.loc[:, "target_num"] = X["close"].shift(self.shift)
+        X.loc[:, "target"] = (X["target_num"] / X["close"])
         del X["target_num"]
         return X["target"].apply(self.to_buy_or_sell)

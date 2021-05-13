@@ -20,7 +20,7 @@ def load_credentials(credentials_fp):
 def parse_args():
     parser = argparse.ArgumentParser(description='Configs for running main.')
     parser.add_argument('-c', '--credentials', required=True, type=str, help="credentials filepath")
-    parser.add_argument('-n', '--name', required=True, type=str, help="name of backtest/live strat run")
+    parser.add_argument('-n', '--name', required=False, default="", type=str, help="name of backtest/live strat run")
     parser.add_argument('-b', '--backtest', required=False, type=bool, default=True,
                     help='backtest filters?')
     parser.add_argument('-f', '--fundamental', required=False, type=bool, default=False, help="Use fundamental data or not")
@@ -35,6 +35,9 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
             bars.update_bars()
         else:
             break
+        
+        if loop_live and bars.start_date.dayofweek > 4:
+            time.sleep(24*60*60)
         
         # Handle the events
         while True:
@@ -54,19 +57,21 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
                         port.update_signal(event)
 
                     elif event.type == 'ORDER':
-                        broker.execute_order(event)
-                        logging.info(event.print_order())
+                        if broker.execute_order(event):
+                            logging.info(event.print_order())
 
                     elif event.type == 'FILL':
                         port.update_fill(event)
+                    
+                    elif event.type == 'OPTIMIZE':
+                        strategy.optimize()
     
-    if (loop_live):
-        # 10-Minute heartbeat
-        logging.info("sleeping")
-        time.sleep(24*60*60)
+            if loop_live:
+                logging.info("sleeping")
+                time.sleep(24*60*60)
     print(f"Backtest finished in {time.time() - start}. Getting summary stats")
     port.create_equity_curve_df()
-    print(port.output_summary_stats())
+    logging.log(32, port.output_summary_stats())
 
     plotter = PlotTradePrices(port, bars)
     plotter.plot()

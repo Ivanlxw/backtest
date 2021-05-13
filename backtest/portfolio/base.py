@@ -1,5 +1,6 @@
 # portfolio.py
 
+import logging
 from backtest.utilities.enums import OrderPosition, OrderType
 import datetime
 import numpy as np
@@ -29,9 +30,9 @@ class Portfolio(object):
         raise NotImplementedError("Should implement update_fill()")
 
 class NaivePortfolio(Portfolio):
-    def __init__(self, bars, events, order_queue, stock_size, initial_capital=100000.0, 
-                 portfolio_strategy: PortfolioStrategy = DefaultOrder(), order_type=OrderType.LIMIT, 
-                 rebalance=None, expires:int=1):
+    def __init__(self, bars, events, order_queue, stock_size, portfolio_name, 
+                initial_capital=100000.0, portfolio_strategy: PortfolioStrategy = DefaultOrder(), 
+                order_type=OrderType.LIMIT, rebalance=None, expires:int=1, ):
         """ 
         Parameters:
         bars - The DataHandler object with current market data.
@@ -47,8 +48,7 @@ class NaivePortfolio(Portfolio):
         self.initial_capital = initial_capital
         self.qty = stock_size
         self.expires = expires
-        self.name = portfolio_strategy.__class__.__name__
-
+        self.name = portfolio_name
         self.trade_details = []
         self.all_positions = self.construct_all_positions()
         self.current_positions = dict( (k,v) for k, v in [(s, 0) for s in self.symbol_list] )
@@ -64,7 +64,7 @@ class NaivePortfolio(Portfolio):
         every timestep
         """
         d = dict( (k,v) for k,v in [(s,0) for s in self.symbol_list])
-        d['datetime'] = datetime.datetime.strptime(self.start_date, '%Y-%m-%d')
+        d['datetime'] = self.start_date
         return [d]
     
     def construct_all_holdings(self,):
@@ -73,7 +73,8 @@ class NaivePortfolio(Portfolio):
         to determine when the time index will begin.
         """
         d = dict( (k,v) for k, v in [(s, 0.0) for s in self.symbol_list] )
-        d['datetime'] = datetime.datetime.strptime(self.start_date, '%Y-%m-%d')
+        # d['datetime'] = datetime.datetime.strptime(self.start_date, '%Y-%m-%d')
+        d['datetime'] = self.start_date
         d['cash'] = self.initial_capital
         d['commission'] = 0.0
         d['total'] = self.initial_capital
@@ -89,10 +90,9 @@ class NaivePortfolio(Portfolio):
         bars = {}
         for sym in self.symbol_list:
             bars[sym] = self.bars.get_latest_bars(sym, N=1)
-        
         ## update positions
         dp = dict( (k,v) for k, v in [(s,0) for s in self.symbol_list ])
-        dp['datetime'] = bars[self.symbol_list[0]][0][1]
+        dp['datetime'] = bars[self.symbol_list[0]]['datetime'][0]
 
         for s in self.symbol_list:
             dp[s] = self.current_positions[s]
@@ -103,14 +103,14 @@ class NaivePortfolio(Portfolio):
 
         ## update holdings
         dh = dict((k,v) for k, v in [(s,0) for s in self.symbol_list])
-        dh['datetime'] = bars[self.symbol_list[0]][0][1]
+        dh['datetime'] = bars[self.symbol_list[0]]['datetime'][0]
         dh['cash'] = self.current_holdings['cash']
         dh['commission'] = self.current_holdings['commission']
         dh['total'] = self.current_holdings['cash']
 
         for s in self.symbol_list:
             ## position size * close price
-            market_val = self.current_positions[s] * bars[s][0][5]
+            market_val = self.current_positions[s] * (bars[s]['close'][0] if 'close' in bars[s] else 0)
             dh[s] = market_val
             dh['total'] += market_val
         
@@ -119,9 +119,13 @@ class NaivePortfolio(Portfolio):
         self.rebalance.rebalance(self.symbol_list, self.all_holdings)
         
         ## reoptimizing conditions
-        if dh['datetime'].month % 6 == 0 and \
-            self.all_holdings[-2]['datetime'].month % 6 != 0:
-            self.events.put(OptimizeEvent())
+        try:
+            if dh['datetime'].month % 6 == 0 and \
+                self.all_holdings[-2]['datetime'].month % 6 != 0:
+                self.events.put(OptimizeEvent())
+        except AttributeError:
+            logging.error(dh['datetime'])
+
 
     def update_positions_from_fill(self, fill):
         """
@@ -144,13 +148,13 @@ class NaivePortfolio(Portfolio):
         elif fill.order_event.direction == OrderPosition.SELL:
             fill_dir = -1  
 
-        close_price = self.bars.get_latest_bars(fill.order_event.symbol)[0][5] ## close price
+        close_price = self.bars.get_latest_bars(fill.order_event.symbol)['close'][0] ## close price
         cash = fill_dir * close_price * fill.order_event.quantity
         self.current_holdings[fill.order_event.symbol] += fill_dir*fill.order_event.quantity
         self.current_holdings['commission'] += fill.commission
         self.current_holdings['cash'] -= (cash + fill.commission)
         
-        self.trade_details.append([x for x in self.bars.get_latest_bars(fill.order_event.symbol)[0]] + [fill.order_event.direction])
+        self.trade_details.append([x for x in self.bars.get_latest_bars(fill.order_event.symbol)] + [fill.order_event.direction])
 
     def update_fill(self, event):
         if event.type == "FILL":
@@ -205,12 +209,14 @@ class NaivePortfolio(Portfolio):
         self.equity_curve.to_csv(fp)
 
 class PercentagePortFolio(NaivePortfolio):
-    def __init__(self, bars, events, order_queue, percentage, initial_capital=100000.0, 
-                 rebalance=None, portfolio_strategy=DefaultOrder(), order_type=OrderType.LIMIT, 
-                 mode='cash', expires:int = 1):
-        super().__init__(bars, events, order_queue, stock_size=0, initial_capital=initial_capital, 
-                         rebalance=rebalance, portfolio_strategy=portfolio_strategy, 
-                         order_type=order_type, expires=expires)
+    def __init__(self, bars, events, order_queue, percentage, portfolio_name, 
+                initial_capital=100000.0, rebalance=None,
+                portfolio_strategy=DefaultOrder(), order_type=OrderType.LIMIT, 
+                mode='cash', expires:int = 1):
+        super().__init__(bars, events, order_queue, 0, portfolio_name, 
+                        initial_capital=initial_capital, rebalance=rebalance, 
+                        portfolio_strategy=portfolio_strategy, order_type=order_type, 
+                        expires=expires)
         if mode not in ('cash', 'asset'):
             raise Exception('mode options: cash | asset')
         self.mode = mode
@@ -220,9 +226,9 @@ class PercentagePortFolio(NaivePortfolio):
             self.perc = percentage
     
     def generate_order(self, signal) -> OrderEvent:
-        snapshot = self.bars.get_latest_bars(signal.symbol)[0]
-        if snapshot[5] == 0:
+        snapshot = self.bars.get_latest_bars(signal.symbol)
+        if 'close' not in snapshot or snapshot['close'][-1] == 0.0:
             return
-        size = int(self.current_holdings["cash"] * self.perc / snapshot[5]) if self.mode == 'cash' \
-            else int(self.all_holdings[-1]["total"] * self.perc / snapshot[5])
+        size = int(self.current_holdings["cash"] * self.perc / snapshot['close'][-1]) if self.mode == 'cash' \
+            else int(self.all_holdings[-1]["total"] * self.perc / snapshot['close'][-1])
         return self.portfolio_strat.generate_order(signal, snapshot, self.current_holdings, self.all_holdings[-1], size, self.expires)

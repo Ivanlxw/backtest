@@ -38,7 +38,6 @@ class FundamentalFScoreStrategy(FundamentalStrategy):
         if len(fundamental_data) > 0:
             close_price = bars_list[-1][5]
             ma = np.average(np.array(bars_list)[:,5])
-            # print(fundamental_data)
             metrics = dict((x['dataCode'],x['value']) for x in fundamental_data[0]['statementData']['overview'])
             return metrics['piotroskiFScore'] + (ma-close_price)/ma
 
@@ -46,10 +45,10 @@ class FundamentalFScoreStrategy(FundamentalStrategy):
         if event.type != 'MARKET':
             return
         for sym in self.bars.symbol_list:
-            bars_list = self.bars.get_latest_bars(sym, 30)
-            if len(bars_list) < 30:
+            bars = self.bars.get_latest_bars(sym, 30)
+            if len(bars['close']) < 30:
                 continue
-            score = self._calc_score(bars_list)
+            score = self._calc_score(bars['close'])
             if not score:
                 return
             self.scores[sym].append(score)
@@ -57,7 +56,7 @@ class FundamentalFScoreStrategy(FundamentalStrategy):
             if len(self.scores[sym]) < 30:
                 continue 
             if score > np.percentile(self.scores[sym][-min(50, len(self.scores)):], 95):
-                self.events.put(SignalEvent(bars_list[-1][0], bars_list[-1][1], OrderPosition.BUY))
+                self.put_to_queue_(bars[-1], bars['datetime'][-1], OrderPosition.BUY,  bars[-1])
             elif score < np.percentile(self.scores[sym][-min(50, len(self.scores)):], 5):
-                self.events.put(SignalEvent(bars_list[-1][0], bars_list[-1][1], OrderPosition.SELL))
+                self.put_to_queue_(bars[-1], bars['datetime'][-1], OrderPosition.SELL, bars[-1])
             

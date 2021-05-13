@@ -9,19 +9,19 @@ from backtest.utilities.enums import OrderPosition, OrderType
 class PortfolioStrategy(metaclass=ABCMeta):
   @classmethod
   def generate_order(cls, signal, latest_snapshot, current_holdings, holdings_value:dict, size, expires:int) -> OrderEvent:
-    order = cls._filter_order_to_send(signal, latest_snapshot, current_holdings, holdings_value, size)
+    order = cls._filter_order_to_send(signal, current_holdings, size)
     return cls._enough_credit(order, latest_snapshot, current_holdings, holdings_value, size, expires)
 
   @classmethod
   def _enough_credit(cls, order, latest_snapshot, current_holdings, holdings_value, size, expires:int) -> OrderEvent:
         if order is None:
             return 
-        mkt_price = latest_snapshot[5]
+        mkt_price = latest_snapshot['close'][-1]
         order_value = fabs(size * mkt_price)
         if order.direction == OrderPosition.BUY and current_holdings["cash"] > order_value or \
             holdings_value["total"] > order_value and order.direction == OrderPosition.SELL:
             order.trade_value = mkt_price
-            order.expires = latest_snapshot[1] + timedelta(days=expires)
+            order.expires = latest_snapshot['datetime'][-1] + timedelta(days=expires)
             return order
   @abstractmethod
   def _filter_order_to_send(signal, latest_snapshot):
@@ -33,7 +33,7 @@ class PortfolioStrategy(metaclass=ABCMeta):
 
 class DefaultOrder(PortfolioStrategy):    
     @classmethod
-    def _filter_order_to_send(cls, signal, latest_snapshot, current_holdings, holdings_value, size) -> OrderEvent:
+    def _filter_order_to_send(cls, signal, current_holdings, size) -> OrderEvent:
         """
         takes a signal to long or short an asset and then sends an order 
         of size=size of such an asset

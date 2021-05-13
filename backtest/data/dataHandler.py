@@ -1,12 +1,15 @@
+from backtest.broker import SimulatedBroker
 import datetime
 import os
-from pandas.core import series
 import requests
+import logging
 import pandas as pd
 from abc import ABC, abstractmethod
 import alpaca_trade_api
 
 from backtest.event import MarketEvent
+
+NY = 'America/New_York'
 
 def get_tiingo_endpoint(endpoint:str, args:str):
     return f"https://api.tiingo.com/tiingo/{endpoint}?{args}&token={os.environ['TIINGO_API']}"
@@ -44,7 +47,7 @@ class HistoricCSVDataHandler(DataHandler):
     """
 
     def __init__(self, events, csv_dir, symbol_list, start_date, 
-        end_date=None, datahandler: bool=True, fundamental:bool=False):
+        end_date=None, fundamental:bool=False):
         """
         Args:
         - Event Queue on which to push MarketEvent information to
@@ -64,6 +67,7 @@ class HistoricCSVDataHandler(DataHandler):
         self.latest_symbol_data = {}
         self.continue_backtest = True
         self.fundamental_data = None
+        self.data_fields = ['symbol', 'datetime', 'open', 'high', 'low', 'close', 'volume']
         if fundamental:
             self._obtain_fundamental_data()
 
@@ -87,7 +91,10 @@ class HistoricCSVDataHandler(DataHandler):
                 res_data = requests.get(get_tiingo_endpoint(f'daily/{sym}/prices', 'startDate=2000-1-1'), headers={
                     'Content-Type': 'application/json'
                 }).json()
-                res_data = pd.DataFrame(res_data)
+                try:
+                    res_data = pd.DataFrame(res_data)
+                except Exception:
+                    logging.exception(res_data)
                 if res_data.empty:
                     dne.append(sym)
                     continue
@@ -124,7 +131,7 @@ class HistoricCSVDataHandler(DataHandler):
         ## reindex
         for s in self.symbol_list:
             self.raw_data[s] = self.raw_data[s].reindex(index=comb_index, method='pad',fill_value=0)
-    
+            self.raw_data[s].index = self.raw_data[s].index.map(lambda x: datetime.datetime.strptime(x, '%Y-%m-%d'))
     def _to_generator(self):
         for s in self.symbol_list:
             self.symbol_data[s] = self.raw_data[s].iterrows()
@@ -136,8 +143,15 @@ class HistoricCSVDataHandler(DataHandler):
         """
         for b in self.symbol_data[symbol]:
             ## need to change strptime format depending on format of datatime in csv
-            yield tuple([symbol, datetime.datetime.strptime(b[0], '%Y-%m-%d'),  ##strptime format - 
-                        b[1][0], b[1][1], b[1][2], b[1][3], b[1][4]])
+            yield {
+                'symbol': symbol,
+                'datetime': b[0],
+                'open' : b[1][0],
+                'high' : b[1][1],
+                'low' : b[1][2],
+                'close': b[1][3],
+                'volume' : b[1][4]
+            }
 
     def get_raw_data(self, symbol):
         return self.raw_data[symbol]
@@ -146,9 +160,14 @@ class HistoricCSVDataHandler(DataHandler):
         try: 
             bars_list = self.latest_symbol_data[symbol]
         except KeyError:
-            print("That symbol is not available in historical data set")
+            logging.error("That symbol is not available in historical data set")
         else:
-            return bars_list[-N:]
+            bar = dict((k, []) for k in self.data_fields)
+            for indi_bar_dict in bars_list[-N:]:
+                for k in indi_bar_dict.keys():
+                    bar[k] += [indi_bar_dict[k]]
+            bar['symbol'] = symbol
+            return bar
     
     def update_bars(self):
         for s in self.symbol_list:
@@ -160,19 +179,21 @@ class HistoricCSVDataHandler(DataHandler):
                 if bar is not None:
                     self.latest_symbol_data[s].append(bar)
         self.events.put(MarketEvent())
-    
-    def get_data(self):
-        return self.symbol_data
 
-class AlpacaLiveData(DataHandler):
-    def __init__(self, symbol_list, timeframe='1D'):
+class AlpacaData(HistoricCSVDataHandler):
+    def __init__(self, events, symbol_list, timeframe='1D', live=True, start_date=None):
+        self.events = events
         self.symbol_list = symbol_list
         assert timeframe in ['1Min', '5Min', '15Min', 'day', '1D']
         self.timeframe = timeframe
+        self.data_fields = ['symbol', 'datetime', 'open', 'high', 'low', 'close', 'volume']
 
-        self.continue_backtest = False
-        self.NY = 'America/New_York'
-        self.start_date = pd.Timestamp.now(tz=self.NY).strftime("%Y-%m-%d")
+        if not start_date and not live:
+            raise Exception("If not live, start_date has to be defined")
+
+        self.live = live
+        self.start_date = pd.Timestamp.now(tz=NY)
+        self.continue_backtest = True
 
         ## connect to Alpaca to call their symbols
         self.base_url = "https://paper-api.alpaca.markets"
@@ -183,15 +204,51 @@ class AlpacaLiveData(DataHandler):
             self.base_url, api_version="v2"
         )
 
+        if not self.live:
+            self.start_date = pd.to_datetime(
+                start_date, format="%Y-%m-%d"
+            ).tz_localize(NY)
+            self.symbol_data = {}
+            self.latest_symbol_data = dict((s, []) for s in self.symbol_list)
+            self.get_backtest_bars()
+            self._to_generator()
+
+    def get_backtest_bars(self):
+        start = self.start_date
+        ## generate self.raw_data as dict(data)
+        for s in self.symbol_list:
+            self.symbol_data[s] = self.api.get_barset(s, '1D', 
+                limit=1000,
+                start=start.isoformat(),
+            ).df
+    def _to_generator(self):
+        for s in self.symbol_list:
+            self.symbol_data[s] = self.symbol_data[s].iterrows()
+
     def get_latest_bars(self, symbol, N=1):
-        today = pd.Timestamp.today(tz=self.NY)
-        start = (today - pd.DateOffset(N+4)).isoformat()
-        end = today.isoformat()
-        # end = pd.Timestamp(
-        #     f'{ytd.year}-{ytd.month}-{ytd.day} 15:00', tz=self.NY).isoformat()
-        return self.api.get_barset(symbol, '1D', 
-            start=start, end=end
-        ).df.iloc[-N:,:].to_dict()
+        ## will return none if empty.
+        if self.live:
+            today = pd.Timestamp.today(tz=NY)
+            start = (today - pd.DateOffset(days=N+4)).isoformat()
+            end = today.isoformat()
+            return self._conform_data_dict(self.api.get_barset(symbol, '1D', 
+                start=start, end=end
+            ).df.iloc[-N:,:].to_dict(), symbol)
+        else:
+            return super().get_latest_bars(symbol, N)
+
+    
+    def _conform_data_dict(self, data: dict, symbol:str):
+        bar = {}
+        bar['symbol'] = symbol
+        bar['datetime'] = list(data[(f'{symbol}', 'open')].keys())
+        if len(list(data[(f'{symbol}', 'open')].values())) == 0:
+            return bar
+        bar['open'] = list(data[(f'{symbol}', 'open')].values())
+        bar['high'] = list(data[(f'{symbol}', 'high')].values())
+        bar['low'] = list(data[(f'{symbol}', 'low')].values())
+        bar['close'] = list(data[(f'{symbol}', 'close')].values())
+        return bar
     
     def get_historical_bars(self, ticker, start, end, limit:int = None) -> pd.DataFrame:
         if limit is not None:
@@ -205,4 +262,9 @@ class AlpacaLiveData(DataHandler):
         return self.api.get_last_trade(ticker).price
 
     def update_bars(self,):
+        self.start_date += pd.DateOffset(days=1)
+        if not self.live:
+            super().update_bars()
+            if self.start_date > pd.Timestamp.today(tz=NY):
+                self.continue_backtest = False
         self.events.put(MarketEvent())

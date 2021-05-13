@@ -1,4 +1,5 @@
 import datetime
+import logging
 import os
 import threading
 import time
@@ -54,10 +55,9 @@ class SimulatedBroker(Broker):
     def execute_order(self, event):
         if event.type == 'ORDER':
             if event.order_type == OrderType.LIMIT:
-                price_data = self.bars.get_latest_bars(event.symbol, 1)[0]
-                ## check for expiry
+                price_data_dict = self.bars.get_latest_bars(event.symbol, 1)
                 '''                
-                print("Price data:", price_data)
+                print("Price data:", price_data_dict)
                 print("OrderEvent: ", {
                     "Symbol": event.symbol, 
                     "Price": event.signal_price, 
@@ -65,17 +65,18 @@ class SimulatedBroker(Broker):
                     "Expires": event.expires
                 })
                 '''
-                if price_data[1] >= event.expires:
-                    return
+                ## check for expiry
+                if price_data_dict['datetime'][-1] > event.expires:
+                    return False
 
-                if event.signal_price > price_data[3] and event.direction == OrderPosition.BUY:
+                if event.signal_price > price_data_dict['high'][-1] and \
+                    event.direction == OrderPosition.BUY or \
+                    event.signal_price < price_data_dict['low'][-1] and \
+                    event.direction == OrderPosition.SELL:
                     self.order_queue.put(event)
-                    return
-                elif event.signal_price < price_data[4] and event.direction == OrderPosition.SELL:
-                    self.order_queue.put(event)
-                    return
             fill_event = FillEvent(event, self.calculate_commission())
             self.events.put(fill_event)
+            return True
 
 class IBBroker(Broker, EWrapper, EClient):
     def __init__(self, events):
