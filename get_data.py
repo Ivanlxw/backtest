@@ -1,6 +1,7 @@
 import argparse
 import json
 import time
+import logging
 from backtest.utilities.utils import remove_bs
 from data.get_csv import get_av_csv, get_tiingo_eod
 
@@ -23,12 +24,12 @@ stock_list = list(map(remove_bs, stock_list))
 for idx, symbol in enumerate(stock_list):
     try:
         if args.alphavantage:
-            print("Using alphavantage")
+            logging.info("Using alphavantage")
             if idx % 5 == 0 and idx > 0:
                 time.sleep(65)
             get_av_csv(symbol, csv_dir="./data/data/daily", full=True, key=KEY)    
         else:
-            print("Using tiingo")
+            logging.info("Using tiingo")
             get_tiingo_eod(symbol, f"data/data/daily/{symbol}.csv", full=True, key=KEY)
     except Exception as e:
         raise KeyError(f"Symbol: {symbol}, error: {e}")
