@@ -1,6 +1,7 @@
 real_credentials.json
 *.ipynb
 *.pyc 
+*.log
 
 ## directories
 data/data/
