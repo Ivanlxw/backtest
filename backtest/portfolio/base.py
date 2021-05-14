@@ -2,10 +2,8 @@
 
 import logging
 from backtest.utilities.enums import OrderPosition, OrderType
-import datetime
 import numpy as np
 import pandas as pd
-import queue
 
 from abc import ABCMeta, abstractmethod
 
@@ -125,7 +123,9 @@ class NaivePortfolio(Portfolio):
                 self.events.put(OptimizeEvent())
         except AttributeError:
             logging.error(dh['datetime'])
-
+        
+        ## print new trading day
+        logging.info(f"Trading day for {bars[self.symbol_list[0]]['datetime'][0]}")
 
     def update_positions_from_fill(self, fill):
         """
