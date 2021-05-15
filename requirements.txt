@@ -2,6 +2,8 @@ numpy
 pandas
 sklearn
 matplotlib
-TA-Lib
 requests
 seaborn
+ibapi
+alpaca-trade-api
+TA-Lib
