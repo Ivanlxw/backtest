@@ -9,7 +9,7 @@ from backtest.utilities.enums import OrderPosition, OrderType
 class PortfolioStrategy(metaclass=ABCMeta):
   @classmethod
   def generate_order(cls, signal, latest_snapshot, current_holdings, holdings_value:dict, size, expires:int) -> OrderEvent:
-    order = cls._filter_order_to_send(signal, current_holdings, size)
+    order = cls._filter_order_to_send(latest_snapshot, signal, current_holdings, size)
     return cls._enough_credit(order, latest_snapshot, current_holdings, holdings_value, size, expires)
 
   @classmethod
@@ -33,7 +33,7 @@ class PortfolioStrategy(metaclass=ABCMeta):
 
 class DefaultOrder(PortfolioStrategy):    
     @classmethod
-    def _filter_order_to_send(cls, signal, current_holdings, size) -> OrderEvent:
+    def _filter_order_to_send(cls, latest_snapshot, signal, current_holdings, size) -> OrderEvent:
         """
         takes a signal to long or short an asset and then sends an order 
         of size=size of such an asset
@@ -46,24 +46,24 @@ class DefaultOrder(PortfolioStrategy):
 
         if direction == OrderPosition.EXIT:
             if cur_quantity > 0:
-                order = OrderEvent(symbol, cur_quantity, OrderPosition.SELL, signal.price)
+                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], cur_quantity, OrderPosition.SELL, signal.price)
             elif cur_quantity < 0:
-                order = OrderEvent(symbol, -cur_quantity, OrderPosition.BUY, signal.price)            
+                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], -cur_quantity, OrderPosition.BUY, signal.price)            
         elif direction == OrderPosition.BUY:
             if cur_quantity < 0:
-                order = OrderEvent(symbol, size-cur_quantity, direction, signal.price)
+                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], size-cur_quantity, direction, signal.price)
             else:
-                order = OrderEvent(symbol, size, direction, signal.price)
+                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], size, direction, signal.price)
         elif direction == OrderPosition.SELL:
             if cur_quantity > 0:
-                order = OrderEvent(symbol, size+cur_quantity, direction, signal.price)
+                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], size+cur_quantity, direction, signal.price)
             else:
-                order = OrderEvent(symbol, size, direction, signal.price)
+                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], size, direction, signal.price)
         return order
 
 class LongOnly(PortfolioStrategy):
     @classmethod
-    def _filter_order_to_send(cls, signal, snapshot, current_holdings, holdings_value, size):
+    def _filter_order_to_send(cls, latest_snapshot, signal, current_holdings, holdings_value, size):
         """
         takes a signal, short=exit 
         and then sends an order of size=size of such an asset
@@ -73,7 +73,10 @@ class LongOnly(PortfolioStrategy):
         direction = signal.signal_type
         
         if direction == OrderPosition.BUY:
-            order = OrderEvent(symbol, size, direction, signal.price)
-        elif (direction == OrderPosition.SELL or direction == OrderPosition.EXIT) and current_holdings[symbol] > 0:
-            order = OrderEvent(symbol, current_holdings[symbol], OrderPosition.SELL, signal.price)
+            order = OrderEvent(symbol, latest_snapshot['datetime'][-1], size, 
+            direction, signal.price)
+        elif (direction == OrderPosition.SELL or direction == OrderPosition.EXIT) \
+            and current_holdings[symbol] > 0:
+            order = OrderEvent(symbol, latest_snapshot['datetime'][-1], 
+                current_holdings[symbol], OrderPosition.SELL, signal.price)
         return order

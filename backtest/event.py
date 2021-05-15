@@ -48,7 +48,7 @@ class OrderEvent(Event):
     in terms of risk and position sizing. 
     This ultimately leads to OrderEvents that will be sent to an brokerHandler.
     """
-    def __init__(self, symbol, quantity, direction: OrderPosition, price):
+    def __init__(self, symbol, date, quantity, direction: OrderPosition, price):
         """ Params
         order_type - MARKET or LIMIT for Market or Limit
         quantity - non-nevgative integer
@@ -57,6 +57,7 @@ class OrderEvent(Event):
 
         self.type = 'ORDER'
         self.symbol = symbol
+        self.date = date
         self.order_type = None
         self.quantity = quantity
         assert (direction == OrderPosition.BUY or direction == OrderPosition.SELL)
@@ -65,8 +66,9 @@ class OrderEvent(Event):
         self.trade_value = None
 
     def print_order(self,):
-        return "Order: Symbol={}, Type={}, Trade Price = {}, Quantity={}, Direction={}".format(self.symbol, \
-            self.order_type, self.signal_price, self.quantity, self.direction)
+        return "Order: Symbol={}, Date={}, Type={}, Trade Price = {}, Quantity={}, Direction={}".format(
+            self.symbol, self.date, self.order_type,\
+            self.signal_price, self.quantity, self.direction)
 
 class FillEvent(Event):
     """
