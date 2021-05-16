@@ -67,7 +67,8 @@ class BuyAndHoldStrategy(Strategy):
     def calculate_signals(self, event):
         if event.type == "MARKET":
             for s in self.bars.symbol_list:
-                bars = self.bars.get_latest_bars(s, N=1)
-                if bars is not None and bars != []: ## there's an entry
-                    self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
-                    self.bought[s] = True
+                if not self.bought[s]:
+                    bars = self.bars.get_latest_bars(s, N=1)
+                    if bars is not None and bars != []: ## there's an entry
+                        self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
+                        self.bought[s] = True

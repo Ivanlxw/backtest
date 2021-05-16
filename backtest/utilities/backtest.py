@@ -44,6 +44,6 @@ def plot_benchmark(stock_list_fp, symbol_list, start_date, end_date:str=None, fr
     port = PercentagePortFolio(bars, event_queue, order_queue, 
                                percentage=1/len(symbol_list), portfolio_name="benchmark",
                                mode='asset', order_type=OrderType.MARKET)
-    broker = SimulatedBroker(bars, event_queue, order_queue)
+    broker = SimulatedBroker(bars, port, event_queue, order_queue)
 
     _backtest_loop(bars, event_queue, order_queue, strategy, port, broker)

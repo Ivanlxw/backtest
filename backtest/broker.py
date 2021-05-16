@@ -4,8 +4,8 @@ import os
 import threading
 import time
 from abc import ABC, abstractmethod
-from pandas.core import api
 import requests
+from math import fabs
 import pandas as pd
 
 from ibapi.client import EClient
@@ -19,7 +19,13 @@ from backtest.utilities.enums import OrderPosition, OrderType
 
 class Broker(ABC):
     @abstractmethod
-    def execute_order(self, event):
+    def _filter_execute_order(self, event:OrderEvent) -> bool:
+        """
+        Takes an OrderEvent and checks if it can be executed
+        """
+        raise NotImplementedError("Should implement _filter_execute_order()")
+
+    def execute_order(self, event) -> bool:
         """
         Takes an OrderEvent and execute it, producing
         FillEvent that gets places into Events Queue
@@ -36,7 +42,6 @@ class Broker(ABC):
         raise NotImplementedError("Implement calculate_commission()")
 
 """
-assumes all orders are filled at the current market price for all quantities
 TODO: 
 - include slippage and market impact
 - make use of the "current" market data value to obtain a realistic fill cost.
@@ -44,18 +49,29 @@ TODO:
 
 ## arbitrary. Might be used to route orders to a broker in future.
 class SimulatedBroker(Broker):
-    def __init__(self, bars, events, order_queue):
+    def __init__(self, bars, port, events, order_queue):
         self.bars = bars
+        self.port = port
         self.events = events
         self.order_queue = order_queue
     
     def calculate_commission(self,quantity=None, fill_cost=None) -> float:
         return 0.0
+    
+    def _enough_credits(self, order, latest_snapshot) -> bool:
+        if order is None:
+            return False
+        mkt_price = latest_snapshot['close'][-1]
+        order_value = fabs(order.quantity * mkt_price)
+        if (order.direction == OrderPosition.BUY and self.port.current_holdings["cash"] > order_value) or \
+            (self.port.all_holdings[-1]["total"] > order_value and order.direction == OrderPosition.SELL):
+            return True
+        return False
 
-    def execute_order(self, event):
-        if event.type == 'ORDER':
-            if event.order_type == OrderType.LIMIT:
-                price_data_dict = self.bars.get_latest_bars(event.symbol, 1)
+    def _filter_execute_order(self, order_event:OrderEvent) -> bool:
+        latest_snapshot = self.bars.get_latest_bars(order_event.symbol, 1)
+        if self._enough_credits(order_event, latest_snapshot):
+            if order_event.order_type == OrderType.LIMIT:
                 '''                
                 print("Price data:", price_data_dict)
                 print("OrderEvent: ", {
@@ -66,17 +82,30 @@ class SimulatedBroker(Broker):
                 })
                 '''
                 ## check for expiry
-                if price_data_dict['datetime'][-1] > event.expires:
+                if latest_snapshot['datetime'][-1] > order_event.expires:
                     return False
 
-                if event.signal_price > price_data_dict['high'][-1] and \
-                    event.direction == OrderPosition.BUY or \
-                    event.signal_price < price_data_dict['low'][-1] and \
-                    event.direction == OrderPosition.SELL:
-                    self.order_queue.put(event)
-            fill_event = FillEvent(event, self.calculate_commission())
-            self.events.put(fill_event)
+                if (order_event.signal_price > latest_snapshot['high'][-1] and \
+                    order_event.direction == OrderPosition.BUY) or \
+                    (order_event.signal_price < latest_snapshot['low'][-1] and \
+                    order_event.direction == OrderPosition.SELL):
+                    return False
             return True
+        return False
+
+    def execute_order(self, event) -> bool:
+        if event.type == 'ORDER' and self._filter_execute_order(event):
+            close_price = self.bars.get_latest_bars(event.symbol)['close'][-1] ## close price
+            event.trade_price = close_price
+            if event.order_type == OrderType.LIMIT and not event.processed:
+                event.processed = True
+                self.order_queue.put(event)
+                return False
+            else:
+                fill_event = FillEvent(event, self.calculate_commission())
+                self.events.put(fill_event)
+                return True
+        return False
 
 class IBBroker(Broker, EWrapper, EClient):
     def __init__(self, events):
@@ -285,8 +314,11 @@ class AlpacaBroker(Broker):
     """ ORDERS """
     def get_current_orders(self):
         return self.api.list_orders()
+    
+    def _filter_execute_order(self, event: OrderEvent) -> bool:
+        return True
 
-    def execute_order(self, event: OrderEvent):
+    def execute_order(self, event: OrderEvent) -> bool:
         side = 'buy' if OrderPosition.BUY else 'sell'
         if event.order_type == OrderType.LIMIT:
             return self.api.submit_order(

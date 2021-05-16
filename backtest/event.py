@@ -58,17 +58,19 @@ class OrderEvent(Event):
         self.type = 'ORDER'
         self.symbol = symbol
         self.date = date
-        self.order_type = None
         self.quantity = quantity
         assert (direction == OrderPosition.BUY or direction == OrderPosition.SELL)
         self.direction = direction
         self.signal_price = price
-        self.trade_value = None
+        ## optional fields
+        self.order_type = None
+        self.processed = False
+        self.trade_price = None
 
     def print_order(self,):
         return "Order: Symbol={}, Date={}, Type={}, Trade Price = {}, Quantity={}, Direction={}".format(
             self.symbol, self.date, self.order_type,\
-            self.signal_price, self.quantity, self.direction)
+            self.trade_price, self.quantity, self.direction)
 
 class FillEvent(Event):
     """
