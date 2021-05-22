@@ -6,27 +6,35 @@ import queue
 import logging
 from backtest.Plots.plot import PlotTradePrices
 
-def remove_bs(s:str):
-    ## remove backslash at the end from reading from a stock_list.txt 
+
+def remove_bs(s: str):
+    # remove backslash at the end from reading from a stock_list.txt
     return s.replace("\n", "")
+
 
 def load_credentials(credentials_fp):
     with open(credentials_fp, 'r') as f:
         credentials = json.load(f)
-        for k,v in credentials.items():
-            os.environ[k]= v
+        for k, v in credentials.items():
+            os.environ[k] = v
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Configs for running main.')
-    parser.add_argument('-c', '--credentials', required=True, type=str, help="credentials filepath")
-    parser.add_argument('-n', '--name', required=False, default="", type=str, help="name of backtest/live strat run")
+    parser.add_argument('-c', '--credentials', required=True,
+                        type=str, help="credentials filepath")
+    parser.add_argument('-n', '--name', required=False, default="",
+                        type=str, help="name of backtest/live strat run")
     parser.add_argument('-b', '--backtest', required=False, type=bool, default=True,
-                    help='backtest filters?')
-    parser.add_argument('-f', '--fundamental', required=False, type=bool, default=False, help="Use fundamental data or not")
-    parser.add_argument('--data_dir', default="./data/daily", required=False, type=str, help="filepath to dir of csv files")
+                        help='backtest filters?')
+    parser.add_argument('-f', '--fundamental', required=False,
+                        type=bool, default=False, help="Use fundamental data or not")
+    parser.add_argument('--data_dir', default="./data/daily",
+                        required=False, type=str, help="filepath to dir of csv files")
     return parser.parse_args()
 
-def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_live:bool =False) -> PlotTradePrices:
+
+def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_live: bool = False) -> PlotTradePrices:
     start = time.time()
     while True:
         # Update the bars (specific backtest code, as opposed to live trading)
@@ -34,7 +42,7 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
             bars.update_bars()
         else:
             break
-        
+
         if loop_live and bars.start_date.dayofweek > 4:
             time.sleep(24*60*60)
 
@@ -61,13 +69,13 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
 
                     elif event.type == 'FILL':
                         port.update_fill(event)
-                    
+
                     elif event.type == 'OPTIMIZE':
                         strategy.optimize()
-    
-            if loop_live:
-                logging.info("sleeping")
-                time.sleep(24*60*60)
+
+        if loop_live:
+            logging.info("sleeping")
+            time.sleep(24*60*60)
     print(f"Backtest finished in {time.time() - start}. Getting summary stats")
     port.create_equity_curve_df()
     logging.log(32, port.output_summary_stats())
