@@ -1,16 +1,16 @@
 # portfolio.py
 
+from backtest.portfolio.strategy import DefaultOrder
 import logging
 from backtest.utilities.enums import OrderPosition, OrderType
 import numpy as np
 import pandas as pd
-
+from datetime import timedelta
 from abc import ABCMeta, abstractmethod
 
-from backtest.event import FillEvent, OptimizeEvent, OrderEvent
+from backtest.event import FillEvent, OptimizeEvent, OrderEvent, SignalEvent
 from backtest.performance import create_sharpe_ratio, create_drawdowns
 from backtest.portfolio.rebalance import NoRebalance
-from backtest.portfolio.strategy import DefaultOrder, PortfolioStrategy
 
 class Portfolio(object):
     __metaclass__ = ABCMeta
@@ -29,8 +29,8 @@ class Portfolio(object):
 
 class NaivePortfolio(Portfolio):
     def __init__(self, bars, events, order_queue, stock_size, portfolio_name, 
-                initial_capital=100000.0, portfolio_strategy: PortfolioStrategy = DefaultOrder(), 
-                order_type=OrderType.LIMIT, rebalance=None, expires:int=1, ):
+                initial_capital=100000.0, order_type=OrderType.LIMIT, portfolio_strategy=DefaultOrder, 
+                rebalance=None, expires:int=1, ):
         """ 
         Parameters:
         bars - The DataHandler object with current market data.
@@ -52,8 +52,8 @@ class NaivePortfolio(Portfolio):
         self.current_positions = dict( (k,v) for k, v in [(s, 0) for s in self.symbol_list] )
         self.all_holdings = self.construct_all_holdings()
         self.current_holdings = self.construct_current_holdings()
-        self.portfolio_strat = portfolio_strategy
         self.order_type = order_type
+        self.portfolio_strategy = portfolio_strategy(self.bars, self.current_holdings, self.order_type)
         self.rebalance = rebalance if rebalance is not None else NoRebalance()
 
     def construct_all_positions(self,):
@@ -108,7 +108,7 @@ class NaivePortfolio(Portfolio):
 
         for s in self.symbol_list:
             ## position size * close price
-            market_val = self.current_positions[s] * (bars[s]['close'][0] if 'close' in bars[s] else 0)
+            market_val = self.current_positions[s] * (bars[s]['close'][0] if 'close' in bars[s] and len(bars[s]['close']) > 0 else 0)
             dh[s] = market_val
             dh['total'] += market_val
         
@@ -145,8 +145,7 @@ class NaivePortfolio(Portfolio):
         elif fill.order_event.direction == OrderPosition.SELL:
             fill_dir = -1  
 
-        close_price = self.bars.get_latest_bars(fill.order_event.symbol)['close'][0] ## close price
-        cash = fill_dir * close_price * fill.order_event.quantity
+        cash = fill_dir * fill.order_event.trade_price * fill.order_event.quantity
         self.current_holdings[fill.order_event.symbol] += fill_dir*fill.order_event.quantity
         self.current_holdings['commission'] += fill.commission
         self.current_holdings['cash'] -= (cash + fill.commission)
@@ -158,14 +157,15 @@ class NaivePortfolio(Portfolio):
             self.update_positions_from_fill(event)
             self.update_holdings_from_fill(event)
     
-    def generate_order(self, signal) -> OrderEvent:
-        latest_snapshot = self.bars.get_latest_bars(signal.symbol)[0]
-        return self.portfolio_strategy.generate_order(signal, latest_snapshot, self.current_holdings, self.all_holdings[-1], 50, self.expires)
+    def generate_order(self, signal:SignalEvent) -> OrderEvent:
+        signal.quantity = self.qty
+        return self.portfolio_strategy._filter_order_to_send(signal)
     
     def _put_to_event(self, order):
         if order is not None:
             order.order_type = self.order_type
             if order.order_type == OrderType.LIMIT:
+                order.expires = order.date + timedelta(days=self.expires)
                 self.order_queue.put(order)
             elif order.order_type == OrderType.MARKET:
                 self.events.put(order)
@@ -207,13 +207,11 @@ class NaivePortfolio(Portfolio):
 
 class PercentagePortFolio(NaivePortfolio):
     def __init__(self, bars, events, order_queue, percentage, portfolio_name, 
-                initial_capital=100000.0, rebalance=None,
-                portfolio_strategy=DefaultOrder(), order_type=OrderType.LIMIT, 
-                mode='cash', expires:int = 1):
+                initial_capital=100000.0, rebalance=None, order_type=OrderType.LIMIT, 
+                portfolio_strategy=DefaultOrder, mode='cash', expires:int = 1):
         super().__init__(bars, events, order_queue, 0, portfolio_name, 
-                        initial_capital=initial_capital, rebalance=rebalance, 
-                        portfolio_strategy=portfolio_strategy, order_type=order_type, 
-                        expires=expires)
+                        initial_capital=initial_capital, rebalance=rebalance, portfolio_strategy=portfolio_strategy,
+                        order_type=order_type, expires=expires)
         if mode not in ('cash', 'asset'):
             raise Exception('mode options: cash | asset')
         self.mode = mode
@@ -222,10 +220,11 @@ class PercentagePortFolio(NaivePortfolio):
         else:
             self.perc = percentage
     
-    def generate_order(self, signal) -> OrderEvent:
-        snapshot = self.bars.get_latest_bars(signal.symbol)
-        if 'close' not in snapshot or snapshot['close'][-1] == 0.0:
+    def generate_order(self, signal:SignalEvent) -> OrderEvent:
+        latest_snapshot = self.bars.get_latest_bars(signal.symbol)
+        if 'close' not in latest_snapshot or latest_snapshot['close'][-1] == 0.0:
             return
-        size = int(self.current_holdings["cash"] * self.perc / snapshot['close'][-1]) if self.mode == 'cash' \
-            else int(self.all_holdings[-1]["total"] * self.perc / snapshot['close'][-1])
-        return self.portfolio_strat.generate_order(signal, snapshot, self.current_holdings, self.all_holdings[-1], size, self.expires)
+        size = int(self.current_holdings["cash"] * self.perc / latest_snapshot['close'][-1]) if self.mode == 'cash' \
+            else int(self.all_holdings[-1]["total"] * self.perc / latest_snapshot['close'][-1])
+        signal.quantity = size
+        return self.portfolio_strategy._filter_order_to_send(signal)

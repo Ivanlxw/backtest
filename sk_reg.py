@@ -10,7 +10,7 @@ import logging
 from backtest.broker import SimulatedBroker
 from backtest.utilities.utils import load_credentials, parse_args, remove_bs
 from backtest.data.dataHandler import HistoricCSVDataHandler
-from backtest.portfolio.base import PercentagePortFolio
+from backtest.portfolio.portfolio import PercentagePortFolio
 from backtest.strategy.stat_data import BaseStatisticalData
 from backtest.strategy.statistics import RawRegression
 from backtest.utilities.backtest import backtest
@@ -22,7 +22,7 @@ args = parse_args()
 if args.name != "":
     logging.basicConfig(filename=args.name+'.log', level=logging.INFO)
 
-with open("data/dow_stock_list.txt", 'r') as fin:
+with open("data/downloaded_universe.txt", 'r') as fin:
     stock_list = fin.readlines()
 
 load_credentials(args.credentials)
@@ -31,8 +31,8 @@ stock_list = list(map(remove_bs, stock_list))
 
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
-start_date = "2019-01-03"  ## YYYY-MM-DD
-symbol_list = random.sample(stock_list, 10)
+start_date = "2015-01-01"  ## YYYY-MM-DD
+symbol_list = random.sample(stock_list, 15)
 
 start = time.time()
 # Declare the components with respective parameters

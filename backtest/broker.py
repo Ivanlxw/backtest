@@ -93,7 +93,7 @@ class SimulatedBroker(Broker):
             return True
         return False
 
-    def execute_order(self, event) -> bool:
+    def execute_order(self, event:OrderEvent) -> bool:
         if event.type == 'ORDER' and self._filter_execute_order(event):
             close_price = self.bars.get_latest_bars(event.symbol)['close'][-1] ## close price
             event.trade_price = close_price
@@ -320,17 +320,23 @@ class AlpacaBroker(Broker):
 
     def execute_order(self, event: OrderEvent) -> bool:
         side = 'buy' if OrderPosition.BUY else 'sell'
-        if event.order_type == OrderType.LIMIT:
-            return self.api.submit_order(
-                symbol=event.symbol,
-                qty=event.quantity, side=side, 
-                type='limit', time_in_force='day',
-                limit_price=OrderEvent.signal_price)
-        else:
-           return self.api.submit_order(
-                symbol=event.symbol,
-                qty=event.quantity, side=side, 
-                type='market', time_in_force='day')
+        try:
+            if event.order_type == OrderType.LIMIT:
+                order = self.api.submit_order(
+                    symbol=event.symbol,
+                    qty=event.quantity, side=side, 
+                    type='limit', time_in_force='day',
+                    limit_price=event.signal_price)
+                event.trade_price = event.signal_price
+            else:
+                ## todo: figure out a way to get trade_price for market orders
+                order = self.api.submit_order(
+                    symbol=event.symbol,
+                    qty=event.quantity, side=side, 
+                    type='market', time_in_force='day')
+        except alpaca_trade_api.rest.APIError:
+            return False
+        return order.status == "accepted"
 
     def calculate_commission(self):
         return 0

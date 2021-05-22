@@ -1,4 +1,3 @@
-from backtest.broker import SimulatedBroker
 import datetime
 import os
 import requests
@@ -157,17 +156,14 @@ class HistoricCSVDataHandler(DataHandler):
         return self.raw_data[symbol]
 
     def get_latest_bars(self, symbol, N=1):
-        try: 
-            bars_list = self.latest_symbol_data[symbol]
-        except KeyError:
-            logging.error("That symbol is not available in historical data set")
-        else:
+        if symbol in self.latest_symbol_data:
             bar = dict((k, []) for k in self.data_fields)
-            for indi_bar_dict in bars_list[-N:]:
+            for indi_bar_dict in self.latest_symbol_data[symbol][-N:]:
                 for k in indi_bar_dict.keys():
                     bar[k] += [indi_bar_dict[k]]
             bar['symbol'] = symbol
             return bar
+        logging.error("Symbol is not available in historical data set.")
     
     def update_bars(self):
         for s in self.symbol_list:
@@ -216,11 +212,18 @@ class AlpacaData(HistoricCSVDataHandler):
     def get_backtest_bars(self):
         start = self.start_date
         ## generate self.raw_data as dict(data)
+        to_remove = []
         for s in self.symbol_list:
-            self.symbol_data[s] = self.api.get_barset(s, '1D', 
+            df = self.api.get_barset(s, '1D', 
                 limit=1000,
                 start=start.isoformat(),
             ).df
+            if df.shape[0] == 0:
+                to_remove.append(s)
+                continue
+            self.symbol_data[s] = df
+        self.symbol_list = [x for x in self.symbol_list if x not in to_remove]
+
     def _to_generator(self):
         for s in self.symbol_list:
             self.symbol_data[s] = self.symbol_data[s].iterrows()
@@ -267,4 +270,5 @@ class AlpacaData(HistoricCSVDataHandler):
             super().update_bars()
             if self.start_date > pd.Timestamp.today(tz=NY):
                 self.continue_backtest = False
+            return
         self.events.put(MarketEvent())

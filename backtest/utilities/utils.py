@@ -4,7 +4,6 @@ import argparse
 import time
 import queue
 import logging
-
 from backtest.Plots.plot import PlotTradePrices
 
 def remove_bs(s:str):
@@ -38,7 +37,7 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
         
         if loop_live and bars.start_date.dayofweek > 4:
             time.sleep(24*60*60)
-        
+
         # Handle the events
         while True:
             try:

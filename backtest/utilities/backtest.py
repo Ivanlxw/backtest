@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from backtest.broker import SimulatedBroker
 from backtest.data.dataHandler import HistoricCSVDataHandler
-from backtest.portfolio.base import PercentagePortFolio
+from backtest.portfolio.portfolio import PercentagePortFolio
 from backtest.strategy.naive import BuyAndHoldStrategy
 from backtest.utilities.enums import OrderType
 from backtest.utilities.utils import _backtest_loop

@@ -10,7 +10,7 @@ from sklearn.ensemble import RandomForestClassifier
 from backtest.broker import SimulatedBroker
 from backtest.utilities.utils import load_credentials, parse_args, remove_bs
 from backtest.data.dataHandler import HistoricCSVDataHandler
-from backtest.portfolio.base import PercentagePortFolio
+from backtest.portfolio.portfolio import PercentagePortFolio
 from backtest.portfolio.rebalance import BaseRebalance
 from backtest.strategy.stat_data import ClassificationData
 from backtest.strategy.statistics import RawClassification

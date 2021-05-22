@@ -41,6 +41,7 @@ class SignalEvent(Event):
         self.datetime = datetime
         self.signal_type = signal_type
         self.price = price
+        self.quantity = None
 
 class OrderEvent(Event):
     """

@@ -1,82 +1,64 @@
-""" [DEPRECIATED]  
-TODO:
-Remove this file
-"""
 from abc import ABCMeta, abstractmethod
-from math import fabs
-from datetime import timedelta
+from backtest.data.dataHandler import DataHandler
 
-from backtest.event import OrderEvent
-from backtest.utilities.enums import OrderPosition
+from backtest.event import OrderEvent, SignalEvent
+from backtest.utilities.enums import OrderPosition, OrderType
 
 
 class PortfolioStrategy(metaclass=ABCMeta):
-  @classmethod
-  def generate_order(cls, signal, latest_snapshot, current_holdings, holdings_value:dict, size, expires:int) -> OrderEvent:
-    order = cls._filter_order_to_send(latest_snapshot, signal, current_holdings, size)
-    return cls._enough_credit(order, latest_snapshot, current_holdings, holdings_value, size, expires)
+    def __init__(self, bar:DataHandler, current_positions, order_type:OrderType) -> None:
+        self.bar = bar
+        self.current_holdings = current_positions
+        self.order_type = order_type
 
-  @classmethod
-  def _enough_credit(cls, order, latest_snapshot, current_holdings, holdings_value, size, expires:int) -> OrderEvent:
-        if order is None:
-            return 
-        mkt_price = latest_snapshot['close'][-1]
-        order_value = fabs(size * mkt_price)
-        if (order.direction == OrderPosition.BUY and current_holdings["cash"] > order_value) or \
-            (holdings_value["total"] > order_value and order.direction == OrderPosition.SELL):
-            order.trade_value = mkt_price
-            order.expires = latest_snapshot['datetime'][-1] + timedelta(days=expires)
-            return order
-  @abstractmethod
-  def _filter_order_to_send(signal, latest_snapshot):
-      """
-      Updates portfolio based on rebalancing criteria
-      """
-      raise NotImplementedError("Should implement filter_order_to_send(order_event). If not required, just pass")
+    @abstractmethod
+    def _filter_order_to_send(self, signal:SignalEvent) -> OrderEvent:
+        """
+        Updates portfolio based on rebalancing criteria
+        """
+        raise NotImplementedError("Should implement filter_order_to_send(order_event). If not required, just pass")
 
 
 class DefaultOrder(PortfolioStrategy):    
-    @classmethod
-    def _filter_order_to_send(cls, latest_snapshot, signal, current_holdings, size) -> OrderEvent:
+    def _filter_order_to_send(self, signal: SignalEvent) -> OrderEvent:
         """
         takes a signal to long or short an asset and then sends an order 
-        of size=size of such an asset
+        of signal.quantity=signal.quantity of such an asset
         """
+        assert signal.quantity is not None
         order = None
         symbol = signal.symbol
         direction = signal.signal_type
+        latest_snapshot = self.bar.get_latest_bars(signal.symbol)
 
-        cur_quantity = current_holdings[symbol]
+        cur_quantity = self.current_holdings[symbol]
 
         if direction == OrderPosition.EXIT:
             if cur_quantity > 0:
                 order = OrderEvent(symbol, latest_snapshot['datetime'][-1], cur_quantity, OrderPosition.SELL, signal.price)
             elif cur_quantity < 0:
                 order = OrderEvent(symbol, latest_snapshot['datetime'][-1], -cur_quantity, OrderPosition.BUY, signal.price)            
-        elif direction == OrderPosition.BUY:
-            if cur_quantity <= 0:
-                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], size-cur_quantity, direction, signal.price)
-            else:
-                return
-        elif direction == OrderPosition.SELL:
-            if cur_quantity >= 0:
-                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], size+cur_quantity, direction, signal.price)
-            else:
-                return
+        elif direction == OrderPosition.BUY and cur_quantity <= 0:
+                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], signal.quantity-cur_quantity, direction, signal.price)
+        elif direction == OrderPosition.SELL and cur_quantity >= 0:
+                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], signal.quantity+cur_quantity, direction, signal.price)
+        if order is not None:
+            order.signal_price = signal.price
         return order
 
 class ProgressiveOrder(PortfolioStrategy):
-    @classmethod
-    def _filter_order_to_send(cls, latest_snapshot, signal, current_holdings, size) -> OrderEvent:
+    def _filter_order_to_send(self, signal:SignalEvent) -> OrderEvent:
         """
         takes a signal to long or short an asset and then sends an order 
-        of size=size of such an asset
+        of signal.quantity=signal.quantity of such an asset
         """
+        assert signal.quantity is not None
         order = None
         symbol = signal.symbol
         direction = signal.signal_type
+        latest_snapshot = self.bar.get_latest_bars(signal.symbol)
 
-        cur_quantity = current_holdings[symbol]
+        cur_quantity = self.current_holdings[symbol]
 
         if direction == OrderPosition.EXIT:
             if cur_quantity > 0:
@@ -85,32 +67,37 @@ class ProgressiveOrder(PortfolioStrategy):
                 order = OrderEvent(symbol, latest_snapshot['datetime'][-1], -cur_quantity, OrderPosition.BUY, signal.price)            
         elif direction == OrderPosition.BUY:
             if cur_quantity < 0:
-                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], size-cur_quantity, direction, signal.price)
+                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], signal.quantity-cur_quantity, direction, signal.price)
             else:
-                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], size, direction, signal.price)
+                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], signal.quantity, direction, signal.price)
         elif direction == OrderPosition.SELL:
             if cur_quantity > 0:
-                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], size+cur_quantity, direction, signal.price)
+                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], signal.quantity+cur_quantity, direction, signal.price)
             else:
-                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], size, direction, signal.price)
+                order = OrderEvent(symbol, latest_snapshot['datetime'][-1], signal.quantity, direction, signal.price)
+        if order is not None:
+            order.signal_price = signal.price
         return order
 
 class LongOnly(PortfolioStrategy):
-    @classmethod
-    def _filter_order_to_send(cls, latest_snapshot, signal, current_holdings, size):
+    def _filter_order_to_send(self, signal:SignalEvent):
         """
         takes a signal, short=exit 
-        and then sends an order of size=size of such an asset
+        and then sends an order of signal.quantity=signal.quantity of such an asset
         """
+        assert signal.quantity is not None
         order = None
         symbol = signal.symbol
         direction = signal.signal_type
-        
+        latest_snapshot = self.bar.get_latest_bars(signal.symbol)
+
         if direction == OrderPosition.BUY:
-            order = OrderEvent(symbol, latest_snapshot['datetime'][-1], size, 
+            order = OrderEvent(symbol, latest_snapshot['datetime'][-1], signal.quantity, 
             direction, signal.price)
         elif (direction == OrderPosition.SELL or direction == OrderPosition.EXIT) \
-            and current_holdings[symbol] > 0:
+            and self.current_holdings[symbol] > 0:
             order = OrderEvent(symbol, latest_snapshot['datetime'][-1], 
-                current_holdings[symbol], OrderPosition.SELL, signal.price)
+                self.current_holdings[symbol], OrderPosition.SELL, signal.price)
+        if order is not None:
+            order.signal_price = signal.price
         return order
