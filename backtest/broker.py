@@ -1,5 +1,4 @@
 import datetime
-import logging
 import os
 import threading
 import time
@@ -284,17 +283,127 @@ class IBBroker(Broker, EWrapper, EClient):
 
 ## not working. Seems like a developer account needs to be created with TDA
 class TDABroker(Broker):
-    def __init__(self) -> None:
+    def __init__(self, access_token=None, refresh_token=None) -> None:
         super(TDABroker, self).__init__()
+        self.code = os.environ["TDD_CODE"]
+        self.consumer_key = os.environ["TDD_consumer_key"]
+        self.access_token = None
+        self.refresh_token = None
+        if access_token is not None or refresh_token is not None:
+            assert (refresh_token is not None and access_token is not None)
+            self.access_token = access_token
+            self.refresh_token = refresh_token 
+    
+    def _signin_code(self):
+        import selenium
+        from selenium import webdriver
+        from backtest.utilities.utils import load_credentials, parse_args
 
-    # def get_token(self, grant_type, ):
-    #     params = {
-    #         "grant_type": grant_type,
-    #         "client_id": self.client_id
-    #     }
-    #     res = requests.post(f"https://api.tdameritrade.com/v1/oauth2/token", params=params)
-    #     print(res)
-    #     print(res.json())
+        args = parse_args()
+        load_credentials(args.credentials)
+
+        driver = webdriver.Firefox()
+        url = f"https://auth.tdameritrade.com/auth?response_type=code&redirect_uri=http://localhost&client_id={self.consumer_key}@AMER.OAUTHAP"
+        driver.get(url)
+
+        userId = driver.find_element_by_css_selector("#username0")
+        userId.clear()
+        userId.send_keys("leexianwei96")
+        pw = driver.find_element_by_css_selector("#password1")
+        pw.clear()
+        pw.send_keys(f"{os.environ['TDA_pw']}")
+        login_button = driver.find_element_by_css_selector("#accept")
+        login_button.click()
+
+        ## click accept
+        accept_button = driver.find_element_by_css_selector("#accept")
+        try:
+            accept_button.click()
+        except selenium.common.exceptions.WebDriverException:
+            new_url = driver.current_url
+            code = new_url.split("code=")[1] 
+            print(code)
+            return code
+        finally:
+            driver.close()
+
+    def get_token(self, grant_type):
+        import urllib
+
+        if grant_type == "authorization":
+            code = self._signin_code()
+            if code is not None:
+                code = urllib.parse.unquote(code)
+                print(f"Decoded:\n{code}")
+                params = {
+                    "grant_type": "authorization_code",
+                    "access_type": "offline",
+                    "code": code,
+                    "client_id": self.consumer_key,
+                    "redirect_uri": "http://localhost",
+                }
+                headers = {"Content-Type": "application/x-www-form-urlencoded"}
+                res = requests.post(
+                    r"https://api.tdameritrade.com/v1/oauth2/token",
+                    headers=headers,
+                    data=params,
+                )
+                if res.ok:
+                    res_body = res.json()
+                    self.access_token = res_body["access_token"]
+                    self.refresh_token = res_body["refresh_token"]
+
+                    # print("Access token: ", self.access_token)
+                    # print("Refresh token: ", self.refresh_token)
+                else:
+                    print(res)
+                    print(res.json())
+                    raise Exception(f"API POST exception: Error {res.status_code}")
+            else:
+                raise Exception("Could not sign in and obtain code")
+        elif grant_type == "refresh":
+            params = {
+                "grant_type": "refresh_token",
+                "refresh_token": os.environ["TDD_refresh_token"],
+                "client_id": self.consumer_key,
+            }
+            res = requests.post(
+                r"https://api.tdameritrade.com/v1/oauth2/token",
+                headers=headers,
+                data=params,
+            )
+            if res.ok:
+                res_body = res.json()
+                self.access_token = res_body["access_token"]
+                print(res_body["access_token"])
+            else:
+                print(res.json())
+
+    def get_account_details(self):
+        return requests.get(
+            f"https://api.tdameritrade.com/v1/accounts/{os.environ['TDA_account_id']}",
+            headers={"Authorization": f"Bearer {self.access_token}"},
+        ).json()
+
+    def get_quote(self, symbol):
+        return requests.get(
+            f"https://api.tdameritrade.com/v1/marketdata/{symbol}/quotes",
+            params={"apikey": self.consumer_key},
+        ).json()
+
+    def get_price_history(self, symbol, period=1, frequency_type="daily", frequency=1):
+        ## put in Data class in future
+        assert frequency_type in ["minute", "daily", "weekly", "monthly"]
+        assert frequency in [1, 5, 10, 15, 30]
+        return requests.get(
+            f"https://api.tdameritrade.com/v1/marketdata/{symbol}/pricehistory",
+            params={
+                "apikey": self.consumer_key,
+                "period": period,
+                "frequencyType": frequency_type,
+                "frequency": frequency,
+            },
+        ).json()
 
     def calculate_commission(self):
         return 0
@@ -302,6 +411,8 @@ class TDABroker(Broker):
     def execute_order(self, event):
         return None
 
+    def _filter_execute_order(self, event: OrderEvent) -> bool:
+        return True
 
 class AlpacaBroker(Broker):
     def __init__(self,):
