@@ -308,7 +308,7 @@ class TDABroker(Broker):
 
         userId = driver.find_element_by_css_selector("#username0")
         userId.clear()
-        userId.send_keys("leexianwei96")
+        userId.send_keys(os.environ["TDA_username"])
         pw = driver.find_element_by_css_selector("#password1")
         pw.clear()
         pw.send_keys(f"{os.environ['TDA_pw']}")
