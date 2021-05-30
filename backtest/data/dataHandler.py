@@ -1,5 +1,6 @@
 import datetime
 import os
+import re
 import requests
 import logging
 import pandas as pd
@@ -272,3 +273,64 @@ class AlpacaData(HistoricCSVDataHandler):
                 self.continue_backtest = False
             return
         self.events.put(MarketEvent())
+
+class TDAData(HistoricCSVDataHandler):
+    def __init__(self, events, symbol_list, start_date:str, period_type="year", period=1, frequency_type="daily", frequency=1) -> None:
+        if type(start_date) != str and re.match(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", start_date):
+            raise Exception("Start date has to be string and following format: YYYY-MM-DD")
+        ## convert to epoch in millisecond
+        self.start_date = int(datetime.datetime.strptime(start_date, "%Y-%m-%d").timestamp() * 1000)
+        
+        self.events = events
+        self.symbol_list = symbol_list
+        self.consumer_key = os.environ["TDD_consumer_key"]
+        self.raw_data =  {}
+        self.symbol_data = {}
+        self.latest_symbol_data = {}
+        self.data_fields = ['symbol', 'datetime', 'open', 'high', 'low', 'close', 'volume']
+        self._get_price_history(period_type, period, frequency_type, frequency)
+        self._to_generator()
+        del self.raw_data
+        
+        self.continue_backtest = True
+
+    def _get_price_history(self, period_type, period, frequency_type, frequency):
+        ## put in Data class in future
+        assert frequency_type in ["minute", "daily", "weekly", "monthly"]
+        assert frequency in [1, 5, 10, 15, 30]
+        sym_to_remove = []
+        comb_index = None
+        for sym in self.symbol_list:
+            res = requests.get(
+                f"https://api.tdameritrade.com/v1/marketdata/{sym}/pricehistory",
+                params={
+                    "apikey": self.consumer_key,
+                    "periodType": period_type,
+                    "period": period,
+                    "frequencyType": frequency_type,
+                    "frequency": frequency,
+                    "startDate": self.start_date
+                },
+            )
+            if res.ok:
+                data = dict(res.json())
+                if not data["empty"]:
+                    temp = pd.DataFrame(data["candles"]) 
+                    temp = temp.set_index('datetime')
+                    temp.index = temp.index.map(lambda x: datetime.datetime.fromtimestamp(x/1000).strftime('%Y-%m-%d'))
+                    self.raw_data[sym] = temp
+
+                    ## combine index to pad forward values
+                    if comb_index is None:
+                        comb_index = self.raw_data[sym].index
+                    else: 
+                        comb_index.union(self.raw_data[sym].index.drop_duplicates())
+                    
+                    self.latest_symbol_data[sym] = []
+            else:
+                sym_to_remove.append(sym)
+        self.symbol_list = [sym for sym in self.symbol_list if sym not in sym_to_remove]
+        logging.info(f"Final symbol list: {self.symbol_list}")
+        for sym in self.symbol_list:
+            self.raw_data[sym] = self.raw_data[sym].reindex(index=comb_index, method='pad',fill_value=0)
+            self.raw_data[sym].index = self.raw_data[sym].index.map(lambda x: datetime.datetime.strptime(x, '%Y-%m-%d'))
