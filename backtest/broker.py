@@ -2,10 +2,12 @@ import datetime
 import os
 import threading
 import time
+import logging
 from abc import ABC, abstractmethod
 import requests
 from math import fabs
 import pandas as pd
+import json
 
 from ibapi.client import EClient
 from ibapi.contract import Contract
@@ -283,17 +285,15 @@ class IBBroker(Broker, EWrapper, EClient):
 
 ## not working. Seems like a developer account needs to be created with TDA
 class TDABroker(Broker):
-    def __init__(self, access_token=None, refresh_token=None) -> None:
+    def __init__(self, events) -> None:
         super(TDABroker, self).__init__()
-        self.code = os.environ["TDD_CODE"]
+        self.events = events
         self.consumer_key = os.environ["TDD_consumer_key"]
+        self.account_id = os.environ["TDA_account_id"]
         self.access_token = None
         self.refresh_token = None
-        if access_token is not None or refresh_token is not None:
-            assert (refresh_token is not None and access_token is not None)
-            self.access_token = access_token
-            self.refresh_token = refresh_token 
-    
+        self.get_token("authorization")
+
     def _signin_code(self):
         import selenium
         from selenium import webdriver
@@ -322,7 +322,7 @@ class TDABroker(Broker):
         except selenium.common.exceptions.WebDriverException:
             new_url = driver.current_url
             code = new_url.split("code=")[1] 
-            print(code)
+            logging.info("Coded:\n"+code)
             return code
         finally:
             driver.close()
@@ -334,7 +334,7 @@ class TDABroker(Broker):
             code = self._signin_code()
             if code is not None:
                 code = urllib.parse.unquote(code)
-                print(f"Decoded:\n{code}")
+                logging.info("Decoded:\n"+code)
                 params = {
                     "grant_type": "authorization_code",
                     "access_type": "offline",
@@ -350,11 +350,9 @@ class TDABroker(Broker):
                 )
                 if res.ok:
                     res_body = res.json()
+                    logging.info("Obtained access_token & refresh_token")
                     self.access_token = res_body["access_token"]
                     self.refresh_token = res_body["refresh_token"]
-
-                    # print("Access token: ", self.access_token)
-                    # print("Refresh token: ", self.refresh_token)
                 else:
                     print(res)
                     print(res.json())
@@ -364,12 +362,11 @@ class TDABroker(Broker):
         elif grant_type == "refresh":
             params = {
                 "grant_type": "refresh_token",
-                "refresh_token": os.environ["TDD_refresh_token"],
+                "refresh_token": self.refresh_token,
                 "client_id": self.consumer_key,
             }
             res = requests.post(
                 r"https://api.tdameritrade.com/v1/oauth2/token",
-                headers=headers,
                 data=params,
             )
             if res.ok:
@@ -391,28 +388,62 @@ class TDABroker(Broker):
             params={"apikey": self.consumer_key},
         ).json()
 
-    def get_price_history(self, symbol, period=1, frequency_type="daily", frequency=1):
-        ## put in Data class in future
-        assert frequency_type in ["minute", "daily", "weekly", "monthly"]
-        assert frequency in [1, 5, 10, 15, 30]
-        return requests.get(
-            f"https://api.tdameritrade.com/v1/marketdata/{symbol}/pricehistory",
-            params={
-                "apikey": self.consumer_key,
-                "period": period,
-                "frequencyType": frequency_type,
-                "frequency": frequency,
-            },
-        ).json()
-
     def calculate_commission(self):
         return 0
 
-    def execute_order(self, event):
-        return None
+    def execute_order(self, event: OrderEvent) -> bool:
+        data = {
+            "orderType": "MARKET" if event.order_type == OrderType.MARKET else "LIMIT",
+            "session": "NORMAL",
+            "duration": "DAY",
+            "orderStrategyType": "SINGLE",
+            "orderLegCollection": [{
+                "instruction": "BUY" if event.direction == OrderPosition.BUY else "SELL",
+                "quantity": event.quantity,
+                "instrument": {
+                    "symbol": event.symbol,
+                    "assetType": "EQUITY"
+                }
+            }]
+        }
+        if data["orderType"] == "LIMIT":
+            data["price"] = event.signal_price
+        res = requests.post(
+            f"https://api.tdameritrade.com/v1/accounts/{self.account_id}/orders",
+            data=json.dumps(data),
+            headers={
+                "Authorization": f"Bearer {self.access_token}",
+                "Content-Type" : "application/json"
+            }
+        )
+        if res.ok:
+            return True
+        print(f"Place Order Unsuccessful: {event.print_order()}\n{res.status_code}\n{res.json()}")
+        print(res.text)
+        return False 
+    
+    def cancel_order(self, order_id) -> bool:
+        ## NOTE: Unused and only skeleton.
+        ## TODO: Implement while improving TDABroker class
+        res = requests.delete(
+            f"https://api.tdameritrade.com/v1/accounts/{self.account_id}/orders/{order_id}",
+            headers={"Authorization": f"Bearer {self.access_token}"}
+        )
+        if res.ok:
+            return True
+        return False
 
     def _filter_execute_order(self, event: OrderEvent) -> bool:
         return True
+    
+    def get_past_transactions(self):
+        return requests.get(
+            f"https://api.tdameritrade.com/v1/accounts/{self.account_id}/transactions",
+            params= {
+               "type": "ALL",
+            },
+            headers={"Authorization": f"Bearer {self.access_token}"}
+        ).json()
 
 class AlpacaBroker(Broker):
     def __init__(self,):
@@ -431,7 +462,7 @@ class AlpacaBroker(Broker):
             headers={
                 "APCA-API-KEY-ID": os.environ["alpaca_key_id"],
                 "APCA-API-SECRET-KEY": os.environ["alpaca_secret_key"],
-            },
+            }
         ).json()
 
     """ ORDERS """
@@ -443,7 +474,7 @@ class AlpacaBroker(Broker):
         return True
 
     def execute_order(self, event: OrderEvent) -> bool:
-        side = "buy" if OrderPosition.BUY else "sell"
+        side = "buy" if event.direction == OrderPosition.BUY else "sell"
         try:
             if event.order_type == OrderType.LIMIT:
                 order = self.api.submit_order(
