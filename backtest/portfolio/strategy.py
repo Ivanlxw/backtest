@@ -33,10 +33,11 @@ class DefaultOrder(PortfolioStrategy):
 
         cur_quantity = self.current_holdings[symbol]
 
-        if direction == OrderPosition.EXIT:
+        if direction == OrderPosition.EXIT_LONG:
             if cur_quantity > 0:
                 order = OrderEvent(symbol, latest_snapshot['datetime'][-1], cur_quantity, OrderPosition.SELL, signal.price)
-            elif cur_quantity < 0:
+        elif direction == OrderPosition.EXIT_SHORT:
+            if cur_quantity < 0:
                 order = OrderEvent(symbol, latest_snapshot['datetime'][-1], -cur_quantity, OrderPosition.BUY, signal.price)            
         elif direction == OrderPosition.BUY and cur_quantity <= 0:
                 order = OrderEvent(symbol, latest_snapshot['datetime'][-1], signal.quantity-cur_quantity, direction, signal.price)
@@ -60,10 +61,11 @@ class ProgressiveOrder(PortfolioStrategy):
 
         cur_quantity = self.current_holdings[symbol]
 
-        if direction == OrderPosition.EXIT:
+        if direction == OrderPosition.EXIT_LONG:
             if cur_quantity > 0:
                 order = OrderEvent(symbol, latest_snapshot['datetime'][-1], cur_quantity, OrderPosition.SELL, signal.price)
-            elif cur_quantity < 0:
+        elif direction == OrderPosition.EXIT_SHORT:
+            if cur_quantity < 0:
                 order = OrderEvent(symbol, latest_snapshot['datetime'][-1], -cur_quantity, OrderPosition.BUY, signal.price)            
         elif direction == OrderPosition.BUY:
             if cur_quantity < 0:
@@ -94,7 +96,7 @@ class LongOnly(PortfolioStrategy):
         if direction == OrderPosition.BUY:
             order = OrderEvent(symbol, latest_snapshot['datetime'][-1], signal.quantity, 
             direction, signal.price)
-        elif (direction == OrderPosition.SELL or direction == OrderPosition.EXIT) \
+        elif (direction == OrderPosition.SELL or direction == OrderPosition.EXIT_LONG) \
             and self.current_holdings[symbol] > 0:
             order = OrderEvent(symbol, latest_snapshot['datetime'][-1], 
                 self.current_holdings[symbol], OrderPosition.SELL, signal.price)

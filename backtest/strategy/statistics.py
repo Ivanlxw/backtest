@@ -3,11 +3,8 @@ import logging
 
 import numpy as np
 import pandas as pd
-from backtest.event import SignalEvent
 from backtest.strategy.naive import Strategy
 from backtest.utilities.enums import OrderPosition
-from sklearn.preprocessing import LabelEncoder
-
 
 class BuyDips(Strategy):
     def __init__(self, bars, events, short_time, long_time, consecutive=2) -> None:
@@ -16,35 +13,37 @@ class BuyDips(Strategy):
         self.st = short_time
         self.lt = long_time
         self.consecutive = consecutive
+        self.counter = 0
 
     def calculate_position(self, bars) -> OrderPosition: 
-        lt_corr = np.corrcoef(np.arange(1,bars.shape[0]+1), bars[:, 5].astype('float32'))
-        st_corr = np.corrcoef(np.arange(1, self.st+1), bars[-self.st:, 5].astype('float32'))
-        # price_pct_change = np.diff(bars[:, 5].astype('float32')) / bars[1:, 5].astype('float32') * 100
-        ## dips
-        if lt_corr[0][1] > 0.40 and np.percentile(bars[-self.st*2:, 5], 25) > bars[-1,5]:
+        assert len(bars) == self.lt
+        lt_corr = np.corrcoef(np.arange(1,self.lt+1), bars)
+        if np.percentile(bars[-self.st:], 5) > bars[-1] and lt_corr[0][1] > 0.25:
             return OrderPosition.BUY
-        # elif lt_corr[0][1] < -0.40 and np.percentile(bars[-self.st*2:, 5], 90) < bars[-1,5]:
-        #     return OrderPosition.SELL
-        # #momentum
-        elif lt_corr[0][1] > 0.20 and st_corr[0][1] > 0.75 and np.percentile(bars[:, 5], 25) > bars[-1,5]:
-            return OrderPosition.BUY
-        ## currenly selling at dips
-        elif st_corr[0][1] < -0.75 and np.percentile(bars[:, 5], 75) < bars[-1,5]:
+        elif np.percentile(bars[-self.st:], 95) < bars[-1] and lt_corr[0][1] < 0:
             return OrderPosition.SELL
+        elif np.percentile(bars, 97) < bars[-1]:
+            return OrderPosition.EXIT_LONG
+        elif np.percentile(bars, 3) > bars[-1]:
+            return OrderPosition.EXIT_SHORT
      
     def calculate_signals(self, event):
         if event.type == 'MARKET':
-            # corr_diff = dict((sym, None) for lt_corr[0][1] < -0.2540and sym in self.bars.symbol_lis)
             for sym in self.bars.symbol_list:
-                bars = self.bars.get_latest_bars(sym, N=self.lt+self.consecutive)
-                if len(bars['datetime']) != self.lt+self.consecutive:
+                bars = self.bars.get_latest_bars(sym, N=self.lt)
+                if len(bars['datetime']) != self.lt:
                     continue
-                psignals = [self.calculate_position(bars['close'][:-i]) for i in range(1,self.consecutive)]
-                if all(elem == psignals[-1] for elem in psignals) and psignals[-1] is not None:
-                    self.put_to_queue_(bars['symbol'], bars['datetime'][-1], psignals[-1], bars['close'][-1])
+                psignals = self.calculate_position(bars['close'])
+                if psignals is not None:
+                    self.put_to_queue_(
+                        bars['symbol'], bars['datetime'][-1], 
+                        psignals, bars['close'][-1])
 
-class StatisticalStrategy(Strategy):
+class DipswithTA(BuyDips):
+    def __init__(self, bars, events, short_time, long_time, consecutive) -> None:
+        super().__init__(bars, events, short_time, long_time, consecutive=consecutive)
+
+class StatisticalStrategy(Strategy, metaclass=ABCMeta):
     def __init__(self, bars, events, model, processor):
         super().__init__(bars, events)
         self.events = events
@@ -59,7 +58,10 @@ class StatisticalStrategy(Strategy):
         temp_df = temp_df.drop(["symbol", "date"], axis=1)
         return self.model.predict(self.processor.preprocess_X(temp_df))
     
-
+    @abstractmethod
+    def optimize(self):
+        raise NotImplementedError("Optimize() must be implemented in derived class")
+    
 ## Sklearn regressor (combined)
 class RawRegression(StatisticalStrategy):
     def __init__(self, bars, events, model, processor, reoptimize_days:int):
@@ -67,6 +69,7 @@ class RawRegression(StatisticalStrategy):
         self.model = {}
         self.reg = model
         self.reoptimize_days = reoptimize_days
+        self.to_reoptimize = 0
         for sym in self.bars.symbol_list:
             self.model[sym] = None
 
@@ -86,7 +89,7 @@ class RawRegression(StatisticalStrategy):
                     self.model[sym] = self.reg()
                     self.model[sym].fit(X,y)
                 except Exception as e:
-                    logging.exception("Fit does not work.")
+                    logging.exception(f"Fitting {sym} does not work.")
                     logging.exception(e)
                     logging.error(X,y)
             
@@ -98,6 +101,9 @@ class RawRegression(StatisticalStrategy):
 
     def calculate_signals(self, event):
         if event.type == "MARKET":
+            self.to_reoptimize += 1
+            if self.to_reoptimize == self.reoptimize_days:
+                self.optimize()
             for s in self.bars.symbol_list:
                 bars = self.bars.get_latest_bars(s, N=self.processor.get_shift())
                 if len(bars['datetime']) < self.processor.get_shift() or \
@@ -123,6 +129,9 @@ class RawClassification(RawRegression):
     
     def calculate_signals(self, event):
         if event.type == "MARKET":
+            self.to_reoptimize += 1
+            if self.to_reoptimize == self.reoptimize_days:
+                self.optimize()
             for s in self.bars.symbol_list:
                 bars = self.bars.get_latest_bars(s, N=self.processor.get_shift())
 
