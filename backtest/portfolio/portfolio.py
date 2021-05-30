@@ -69,7 +69,7 @@ class NaivePortfolio(Portfolio):
         Constructs the holdings list using the start_date
         to determine when the time index will begin.
         """
-        d = dict( (k,v) for k, v in [(s, 0.0) for s in self.symbol_list] )
+        d = dict((s, 0.0) for s in self.symbol_list)
         # d['datetime'] = datetime.datetime.strptime(self.start_date, '%Y-%m-%d')
         d['datetime'] = self.start_date
         d['cash'] = self.initial_capital
