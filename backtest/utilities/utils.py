@@ -4,7 +4,7 @@ import argparse
 import time
 import queue
 import logging
-from backtest.Plots.plot import PlotTradePrices
+from backtest.Plots.plot import Plot, PlotTradePrices
 
 
 def remove_bs(s: str):
@@ -34,7 +34,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_live: bool = False) -> PlotTradePrices:
+def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_live: bool = False) -> Plot:
     start = time.time()
     while True:
         # Update the bars (specific backtest code, as opposed to live trading)
@@ -80,6 +80,6 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
     port.create_equity_curve_df()
     logging.log(32, port.output_summary_stats())
 
-    plotter = PlotTradePrices(port, bars)
+    plotter = Plot(port)
     plotter.plot()
     return plotter

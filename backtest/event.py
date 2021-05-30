@@ -98,10 +98,3 @@ class FillEvent(Event):
         self.type= 'FILL'
         self.order_event = order_event
         self.commission = commission
-
-class OptimizeEvent(Event):
-    """
-    Gives signal for strategy to optimize statistical models
-    """
-    def __init__(self):
-        self.type = "OPTIMIZE"

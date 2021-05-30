@@ -18,7 +18,7 @@ def backtest(symbol_list,
     if not loop_live and start_date is None:
         raise Exception("If backtesting, start_date is required.")
          
-    plotter = _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_live=loop_live)
+    _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_live=loop_live)
 
     if not loop_live:
         plot_benchmark("data/stock_list.txt", \
@@ -27,9 +27,6 @@ def backtest(symbol_list,
 
         plt.legend()
         plt.show()
-
-    if plot_trade_prices:
-        plotter.plot_trade_prices()
 
 def plot_benchmark(stock_list_fp, symbol_list, start_date, end_date:str=None, freq="daily"):
     event_queue = queue.LifoQueue()

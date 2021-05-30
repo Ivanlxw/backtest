@@ -30,9 +30,6 @@ class Strategy(object):
         self.bars = bars
         self.events = events
 
-    def optimize(self,):
-        return
-    
     def put_to_queue_(self, sym, datetime, order_position, price):
         self.events.put(SignalEvent(sym, datetime, order_position, price))
     

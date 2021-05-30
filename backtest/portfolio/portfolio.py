@@ -8,7 +8,7 @@ import pandas as pd
 from datetime import timedelta
 from abc import ABCMeta, abstractmethod
 
-from backtest.event import FillEvent, OptimizeEvent, OrderEvent, SignalEvent
+from backtest.event import FillEvent, OrderEvent, SignalEvent
 from backtest.performance import create_sharpe_ratio, create_drawdowns
 from backtest.portfolio.rebalance import NoRebalance
 
@@ -47,9 +47,8 @@ class NaivePortfolio(Portfolio):
         self.qty = stock_size
         self.expires = expires
         self.name = portfolio_name
-        self.trade_details = []
         self.all_positions = self.construct_all_positions()
-        self.current_positions = dict( (k,v) for k, v in [(s, 0) for s in self.symbol_list] )
+        self.current_positions = dict( (s,0) for s in self.symbol_list )
         self.all_holdings = self.construct_all_holdings()
         self.current_holdings = self.construct_current_holdings()
         self.order_type = order_type
@@ -89,7 +88,7 @@ class NaivePortfolio(Portfolio):
         for sym in self.symbol_list:
             bars[sym] = self.bars.get_latest_bars(sym, N=1)
         ## update positions
-        dp = dict( (k,v) for k, v in [(s,0) for s in self.symbol_list ])
+        dp = dict( (s,0) for s in self.symbol_list )
         dp['datetime'] = bars[self.symbol_list[0]]['datetime'][0]
 
         for s in self.symbol_list:
@@ -100,7 +99,7 @@ class NaivePortfolio(Portfolio):
         self.all_positions.append(dp)
 
         ## update holdings
-        dh = dict((k,v) for k, v in [(s,0) for s in self.symbol_list])
+        dh = dict( (s,0) for s in self.symbol_list )
         dh['datetime'] = bars[self.symbol_list[0]]['datetime'][0]
         dh['cash'] = self.current_holdings['cash']
         dh['commission'] = self.current_holdings['commission']
@@ -115,14 +114,6 @@ class NaivePortfolio(Portfolio):
         ## append current holdings
         self.all_holdings.append(dh)
         self.rebalance.rebalance(self.symbol_list, self.all_holdings)
-        
-        ## reoptimizing conditions
-        try:
-            if dh['datetime'].month % 6 == 0 and \
-                self.all_holdings[-2]['datetime'].month % 6 != 0:
-                self.events.put(OptimizeEvent())
-        except AttributeError:
-            logging.error(dh['datetime'])
 
     def update_positions_from_fill(self, fill):
         """
@@ -150,8 +141,6 @@ class NaivePortfolio(Portfolio):
         self.current_holdings['commission'] += fill.commission
         self.current_holdings['cash'] -= (cash + fill.commission)
         
-        self.trade_details.append([x for x in self.bars.get_latest_bars(fill.order_event.symbol)] + [fill.order_event.direction])
-
     def update_fill(self, event):
         if event.type == "FILL":
             self.update_positions_from_fill(event)
