@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+from backtest.utilities.enums import OrderPosition
 from backtest.event import SignalEvent
 
 class Rebalance(metaclass=ABCMeta):                
@@ -29,17 +30,30 @@ class NoRebalance(Rebalance):
 
 
 class BaseRebalance(Rebalance):
-    ''' Rebalances every year '''
+    ''' EXIT for all positions every year '''
     def __init__(self, events) -> None:
         self.events = events
 
     def need_rebalance(self, all_holdings):
-        if all_holdings[-1]['datetime'].year != all_holdings[-2]['datetime'].year:
-            self.datetime = all_holdings[-1]['datetime']
-            return True
-        return False
+        return all_holdings[-1]['datetime'].year != all_holdings[-2]['datetime'].year
 
     def rebalance(self, stock_list, all_holdings) -> None:
         if self.need_rebalance(all_holdings):
             for symbol in stock_list:
-                self.events.put(SignalEvent(symbol, self.datetime, 'EXIT'))
+                ## only 1 will go through if there is position
+                self.events.put(SignalEvent(symbol, all_holdings[-1]['datetime'], OrderPosition.EXIT_LONG))
+                self.events.put(SignalEvent(symbol, all_holdings[-1]['datetime'], OrderPosition.EXIT_SHORT))
+
+class SellLongLosers(BaseRebalance):
+    def __init__(self, events) -> None:
+        super().__init__()
+
+    def need_rebalance(self, all_holdings):
+        return all_holdings[-1]['datetime'].year != all_holdings[-2]['datetime'].year
+
+    def rebalance(self, stock_list, all_holdings) -> None:
+        if self.need_rebalance(all_holdings):
+            for symbol in stock_list:
+                ## TODO: Check for losing stocks
+                self.events.put(SignalEvent(symbol, all_holdings[-1]['datetime'], OrderPosition.EXIT_LONG))
+                self.events.put(SignalEvent(symbol, all_holdings[-1]['datetime'], OrderPosition.EXIT_SHORT))
