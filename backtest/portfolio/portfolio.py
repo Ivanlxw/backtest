@@ -42,7 +42,10 @@ class NaivePortfolio(Portfolio):
         self.events = events
         self.order_queue = order_queue
         self.symbol_list = self.bars.symbol_list
-        self.start_date = self.bars.start_date
+        if type(self.bars.start_date) == str:
+            self.start_date = pd.Timestamp(self.bars.start_date)
+        else:
+            self.start_date = self.bars.start_date
         self.initial_capital = initial_capital
         self.qty = stock_size
         self.expires = expires
@@ -51,7 +54,7 @@ class NaivePortfolio(Portfolio):
         self.all_holdings = self.construct_all_holdings()
         self.order_type = order_type
         self.portfolio_strategy = portfolio_strategy(self.bars, self.current_holdings, self.order_type)
-        self.rebalance = rebalance if rebalance is not None else NoRebalance()
+        self.rebalance = rebalance(self.events, self.bars) if rebalance is not None else NoRebalance()
 
     def construct_all_holdings(self,):
         """
@@ -75,26 +78,23 @@ class NaivePortfolio(Portfolio):
     def construct_current_holdings(self, ):
         d = dict( (s, {
             'quantity': 0.0,
-            'last_traded': None
+            'last_traded': None,
+            'last_trade_price': None
         }) for s in self.symbol_list )
         d['cash'] = self.initial_capital
         d['commission'] = 0.0
+        d['datetime'] = self.start_date
         return d
 
     def update_timeindex(self, event):
         bars = {}
         for sym in self.symbol_list:
             bars[sym] = self.bars.get_latest_bars(sym, N=1)
-        ## update positions
-        dp = dict( (s,0) for s in self.symbol_list )
-        dp['datetime'] = bars[self.symbol_list[0]]['datetime'][0]
+        self.current_holdings['datetime'] = bars[self.symbol_list[0]]['datetime'][0]
 
-        for s in self.symbol_list:
-            dp[s] = self.current_holdings[s]['quantity']
-
-        ## update holdings
+        ## update holdings based off last trading day
         dh = dict( (s,0) for s in self.symbol_list )
-        dh['datetime'] = bars[self.symbol_list[0]]['datetime'][0]
+        dh['datetime'] = self.current_holdings['datetime']
         dh['cash'] = self.current_holdings['cash']
         dh['commission'] = self.current_holdings['commission']
         dh['total'] = self.current_holdings['cash']
@@ -108,7 +108,7 @@ class NaivePortfolio(Portfolio):
         ## append current holdings
         self.all_holdings.append(dh)
         self.current_holdings["commission"] = 0.0  # reset commission for the day
-        self.rebalance.rebalance(self.symbol_list, self.all_holdings)
+        self.rebalance.rebalance(self.symbol_list, self.current_holdings)
 
     def update_holdings_from_fill(self, fill: FillEvent):
         fill_dir = 0
@@ -118,8 +118,10 @@ class NaivePortfolio(Portfolio):
             fill_dir = -1  
 
         cash = fill_dir * fill.order_event.trade_price * fill.order_event.quantity
-        self.current_holdings[fill.order_event.symbol]["quantity"] += fill_dir*fill.order_event.quantity
         self.current_holdings[fill.order_event.symbol]['last_traded'] = fill.order_event.date
+        self.current_holdings[fill.order_event.symbol]["quantity"] += fill_dir*fill.order_event.quantity
+        # latest trade price. Might need to change to avg trade price
+        self.current_holdings[fill.order_event.symbol]['last_trade_price'] = fill.order_event.trade_price
         self.current_holdings['commission'] += fill.commission
         self.current_holdings['cash'] -= (cash + fill.commission)
         

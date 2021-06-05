@@ -178,7 +178,7 @@ class HistoricCSVDataHandler(DataHandler):
         self.events.put(MarketEvent())
 
 class AlpacaData(HistoricCSVDataHandler):
-    def __init__(self, events, symbol_list, timeframe='1D', live=True, start_date=None):
+    def __init__(self, events, symbol_list, timeframe='1D', live=True, start_date: pd.Timestamp=None):
         self.events = events
         self.symbol_list = symbol_list
         assert timeframe in ['1Min', '5Min', '15Min', 'day', '1D']

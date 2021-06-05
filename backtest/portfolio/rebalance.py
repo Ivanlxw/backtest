@@ -1,59 +1,65 @@
 from abc import ABCMeta, abstractmethod
+from backtest.data.dataHandler import DataHandler
+import pandas as pd
 from backtest.utilities.enums import OrderPosition
 from backtest.event import SignalEvent
 
 class Rebalance(metaclass=ABCMeta):                
+    def __init__(self, events, bars: DataHandler) -> None:
+        self.events = events
+        self.bars = bars
     @abstractmethod
-    def need_rebalance(self, all_holdings):
+    def need_rebalance(self, current_holdings):
         """
         The check for rebalancing portfolio
         """
         raise NotImplementedError("Should implement need_rebalance()")
 
     @abstractmethod
-    def rebalance(self, stock_list, all_holdings):
+    def rebalance(self, stock_list, current_holdings):
         """
         Updates portfolio based on rebalancing criteria
         """
         raise NotImplementedError("Should implement rebalance(). If not required, just pass")
 
-class NoRebalance(Rebalance):
+class NoRebalance():
     ''' No variables initialized as need_balance returns false'''
-    def __init__(self) -> None:
-        return
-    
-    def need_rebalance(self, all_holdings):
+    def need_rebalance(self, current_holdings):
         return False
 
-    def rebalance(self, stock_list, all_holdings) -> None:
+    def rebalance(self, stock_list, current_holdings) -> None:
         return
 
 
 class BaseRebalance(Rebalance):
     ''' EXIT for all positions every year '''
-    def __init__(self, events) -> None:
-        self.events = events
+    def __init__(self, events, bars) -> None:
+        super().__init__(events, bars)
 
-    def need_rebalance(self, all_holdings):
-        return all_holdings[-1]['datetime'].year != all_holdings[-2]['datetime'].year
+    def need_rebalance(self, current_holdings):
+        return current_holdings['datetime'].is_year_start
 
-    def rebalance(self, stock_list, all_holdings) -> None:
-        if self.need_rebalance(all_holdings):
+    def rebalance(self, stock_list, current_holdings) -> None:
+        if self.need_rebalance(current_holdings):
             for symbol in stock_list:
                 ## only 1 will go through if there is position
-                self.events.put(SignalEvent(symbol, all_holdings[-1]['datetime'], OrderPosition.EXIT_LONG))
-                self.events.put(SignalEvent(symbol, all_holdings[-1]['datetime'], OrderPosition.EXIT_SHORT))
+                self.events.put(SignalEvent(symbol, current_holdings['datetime'], OrderPosition.EXIT_LONG))
+                self.events.put(SignalEvent(symbol, current_holdings['datetime'], OrderPosition.EXIT_SHORT))
 
-class SellLongLosers(BaseRebalance):
-    def __init__(self, events) -> None:
-        super().__init__()
+class SellLongLosers(Rebalance):
+    def __init__(self, events, bars) -> None:
+        super().__init__(events, bars)
 
-    def need_rebalance(self, all_holdings):
-        return all_holdings[-1]['datetime'].year != all_holdings[-2]['datetime'].year
+    def need_rebalance(self, current_holdings):
+        ## every quarter
+        return current_holdings['datetime'].is_quarter_start
 
-    def rebalance(self, stock_list, all_holdings) -> None:
-        if self.need_rebalance(all_holdings):
+    def rebalance(self, stock_list, current_holdings) -> None:
+        if self.need_rebalance(current_holdings):
             for symbol in stock_list:
-                ## TODO: Check for losing stocks
-                self.events.put(SignalEvent(symbol, all_holdings[-1]['datetime'], OrderPosition.EXIT_LONG))
-                self.events.put(SignalEvent(symbol, all_holdings[-1]['datetime'], OrderPosition.EXIT_SHORT))
+                ## sell all losers
+                latest_close_price = self.bars.get_latest_bars(symbol)['close'][-1]
+                if current_holdings[symbol]["quantity"] > 0 and latest_close_price < current_holdings[symbol]["last_trade_price"]:
+                    self.events.put(SignalEvent(symbol, current_holdings['datetime'], OrderPosition.EXIT_LONG, latest_close_price))
+                elif current_holdings[symbol]["quantity"] < 0 and latest_close_price > current_holdings[symbol]["last_trade_price"]:
+                    self.events.put(SignalEvent(symbol, current_holdings['datetime'], OrderPosition.EXIT_SHORT, latest_close_price))

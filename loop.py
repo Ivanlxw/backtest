@@ -1,3 +1,4 @@
+from backtest.portfolio.rebalance import BaseRebalance, SellLongLosers
 import queue
 import random
 import logging
@@ -42,9 +43,10 @@ strategy = DoubleMAStrategy(bars, event_queue, [14, 50], talib.SMA)
 if args.fundamental:
     strategy = FundamentalFScoreStrategy(bars, event_queue)
 port = PercentagePortFolio(bars, event_queue, order_queue,
-                           percentage=0.10, portfolio_name="BuyDips",
+                           percentage=0.10, portfolio_name="DoubleMA",
                            mode='asset',
-                           expires=7
+                           expires=7,
+                           rebalance=SellLongLosers
                            )
 broker = SimulatedBroker(bars, port, event_queue, order_queue)
 
