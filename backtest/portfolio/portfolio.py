@@ -47,30 +47,26 @@ class NaivePortfolio(Portfolio):
         self.qty = stock_size
         self.expires = expires
         self.name = portfolio_name
-        self.all_positions = self.construct_all_positions()
+        self.current_holdings = self.construct_current_holdings()
         self.current_positions = dict( (s,0) for s in self.symbol_list )
         self.all_holdings = self.construct_all_holdings()
-        self.current_holdings = self.construct_current_holdings()
         self.order_type = order_type
         self.portfolio_strategy = portfolio_strategy(self.bars, self.current_holdings, self.order_type)
         self.rebalance = rebalance if rebalance is not None else NoRebalance()
 
-    def construct_all_positions(self,):
-        """
-        Returns a list of dictionary, that shows the positions at 
-        every timestep
-        """
-        d = dict( (k,v) for k,v in [(s,0) for s in self.symbol_list])
-        d['datetime'] = self.start_date
-        return [d]
-    
     def construct_all_holdings(self,):
         """
         Constructs the holdings list using the start_date
         to determine when the time index will begin.
+        self. all_holdings = list({
+            symbols: market_value,
+            datetime, 
+            cash,
+            daily_commission,
+            total_asset,
+        })
         """
         d = dict((s, 0.0) for s in self.symbol_list)
-        # d['datetime'] = datetime.datetime.strptime(self.start_date, '%Y-%m-%d')
         d['datetime'] = self.start_date
         d['cash'] = self.initial_capital
         d['commission'] = 0.0
@@ -78,7 +74,7 @@ class NaivePortfolio(Portfolio):
         return [d]
 
     def construct_current_holdings(self, ):
-        d = dict( (k,v) for k, v in [(s, 0.0) for s in self.symbol_list] )
+        d = dict( (s, 0.0) for s in self.symbol_list )
         d['cash'] = self.initial_capital
         d['commission'] = 0.0
         return d
@@ -93,10 +89,6 @@ class NaivePortfolio(Portfolio):
 
         for s in self.symbol_list:
             dp[s] = self.current_positions[s]
-        
-        ## add historical info of current timeframe
-        ## positions
-        self.all_positions.append(dp)
 
         ## update holdings
         dh = dict( (s,0) for s in self.symbol_list )
@@ -113,6 +105,7 @@ class NaivePortfolio(Portfolio):
         
         ## append current holdings
         self.all_holdings.append(dh)
+        self.current_holdings["commission"] = 0.0  # reset commission for the day
         self.rebalance.rebalance(self.symbol_list, self.all_holdings)
 
     def update_positions_from_fill(self, fill):
