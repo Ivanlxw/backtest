@@ -48,7 +48,6 @@ class NaivePortfolio(Portfolio):
         self.expires = expires
         self.name = portfolio_name
         self.current_holdings = self.construct_current_holdings()
-        self.current_positions = dict( (s,0) for s in self.symbol_list )
         self.all_holdings = self.construct_all_holdings()
         self.order_type = order_type
         self.portfolio_strategy = portfolio_strategy(self.bars, self.current_holdings, self.order_type)
@@ -74,7 +73,10 @@ class NaivePortfolio(Portfolio):
         return [d]
 
     def construct_current_holdings(self, ):
-        d = dict( (s, 0.0) for s in self.symbol_list )
+        d = dict( (s, {
+            'quantity': 0.0,
+            'last_traded': None
+        }) for s in self.symbol_list )
         d['cash'] = self.initial_capital
         d['commission'] = 0.0
         return d
@@ -88,7 +90,7 @@ class NaivePortfolio(Portfolio):
         dp['datetime'] = bars[self.symbol_list[0]]['datetime'][0]
 
         for s in self.symbol_list:
-            dp[s] = self.current_positions[s]
+            dp[s] = self.current_holdings[s]['quantity']
 
         ## update holdings
         dh = dict( (s,0) for s in self.symbol_list )
@@ -99,7 +101,7 @@ class NaivePortfolio(Portfolio):
 
         for s in self.symbol_list:
             ## position size * close price
-            market_val = self.current_positions[s] * (bars[s]['close'][0] if 'close' in bars[s] and len(bars[s]['close']) > 0 else 0)
+            market_val = self.current_holdings[s]['quantity'] * (bars[s]['close'][0] if 'close' in bars[s] and len(bars[s]['close']) > 0 else 0)
             dh[s] = market_val
             dh['total'] += market_val
         
@@ -107,20 +109,6 @@ class NaivePortfolio(Portfolio):
         self.all_holdings.append(dh)
         self.current_holdings["commission"] = 0.0  # reset commission for the day
         self.rebalance.rebalance(self.symbol_list, self.all_holdings)
-
-    def update_positions_from_fill(self, fill):
-        """
-        Takes a FillEvent object and updates the position matric to 
-        reflect new position
-        """
-
-        fill_dir = 0
-        if fill.order_event.direction == OrderPosition.BUY:
-            fill_dir = 1
-        elif fill.order_event.direction == OrderPosition.SELL:
-            fill_dir = -1
-
-        self.current_positions[fill.order_event.symbol] += fill_dir*fill.order_event.quantity
 
     def update_holdings_from_fill(self, fill: FillEvent):
         fill_dir = 0
@@ -130,13 +118,13 @@ class NaivePortfolio(Portfolio):
             fill_dir = -1  
 
         cash = fill_dir * fill.order_event.trade_price * fill.order_event.quantity
-        self.current_holdings[fill.order_event.symbol] += fill_dir*fill.order_event.quantity
+        self.current_holdings[fill.order_event.symbol]["quantity"] += fill_dir*fill.order_event.quantity
+        self.current_holdings[fill.order_event.symbol]['last_traded'] = fill.order_event.date
         self.current_holdings['commission'] += fill.commission
         self.current_holdings['cash'] -= (cash + fill.commission)
         
     def update_fill(self, event):
         if event.type == "FILL":
-            self.update_positions_from_fill(event)
             self.update_holdings_from_fill(event)
     
     def generate_order(self, signal:SignalEvent) -> OrderEvent:

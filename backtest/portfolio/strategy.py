@@ -31,7 +31,7 @@ class DefaultOrder(PortfolioStrategy):
         direction = signal.signal_type
         latest_snapshot = self.bar.get_latest_bars(signal.symbol)
 
-        cur_quantity = self.current_holdings[symbol]
+        cur_quantity = self.current_holdings[symbol]["quantity"]
 
         if direction == OrderPosition.EXIT_LONG:
             if cur_quantity > 0:
@@ -59,7 +59,7 @@ class ProgressiveOrder(PortfolioStrategy):
         direction = signal.signal_type
         latest_snapshot = self.bar.get_latest_bars(signal.symbol)
 
-        cur_quantity = self.current_holdings[symbol]
+        cur_quantity = self.current_holdings[symbol]["quantity"]
 
         if direction == OrderPosition.EXIT_LONG:
             if cur_quantity > 0:
@@ -97,9 +97,9 @@ class LongOnly(PortfolioStrategy):
             order = OrderEvent(symbol, latest_snapshot['datetime'][-1], signal.quantity, 
             direction, signal.price)
         elif (direction == OrderPosition.SELL or direction == OrderPosition.EXIT_LONG) \
-            and self.current_holdings[symbol] > 0:
+            and self.current_holdings[symbol]["quantity"] > 0:
             order = OrderEvent(symbol, latest_snapshot['datetime'][-1], 
-                self.current_holdings[symbol], OrderPosition.SELL, signal.price)
+                self.current_holdings[symbol]["quantity"], OrderPosition.SELL, signal.price)
         if order is not None:
             order.signal_price = signal.price
         return order

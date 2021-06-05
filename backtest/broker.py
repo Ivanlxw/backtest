@@ -111,6 +111,7 @@ class SimulatedBroker(Broker):
             event.trade_price = close_price
             if event.order_type == OrderType.LIMIT and not event.processed:
                 event.processed = True
+                event.date += datetime.timedelta(days=1)
                 self.order_queue.put(event)
                 return False
             else:
@@ -417,6 +418,8 @@ class TDABroker(Broker):
             }
         )
         if res.ok:
+            fill_event = FillEvent(event, self.calculate_commission())
+            self.events.put(fill_event)
             return True
         print(f"Place Order Unsuccessful: {event.print_order()}\n{res.status_code}\n{res.json()}")
         print(res.text)
@@ -497,7 +500,11 @@ class AlpacaBroker(Broker):
                 )
         except alpaca_trade_api.rest.APIError:
             return False
-        return order.status == "accepted"
+        if order.status == "accepted":
+            fill_event = FillEvent(event, self.calculate_commission())
+            self.events.put(fill_event)
+            return True
+        return False
 
     def calculate_commission(self):
         return 0
