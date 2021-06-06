@@ -33,12 +33,19 @@ class Strategy(object):
     def put_to_queue_(self, sym, datetime, order_position, price):
         self.events.put(SignalEvent(sym, datetime, order_position, price))
     
+    def calculate_signals(self, event) -> list:
+        '''
+          Returns list(SignalEvents)
+        '''
+        signals = []
+        if event.type == "MARKET":
+            for s in self.bars.symbol_list:
+                signals.append(self._calculate_signal(s))
+        return signals
+
     @abstractmethod
-    def calculate_signals(self, event) -> tuple:
-        '''
-          Tuple should be (data, OrderPosition)
-        '''
-        raise NotImplementedError("Should implement calculate_signals()")
+    def _calculate_signal(self, signal) -> SignalEvent:
+        raise NotImplementedError("Need to implement underlying strategy logic:")
 
 class BuyAndHoldStrategy(Strategy):
     """
@@ -61,11 +68,9 @@ class BuyAndHoldStrategy(Strategy):
         for s in self.bars.symbol_list:
             self.bought[s] = False
 
-    def calculate_signals(self, event):
-        if event.type == "MARKET":
-            for s in self.bars.symbol_list:
-                if not self.bought[s]:
-                    bars = self.bars.get_latest_bars(s, N=1)
-                    if bars is not None and bars != []: ## there's an entry
-                        self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
-                        self.bought[s] = True
+    def _calculate_signal(self, symbol) -> SignalEvent:
+        if not self.bought[symbol]:
+            bars = self.bars.get_latest_bars(symbol, N=1)
+            if bars is not None and bars != []: ## there's an entry
+                self.bought[symbol] = True
+                return SignalEvent(symbol, bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])

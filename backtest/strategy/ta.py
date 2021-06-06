@@ -28,18 +28,15 @@ class SimpleCrossStrategy(Strategy):
     def _break_down(self, bars: list, TAs: list) -> bool:
         return bars[-2] > TAs[-2] and bars[-1] < TAs[-1]
 
-    def calculate_signals(self, event):
-        if event.type != "MARKET":
+    def _calculate_signal(self, symbol) -> SignalEvent:
+        bars = self.bars.get_latest_bars(symbol, N=(self.timeperiod+3)) ## list of tuples
+        if len(bars) != self.timeperiod+3:
             return
-        for s in self.symbol_list:
-            bars = self.bars.get_latest_bars(s, N=(self.timeperiod+3)) ## list of tuples
-            if len(bars) != self.timeperiod+3:
-                continue
-            TAs = self._get_MA(bars, self.timeperiod)
-            if bars['close'][-2] > TAs[-2] and bars['close'][-1] < TAs[-1]:
-                self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.SELL, bars['close'][-1])
-            elif bars[-2] < TAs[-2] and bars[-1] > TAs[-1]:
-                self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY,  bars['close'][-1])
+        TAs = self._get_MA(bars, self.timeperiod)
+        if bars['close'][-2] > TAs[-2] and bars['close'][-1] < TAs[-1]:
+            return SignalEvent(symbol, bars['datetime'][-1], OrderPosition.SELL, bars['close'][-1])
+        elif bars[-2] < TAs[-2] and bars[-1] > TAs[-1]:
+            return SignalEvent(symbol, bars['datetime'][-1], OrderPosition.BUY,  bars['close'][-1])
 
 class DoubleMAStrategy(SimpleCrossStrategy):
     def __init__(self, bars, events, timeperiods , ma_type):    
@@ -59,23 +56,20 @@ class DoubleMAStrategy(SimpleCrossStrategy):
             return -1
         return 0
     
-    def calculate_signals(self, event):
+    def _calculate_signal(self, symbol) -> SignalEvent:
         '''
         Earn from the gap between shorter and longer ma
         '''
-        if event.type != "MARKET":
+        bars = self.bars.get_latest_bars(symbol, N=(self.longer+3)) ## list of tuples
+        if len(bars['datetime']) < self.longer+3:
             return
-        for s in self.symbol_list:
-            bars = self.bars.get_latest_bars(s, N=(self.longer+3)) ## list of tuples
-            if len(bars['datetime']) < self.longer+3:
-                continue
-            short_ma = self._get_MA(bars['close'], self.shorter)
-            long_ma = self._get_MA(bars['close'], self.longer)
-            sig = self._cross(short_ma, long_ma)
-            if sig == -1:
-                self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.SELL, bars['close'][-1])
-            elif sig == 1:
-                self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
+        short_ma = self._get_MA(bars['close'], self.shorter)
+        long_ma = self._get_MA(bars['close'], self.longer)
+        sig = self._cross(short_ma, long_ma)
+        if sig == -1:
+            return SignalEvent(symbol, bars['datetime'][-1], OrderPosition.SELL, bars['close'][-1])
+        elif sig == 1:
+            return SignalEvent(symbol, bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
 
 class MeanReversionTA(SimpleCrossStrategy):
     '''
@@ -91,43 +85,40 @@ class MeanReversionTA(SimpleCrossStrategy):
     
     def _exit_ma_cross(self, bars, TAs, boundary):
         if self._break_down(bars['close'], TAs):
-            self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.EXIT_SHORT, bars['close'][-1])          
+            return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.EXIT_SHORT, bars['close'][-1])          
         elif self._break_up(bars['close'], TAs):
-            self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.EXIT_SHORT, bars['close'][-1])          
+            return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.EXIT_SHORT, bars['close'][-1])          
 
         if (bars['close'][-1] < (TAs[-1] + boundary) and bars['close'][-2] > (TAs[-2] + boundary)):
-            self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.SELL, bars['close'][-1])
+            return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.SELL, bars['close'][-1])
         elif (bars['close'][-1] > (TAs[-1] - boundary) and bars['close'][-2] < (TAs[-2] - boundary)):
-            self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
+            return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
     
-    def calculate_signals(self, event):
+    def _calculate_signal(self, symbol) -> SignalEvent:
         '''
         LONG and SHORT criterion:
         - same as simple cross strategy, just that if price are outside the bands, 
         employ mean reversion.
         '''
-        if event.type != "MARKET":
+        bars = self.bars.get_latest_bars(symbol, N=(self.timeperiod*2)) ## list of tuples
+        if len(bars['datetime']) < self.timeperiod+3:
             return
-        for s in self.symbol_list:
-            bars = self.bars.get_latest_bars(s, N=(self.timeperiod*2)) ## list of tuples
-            if len(bars['datetime']) < self.timeperiod+3:
-                continue
-            if 'close' in bars:
-                close_prices = bars['close']
-                TAs = self._get_MA(close_prices, self.timeperiod)
-                sd_TA = np.std(TAs[-self.timeperiod:])
-                boundary = sd_TA*self.sd_multiplier
+        if 'close' in bars:
+            close_prices = bars['close']
+            TAs = self._get_MA(close_prices, self.timeperiod)
+            sd_TA = np.std(TAs[-self.timeperiod:])
+            boundary = sd_TA*self.sd_multiplier
 
-                if self.exit:
-                    self._exit_ma_cross(bars, TAs, boundary)
-                    continue
+            if self.exit:
+                self._exit_ma_cross(bars, TAs, boundary)
+                return
 
-                if self._break_down(close_prices, TAs) or \
-                    (close_prices[-1] < (TAs[-1] + boundary) and close_prices[-2] > (TAs[-2] + boundary)):
-                    self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.SELL, bars['close'][-1])
-                elif self._break_up(close_prices, TAs) or \
-                    (close_prices[-1] > (TAs[-1] - boundary) and close_prices[-2] < (TAs[-2] - boundary)):
-                    self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
+            if self._break_down(close_prices, TAs) or \
+                (close_prices[-1] < (TAs[-1] + boundary) and close_prices[-2] > (TAs[-2] + boundary)):
+                return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.SELL, bars['close'][-1])
+            elif self._break_up(close_prices, TAs) or \
+                (close_prices[-1] > (TAs[-1] - boundary) and close_prices[-2] < (TAs[-2] - boundary)):
+                return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
 
 class CustomRSI(Strategy):
     def __init__(self, bars, events, rsi_period):
@@ -135,15 +126,14 @@ class CustomRSI(Strategy):
         self.events = events
         self.rsi_period = rsi_period
 
-    def calculate_signals(self, event):
-        for sym in self.bars.symbol_list:
-            bars = self.bars.get_latest_bars(sym, self.rsi_period+5)
-            if len(bars['datetime']) < self.rsi_period+5:
-                continue
-            rsi_values = talib.RSI(np.array(bars['close']), self.rsi_period)
-            if rsi_values[-1] > 40 and all(rsi < 40 for rsi in rsi_values[-3:-1]) \
-                and np.corrcoef(np.arange(1, self.rsi_period+1), bars['close'][-self.rsi_period:])[1][0] > 0.30:
-                self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
-            elif rsi_values[-1] < 50 and all(rsi > 50 for rsi in rsi_values[-3:-1]) \
-                and np.corrcoef(np.arange(1,self.rsi_period+1), bars['close'][-self.rsi_period:])[1][0] < -0.75:
-                self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.SELL, bars['close'][-1])
+    def _calculate_signal(self, symbol) -> SignalEvent:
+        bars = self.bars.get_latest_bars(symbol, self.rsi_period+5)
+        if len(bars['datetime']) < self.rsi_period+5:
+            return
+        rsi_values = talib.RSI(np.array(bars['close']), self.rsi_period)
+        if rsi_values[-1] > 40 and all(rsi < 40 for rsi in rsi_values[-3:-1]) \
+            and np.corrcoef(np.arange(1, self.rsi_period+1), bars['close'][-self.rsi_period:])[1][0] > 0.30:
+            return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
+        elif rsi_values[-1] < 50 and all(rsi > 50 for rsi in rsi_values[-3:-1]) \
+            and np.corrcoef(np.arange(1,self.rsi_period+1), bars['close'][-self.rsi_period:])[1][0] < -0.75:
+            return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.SELL, bars['close'][-1])

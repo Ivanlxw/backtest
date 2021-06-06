@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+from backtest.event import SignalEvent
 import logging
 
 import numpy as np
@@ -27,17 +28,15 @@ class BuyDips(Strategy):
         elif np.percentile(bars, 3) > bars[-1]:
             return OrderPosition.EXIT_SHORT
      
-    def calculate_signals(self, event):
-        if event.type == 'MARKET':
-            for sym in self.bars.symbol_list:
-                bars = self.bars.get_latest_bars(sym, N=self.lt)
-                if len(bars['datetime']) != self.lt:
-                    continue
-                psignals = self.calculate_position(bars['close'])
-                if psignals is not None:
-                    self.put_to_queue_(
-                        bars['symbol'], bars['datetime'][-1], 
-                        psignals, bars['close'][-1])
+    def _calculate_signal(self, symbol) -> SignalEvent:
+        bars = self.bars.get_latest_bars(symbol, N=self.lt)
+        if len(bars['datetime']) != self.lt:
+            return
+        psignals = self.calculate_position(bars['close'])
+        if psignals is not None:
+            return SignalEvent(
+                bars['symbol'], bars['datetime'][-1], 
+                psignals, bars['close'][-1])
 
 class DipswithTA(BuyDips):
     def __init__(self, bars, events, short_time, long_time, consecutive) -> None:
@@ -99,27 +98,25 @@ class RawRegression(StatisticalStrategy):
         return None if self.model[sym] is None else self.model[sym].predict(
             self.processor._transform_X(temp_df))
 
-    def calculate_signals(self, event):
-        if event.type == "MARKET":
-            self.to_reoptimize += 1
-            if self.to_reoptimize == self.reoptimize_days:
-                self.optimize()
-            for s in self.bars.symbol_list:
-                bars = self.bars.get_latest_bars(s, N=self.processor.get_shift())
-                if len(bars['datetime']) < self.processor.get_shift() or \
-                    bars['close'][-1] == 0.0:
-                    return
+    def _calculate_signal(self, symbol) -> SignalEvent:
+        self.to_reoptimize += 1
+        if self.to_reoptimize == self.reoptimize_days * len(self.bars.symbol_list):
+            self.optimize()
 
-                ## this is slow and should be optimized.
-                preds = self._prepare_flow_data(bars, s)
-                if preds is None:
-                    return
-                if preds[-1] > 0.09:
-                    self.put_to_queue_(bars['symbol'], bars['datetime'][-1], 
-                                    OrderPosition.BUY,  bars['close'][-1])
-                elif preds[-1] < -0.09:
-                    self.put_to_queue_(bars['symbol'], bars['datetime'][-1], 
-                                    OrderPosition.SELL, bars['close'][-1])
+        bars = self.bars.get_latest_bars(symbol, N=self.processor.get_shift())
+        if len(bars['datetime']) < self.processor.get_shift() or bars['close'][-1] == 0.0:
+            return
+
+        ## this is slow and should be optimized.
+        preds = self._prepare_flow_data(bars, symbol)
+        if preds is None:
+            return
+        if preds[-1] > 0.09:
+            return SignalEvent(bars['symbol'], bars['datetime'][-1], 
+                            OrderPosition.BUY,  bars['close'][-1])
+        elif preds[-1] < -0.09:
+            return SignalEvent(bars['symbol'], bars['datetime'][-1], 
+                            OrderPosition.SELL, bars['close'][-1])
 
 
 ## Sklearn classifier (combined)
@@ -127,27 +124,27 @@ class RawClassification(RawRegression):
     def __init__(self, bars, events, clf, processor, reoptimize_days):
         RawRegression.__init__(self, bars, events, clf, processor, reoptimize_days)
     
-    def calculate_signals(self, event):
-        if event.type == "MARKET":
-            self.to_reoptimize += 1
-            if self.to_reoptimize == self.reoptimize_days:
-                self.optimize()
-            for s in self.bars.symbol_list:
-                bars = self.bars.get_latest_bars(s, N=self.processor.get_shift())
+    def _calculate_signal(self, symbol):
+        self.to_reoptimize += 1
+        if self.to_reoptimize == self.reoptimize_days * len(self.bars.symbol_list):
+            self.optimize()
+            self.to_reoptimize = 0
 
-                close_price = bars['close'][-1]
-                if len(bars['datetime']) != self.processor.get_shift() or \
-                    bars['close'][-1] == 0.0:
-                    return
+        bars = self.bars.get_latest_bars(symbol, N=self.processor.get_shift())
 
-                ## this is slow and should be optimized.
-                preds = self._prepare_flow_data(bars, s)
-                if preds is None:
-                    return
-                diff = (preds[-1] - close_price)/ close_price
-                if diff > 0.05:
-                    self.put_to_queue_(bars['symbol'], bars['datetime'][-1], 
-                                    OrderPosition.BUY,  bars['close'][-1])
-                elif diff < -0.04:
-                    self.put_to_queue_(bars['symbol'], bars['datetime'][-1], 
-                                    OrderPosition.SELL,  bars['close'][-1])
+        close_price = bars['close'][-1]
+        if len(bars['datetime']) != self.processor.get_shift() or \
+            bars['close'][-1] == 0.0:
+            return
+
+        ## this is slow and should be optimized.
+        preds = self._prepare_flow_data(bars, symbol)
+        if preds is None:
+            return
+        diff = (preds[-1] - close_price)/ close_price
+        if diff > 0.05:
+            return SignalEvent(bars['symbol'], bars['datetime'][-1], 
+                            OrderPosition.BUY,  bars['close'][-1])
+        elif diff < -0.04:
+            return SignalEvent(bars['symbol'], bars['datetime'][-1], 
+                            OrderPosition.SELL,  bars['close'][-1])

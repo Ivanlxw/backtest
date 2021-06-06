@@ -1,9 +1,16 @@
 from backtest.strategy.naive import Strategy
 
-class MultipleStrategy(Strategy):
+class MultipleAllStrategy(Strategy):
     def __init__(self, strategies: Strategy) -> None:
         self.strategies = strategies
     
-    def calculate_signals(self, event):
-        for strategy in self.strategies:
-            strategy.calculate_signals(event)
+    def calculate_signals(self, event) -> list:
+        signals = []
+        if event.type == "MARKET":
+            for s in self.strategies[0].bars.symbol_list:
+                strategies = []
+                for strategy in self.strategies:
+                    strategies.append(strategy._calculate_signal(s))
+                if (all(strategies)):
+                    signals.append(strategies[0])
+        return signals
