@@ -7,7 +7,7 @@ from backtest.strategy.naive import Strategy
 from backtest.utilities.enums import OrderPosition
 from matplotlib.pyplot import bar
 
-class SimpleCrossStrategy(Strategy):
+class SimpleTACross(Strategy):
     '''
     Buy/Sell when it crosses the smoothed line (SMA, etc.)
     '''
@@ -38,7 +38,7 @@ class SimpleCrossStrategy(Strategy):
         elif bars[-2] < TAs[-2] and bars[-1] > TAs[-1]:
             return SignalEvent(symbol, bars['datetime'][-1], OrderPosition.BUY,  bars['close'][-1])
 
-class DoubleMAStrategy(SimpleCrossStrategy):
+class DoubleMAStrategy(SimpleTACross):
     def __init__(self, bars, events, timeperiods , ma_type):    
         super().__init__(bars, events, 0, ma_type)
         if len(timeperiods) != 2:
@@ -71,7 +71,7 @@ class DoubleMAStrategy(SimpleCrossStrategy):
         elif sig == 1:
             return SignalEvent(symbol, bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
 
-class MeanReversionTA(SimpleCrossStrategy):
+class MeanReversionTA(SimpleTACross):
     '''
     Strategy is based on the assumption that prices will always revert to the smoothed line.
     Will buy/sell when it crosses the smoothed line and EXIT when it reaches beyond 
@@ -120,20 +120,29 @@ class MeanReversionTA(SimpleCrossStrategy):
                 (close_prices[-1] > (TAs[-1] - boundary) and close_prices[-2] < (TAs[-2] - boundary)):
                 return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
 
-class CustomRSI(Strategy):
-    def __init__(self, bars, events, rsi_period):
+class CustomTA(Strategy):
+    def __init__(self, bars, events, period, ta_period, floor, ceiling, ta_indicator):
         self.bars = bars
         self.events = events
-        self.rsi_period = rsi_period
+        self.period = period
+        self.ta_period = ta_period
+        self.floor = floor
+        self.ceiling = ceiling
+        self.ta_indicator = ta_indicator
 
     def _calculate_signal(self, symbol) -> SignalEvent:
-        bars = self.bars.get_latest_bars(symbol, self.rsi_period+5)
-        if len(bars['datetime']) < self.rsi_period+5:
+        """
+            Buys when ta_indicator is min and below floor
+            Sells when ta_indicator is max and above ceiling
+        """
+        bars = self.bars.get_latest_bars(symbol, self.ta_period+self.period)
+        if len(bars['datetime']) < self.ta_period+self.period:
             return
-        rsi_values = talib.RSI(np.array(bars['close']), self.rsi_period)
-        if rsi_values[-1] > 40 and all(rsi < 40 for rsi in rsi_values[-3:-1]) \
-            and np.corrcoef(np.arange(1, self.rsi_period+1), bars['close'][-self.rsi_period:])[1][0] > 0.30:
+        ta_values = self.ta_indicator(np.array(bars['close']), self.ta_period)
+        ta_values = [ta for ta in ta_values if not np.isnan(ta)]  ## remove nan values
+        if ta_values[-1] < self.floor and min(ta_values) == ta_values[-1]:
+            # and np.corrcoef(np.arange(1, self.rsi_period+1), bars['close'][-self.rsi_period:])[1][0] > 0.30:
             return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
-        elif rsi_values[-1] < 50 and all(rsi > 50 for rsi in rsi_values[-3:-1]) \
-            and np.corrcoef(np.arange(1,self.rsi_period+1), bars['close'][-self.rsi_period:])[1][0] < -0.75:
+        elif ta_values[-1] > self.ceiling and max(ta_values) == ta_values[-1]:
+            # and np.corrcoef(np.arange(1,self.rsi_period+1), bars['close'][-self.rsi_period:])[1][0] < -0.75:
             return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.SELL, bars['close'][-1])
