@@ -124,9 +124,9 @@ class CustomTA(Strategy):
     def __init__(self, bars, events, period, ta_period, floor, ceiling, ta_indicator):
         self.bars = bars
         self.events = events
+        assert period <= ta_period
         self.period = period
         self.ta_period = ta_period
-        self.short_ta = int(self.ta_period/2)
         self.floor = floor
         self.ceiling = ceiling
         self.ta_indicator = ta_indicator
@@ -140,7 +140,7 @@ class CustomTA(Strategy):
         if len(bars['datetime']) < self.ta_period+self.period:
             return
         ta_values = self._get_ta_vals(bars)
-        if ta_values[-1] < self.floor and min(ta_values) == ta_values[-1] and np.average(ta_values[-self.short_ta:]) > ta_values[-1] + 7:
+        if ta_values[-1] < self.floor and min(ta_values) == ta_values[-1] and np.average(ta_values[-self.period:]) > ta_values[-1] + 7:
             # and np.corrcoef(np.arange(1, self.ta_period+self.period+1), bars['close'])[1][0] > 0:
             return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
         elif ta_values[-1] > self.ceiling and max(ta_values) == ta_values[-1]:
@@ -149,4 +149,11 @@ class CustomTA(Strategy):
     def _get_ta_vals(self, bars):
         ta_values = self.ta_indicator(np.array(bars['close']), self.ta_period)
         return [ta for ta in ta_values if not np.isnan(ta)]  ## remove nan values
-        
+
+class CustomTA3Args(CustomTA):
+    def __init__(self, bars, events, period, ta_period, floor, ceiling, ta_indicator):
+        super().__init__(bars, events, period, ta_period, floor, ceiling, ta_indicator)
+    
+    def _get_ta_vals(self, bars):
+        ta_values = self.ta_indicator(np.array(bars['high']), np.array(bars['low']), np.array(bars['close']), self.ta_period)
+        return [ta for ta in ta_values if not np.isnan(ta)]  ## remove nan values
