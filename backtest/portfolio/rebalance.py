@@ -37,14 +37,15 @@ class BaseRebalance(Rebalance):
         super().__init__(events, bars)
 
     def need_rebalance(self, current_holdings):
-        return current_holdings['datetime'].is_year_start
+        return current_holdings['datetime'].dayofyear < 4
 
     def rebalance(self, stock_list, current_holdings) -> None:
         if self.need_rebalance(current_holdings):
             for symbol in stock_list:
+                latest_close_price = self.bars.get_latest_bars(symbol)['close'][-1]
                 ## only 1 will go through if there is position
-                self.events.put(SignalEvent(symbol, current_holdings['datetime'], OrderPosition.EXIT_LONG))
-                self.events.put(SignalEvent(symbol, current_holdings['datetime'], OrderPosition.EXIT_SHORT))
+                self.events.put(SignalEvent(symbol, current_holdings['datetime'], OrderPosition.EXIT_LONG, latest_close_price))
+                self.events.put(SignalEvent(symbol, current_holdings['datetime'], OrderPosition.EXIT_SHORT, latest_close_price))
 
 class SellLongLosers(Rebalance):
     def __init__(self, events, bars) -> None:
