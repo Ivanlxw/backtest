@@ -56,12 +56,12 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
                 if event is not None:
                     if event.type == 'MARKET':
                         port.update_timeindex(event)
-                        while not order_queue.empty():
-                            event_queue.put(order_queue.get())
                         if (signal_list := strategy.calculate_signals(event)) is not None:
                             for signal in signal_list:
                                 event_queue.put(signal)
-
+                        while not order_queue.empty():
+                            event_queue.put(order_queue.get())
+                            
                     elif event.type == 'SIGNAL':
                         port.update_signal(event)
 

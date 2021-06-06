@@ -126,6 +126,7 @@ class CustomTA(Strategy):
         self.events = events
         self.period = period
         self.ta_period = ta_period
+        self.short_ta = int(self.ta_period/2)
         self.floor = floor
         self.ceiling = ceiling
         self.ta_indicator = ta_indicator
@@ -138,11 +139,14 @@ class CustomTA(Strategy):
         bars = self.bars.get_latest_bars(symbol, self.ta_period+self.period)
         if len(bars['datetime']) < self.ta_period+self.period:
             return
-        ta_values = self.ta_indicator(np.array(bars['close']), self.ta_period)
-        ta_values = [ta for ta in ta_values if not np.isnan(ta)]  ## remove nan values
-        if ta_values[-1] < self.floor and min(ta_values) == ta_values[-1]:
-            # and np.corrcoef(np.arange(1, self.rsi_period+1), bars['close'][-self.rsi_period:])[1][0] > 0.30:
+        ta_values = self._get_ta_vals(bars)
+        if ta_values[-1] < self.floor and min(ta_values) == ta_values[-1] and np.average(ta_values[-self.short_ta:]) > ta_values[-1] + 7:
+            # and np.corrcoef(np.arange(1, self.ta_period+self.period+1), bars['close'])[1][0] > 0:
             return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
         elif ta_values[-1] > self.ceiling and max(ta_values) == ta_values[-1]:
-            # and np.corrcoef(np.arange(1,self.rsi_period+1), bars['close'][-self.rsi_period:])[1][0] < -0.75:
             return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.SELL, bars['close'][-1])
+
+    def _get_ta_vals(self, bars):
+        ta_values = self.ta_indicator(np.array(bars['close']), self.ta_period)
+        return [ta for ta in ta_values if not np.isnan(ta)]  ## remove nan values
+        
