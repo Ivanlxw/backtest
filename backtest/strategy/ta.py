@@ -130,16 +130,15 @@ class MeanReversionTA(SimpleCrossStrategy):
                     self.put_to_queue_(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
 
 class CustomRSI(Strategy):
-    def __init__(self, bars, events, rsi_period, long_period):
+    def __init__(self, bars, events, rsi_period):
         self.bars = bars
         self.events = events
         self.rsi_period = rsi_period
-        self.period = long_period
 
     def calculate_signals(self, event):
         for sym in self.bars.symbol_list:
-            bars = self.bars.get_latest_bars(sym, self.period+3)
-            if len(bars['datetime']) < self.period+3:
+            bars = self.bars.get_latest_bars(sym, self.rsi_period+5)
+            if len(bars['datetime']) < self.rsi_period+5:
                 continue
             rsi_values = talib.RSI(np.array(bars['close']), self.rsi_period)
             if rsi_values[-1] > 40 and all(rsi < 40 for rsi in rsi_values[-3:-1]) \

@@ -2,7 +2,6 @@ from backtest.strategy.naive import Strategy
 
 class MultipleStrategy(Strategy):
     def __init__(self, strategies: Strategy) -> None:
-        super().__init__()
         self.strategies = strategies
     
     def calculate_signals(self, event):
