@@ -1,63 +1,99 @@
 """
 Actual file to run for backtesting 
 """
-from backtest.utilities.backtest import backtest
-from backtest.data.dataHandler import AlpacaData
 import queue
 import random
-import talib
 import logging
+import talib
 
 from backtest.broker import AlpacaBroker, SimulatedBroker
 from backtest.portfolio.portfolio import PercentagePortFolio
-from backtest.portfolio.strategy import DefaultOrder, LongOnly
+from backtest.portfolio.rebalance import SellLongLosers
 from backtest.strategy.statistics import BuyDips
-from backtest.strategy.ta import MeanReversionTA
+from backtest.strategy.ta import BoundedTA, MeanReversionTA, TAIndicatorType
 from backtest.utilities.utils import load_credentials, parse_args, remove_bs
+from backtest.portfolio.strategy import DefaultOrder, ProgressiveOrder
+from backtest.strategy.multiple import MultipleAnyStrategy
+from backtest.utilities.enums import OrderType
+from backtest.utilities.backtest import backtest
+from backtest.data.dataHandler import AlpacaData
 
 args = parse_args()
-if args.name != "":
-    logging.basicConfig(filename=args.name+'.log', level=logging.INFO)
-
-with open("data/downloaded_universe.txt", 'r') as fin:
-    stock_list = fin.readlines()
-stock_list = list(map(remove_bs, stock_list))
-
 load_credentials(args.credentials)
-            
+if args.name != "":
+    logging.basicConfig(filename=args.name + ".log", level=logging.INFO)
+
+with open("data/downloaded_universe.txt", "r") as fin:
+    stock_list = fin.readlines()
+stock_list_downloaded = list(map(remove_bs, stock_list))
+
+with open("data/dow_stock_list.txt", "r") as fin:
+    stock_list = fin.readlines()
+dow_stock_list = list(map(remove_bs, stock_list))
+
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
-symbol_list = random.sample(stock_list, 25)
-
+symbol_list = random.sample(stock_list_downloaded, 5) + random.sample(
+    dow_stock_list, 10
+)
+symbol_list = set(symbol_list)
 # Declare the components with respective parameters
 # broker = AlpacaBroker()
-NY = 'America/New_York'
-SG = 'Singapore'
-live = True
-start_date = "2017-04-05" if not live else None
+NY = "America/New_York"
+SG = "Singapore"
+live = False
+start_date = "2017-03-02" if not live else None
 
 bars = AlpacaData(event_queue, symbol_list, live=live, start_date=start_date)
-strategy = MeanReversionTA(
-    bars, event_queue, timeperiod=14, 
-    ma_type=talib.SMA, sd=2, exit=True
-)
+strategy = MultipleAnyStrategy([
+    BuyDips(
+        bars, event_queue, short_time=80, long_time=150
+    ),
+    BoundedTA(bars, event_queue, period=10, ta_period=14, floor=37.0, ceiling=70.0, 
+        ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs)
+])  
 
-port = PercentagePortFolio(bars, event_queue, order_queue, 
-    percentage=0.05, 
-    mode='asset',
+port = PercentagePortFolio(
+    bars,
+    event_queue,
+    order_queue,
+    percentage=0.15,
+    mode="asset",
     expires=7,
     portfolio_name="alpaca_loop",
-    portfolio_strategy=LongOnly
+    order_type=OrderType.MARKET,
+    portfolio_strategy=DefaultOrder,
+    rebalance=SellLongLosers
 )
+
+# port = NaivePortfolio(
+#     bars, event_queue, order_queue, 100, "alpaca_loop", initial_capital=150000,
+#     expires = 3, portfolio_strategy=LongOnly
+# )
 if live:
     broker = AlpacaBroker()
 else:
     broker = SimulatedBroker(bars, port, event_queue, order_queue)
 if live:
-    backtest(symbol_list, 
-            bars, event_queue, order_queue, 
-            strategy, port, broker, loop_live=live)
+    backtest(
+        symbol_list,
+        bars,
+        event_queue,
+        order_queue,
+        strategy,
+        port,
+        broker,
+        loop_live=live,
+    )
 else:
-    backtest(symbol_list, 
-            bars, event_queue, order_queue, 
-            strategy, port, broker, loop_live=live, start_date=start_date)
+    backtest(
+        symbol_list,
+        bars,
+        event_queue,
+        order_queue,
+        strategy,
+        port,
+        broker,
+        loop_live=live,
+        start_date=start_date,
+    )

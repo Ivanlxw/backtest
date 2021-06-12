@@ -1,11 +1,8 @@
-from time import time
 import numpy as np
-import pandas as pd
-import talib
+from enum import Enum, auto
 from backtest.event import SignalEvent
 from backtest.strategy.naive import Strategy
 from backtest.utilities.enums import OrderPosition
-from matplotlib.pyplot import bar
 
 class SimpleTACross(Strategy):
     '''
@@ -120,8 +117,12 @@ class MeanReversionTA(SimpleTACross):
                 (close_prices[-1] > (TAs[-1] - boundary) and close_prices[-2] < (TAs[-2] - boundary)):
                 return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
 
-class CustomTA(Strategy):
-    def __init__(self, bars, events, period, ta_period, floor, ceiling, ta_indicator):
+class TAIndicatorType(Enum):
+    TwoArgs = auto()
+    ThreeArgs = auto()
+
+class BoundedTA(Strategy):
+    def __init__(self, bars, events, period, ta_period, floor, ceiling, ta_indicator, ta_indicator_type: TAIndicatorType):
         self.bars = bars
         self.events = events
         assert period <= ta_period
@@ -130,6 +131,7 @@ class CustomTA(Strategy):
         self.floor = floor
         self.ceiling = ceiling
         self.ta_indicator = ta_indicator
+        self.ta_indicator_type = ta_indicator_type
 
     def _calculate_signal(self, symbol) -> SignalEvent:
         """
@@ -147,13 +149,11 @@ class CustomTA(Strategy):
             return SignalEvent(bars['symbol'], bars['datetime'][-1], OrderPosition.SELL, bars['close'][-1])
 
     def _get_ta_vals(self, bars):
-        ta_values = self.ta_indicator(np.array(bars['close']), self.ta_period)
-        return [ta for ta in ta_values if not np.isnan(ta)]  ## remove nan values
-
-class CustomTA3Args(CustomTA):
-    def __init__(self, bars, events, period, ta_period, floor, ceiling, ta_indicator):
-        super().__init__(bars, events, period, ta_period, floor, ceiling, ta_indicator)
-    
-    def _get_ta_vals(self, bars):
-        ta_values = self.ta_indicator(np.array(bars['high']), np.array(bars['low']), np.array(bars['close']), self.ta_period)
-        return [ta for ta in ta_values if not np.isnan(ta)]  ## remove nan values
+        if self.ta_indicator_type == TAIndicatorType.TwoArgs:
+            ta_values = self.ta_indicator(np.array(bars['close']), self.ta_period)
+            return [ta for ta in ta_values if not np.isnan(ta)]  ## remove nan values
+        elif self.ta_indicator_type == TAIndicatorType.ThreeArgs:
+            ta_values = self.ta_indicator(np.array(bars['high']), np.array(bars['low']), np.array(bars['close']), self.ta_period)
+            return [ta for ta in ta_values if not np.isnan(ta)]  ## remove nan values
+        else:
+            raise Exception(f"TaIndicatorType is not acceptable: {self.ta_indicator_type}")
