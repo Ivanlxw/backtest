@@ -240,7 +240,9 @@ class AlpacaData(HistoricCSVDataHandler):
             ).df.iloc[-N:,:].to_dict(), symbol)
         else:
             return super().get_latest_bars(symbol, N)
-
+    
+    def get_all_assets(self):
+        return self.api.list_assets(status='active')
     
     def _conform_data_dict(self, data: dict, symbol:str):
         bar = {}
