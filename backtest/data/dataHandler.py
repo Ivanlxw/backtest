@@ -68,12 +68,19 @@ class HistoricCSVDataHandler(DataHandler):
         self.continue_backtest = True
         self.fundamental_data = None
         self.data_fields = ['symbol', 'datetime', 'open', 'high', 'low', 'close', 'volume']
-        if fundamental:
+        self.fundamental = fundamental
+        if self.fundamental:
             self._obtain_fundamental_data()
 
         self._download_files()
         self._open_convert_csv_files()
         self._to_generator()
+    
+    def __copy__(self):
+        return HistoricCSVDataHandler(
+            self.events, self.csv_dir, self.symbol_list, 
+            self.start_date, self.end_date, self.fundamental
+        )
     
     def _obtain_fundamental_data(self):
         self.fundamental_data = {}
@@ -90,14 +97,15 @@ class HistoricCSVDataHandler(DataHandler):
                 ## api call
                 res_data = requests.get(get_tiingo_endpoint(f'daily/{sym}/prices', 'startDate=2000-1-1'), headers={
                     'Content-Type': 'application/json'
-                }).json()
-                try:
-                    res_data = pd.DataFrame(res_data)
-                except Exception:
-                    logging.exception(res_data)
-                if res_data.empty:
+                })
+                if not res_data.ok:
+                    print(res_data.json())
                     dne.append(sym)
                     continue
+                try:
+                    res_data = pd.DataFrame(res_data.json())
+                except Exception:
+                    logging.exception(res_data)
                 res_data.set_index('date', inplace=True)
                 res_data.index = res_data.index.map(lambda x: x.replace("T00:00:00.000Z", ""))
                 res_data.to_csv(os.path.join(self.csv_dir, f"{sym}.csv"))
@@ -189,6 +197,7 @@ class AlpacaData(HistoricCSVDataHandler):
             raise Exception("If not live, start_date has to be defined")
 
         self.live = live
+        self.start_date_str = start_date
         self.start_date = pd.Timestamp.now(tz=NY)
         self.continue_backtest = True
 
@@ -209,6 +218,12 @@ class AlpacaData(HistoricCSVDataHandler):
             self.latest_symbol_data = dict((s, []) for s in self.symbol_list)
             self.get_backtest_bars()
             self._to_generator()
+    
+    def __copy__(self):
+        return AlpacaData(
+            self.events, self.symbol_list, self.timeframe, 
+            self.live, self.start_date_str
+        )
 
     def get_backtest_bars(self):
         start = self.start_date
@@ -290,11 +305,21 @@ class TDAData(HistoricCSVDataHandler):
         self.symbol_data = {}
         self.latest_symbol_data = {}
         self.data_fields = ['symbol', 'datetime', 'open', 'high', 'low', 'close', 'volume']
-        self._get_price_history(period_type, period, frequency_type, frequency)
+        self.period_type = period_type
+        self.period = self.period
+        self.frequency_type = frequency_type
+        self.frequency = frequency
+        self._get_price_history(self.period_type, self.period, self.frequency_type, self.frequency)
         self._to_generator()
         del self.raw_data
         
         self.continue_backtest = True
+    
+    def __copy__(self):
+        return TDAData(
+            self.events, self.symbol_list, self.start_date, 
+            self.period_type, self.period, self.frequency_type, self.frequency
+        )
 
     def _get_price_history(self, period_type, period, frequency_type, frequency):
         ## put in Data class in future

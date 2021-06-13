@@ -41,6 +41,8 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
         if bars.continue_backtest == True:
             bars.update_bars()
         else:
+            while not event_queue.empty():
+                event_queue.get()
             break
 
         if loop_live and bars.start_date.dayofweek > 4:
