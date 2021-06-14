@@ -247,11 +247,8 @@ class AlpacaData(HistoricCSVDataHandler):
     def get_latest_bars(self, symbol, N=1):
         ## will return none if empty.
         if self.live:
-            today = pd.Timestamp.today(tz=NY)
-            start = (today - pd.DateOffset(days=N+4)).isoformat()
-            end = today.isoformat()
             return self._conform_data_dict(self.api.get_barset(symbol, '1D', 
-                start=start, end=end
+                limit=N+5
             ).df.iloc[-N:,:].to_dict(), symbol)
         else:
             return super().get_latest_bars(symbol, N)
