@@ -49,7 +49,9 @@ TODO:
 - make use of the "current" market data value to obtain a realistic fill cost.
 """
 
-## arbitrary. Might be used to route orders to a broker in future.
+# arbitrary. Might be used to route orders to a broker in future.
+
+
 class SimulatedBroker(Broker):
     def __init__(self, bars, port, events, order_queue):
         self.bars = bars
@@ -88,7 +90,7 @@ class SimulatedBroker(Broker):
                     "Expires": event.expires
                 })
                 """
-                ## check for expiry
+                # check for expiry
                 if latest_snapshot["datetime"][-1] > order_event.expires:
                     return False
 
@@ -107,7 +109,7 @@ class SimulatedBroker(Broker):
         if event.type == "ORDER" and self._filter_execute_order(event):
             close_price = self.bars.get_latest_bars(event.symbol)["close"][
                 -1
-            ]  ## close price
+            ]  # close price
             event.trade_price = close_price
             if event.order_type == OrderType.LIMIT and not event.processed:
                 event.processed = True
@@ -130,7 +132,7 @@ class IBBroker(Broker, EWrapper, EClient):
 
         self.connect("127.0.0.1", 7497, 123)
         self.tws_conn = self.create_tws_connection()
-        self.reqMarketDataType(3)  ## DELAYED
+        self.reqMarketDataType(3)  # DELAYED
         self.order_id = self.create_initial_order_id()
         # self.register_handlers()
 
@@ -149,7 +151,7 @@ class IBBroker(Broker, EWrapper, EClient):
 
         api_thread = threading.Thread(target=run_loop, daemon=True)
         api_thread.start()
-        time.sleep(1)  ## to allow connection to server
+        time.sleep(1)  # to allow connection to server
 
     def create_initial_order_id(self):
         """
@@ -162,8 +164,8 @@ class IBBroker(Broker, EWrapper, EClient):
         # will use "1" as the default for now.
         return 1
 
-    ## create a Contract instance and then pair it with an Order instance,
-    ## which will be sent to the IB API
+    # create a Contract instance and then pair it with an Order instance,
+    # which will be sent to the IB API
     def create_contract(self, symbol, sec_type, exchange="SMART", currency="USD"):
         contract = Contract()
         contract.symbol = symbol
@@ -172,7 +174,7 @@ class IBBroker(Broker, EWrapper, EClient):
         contract.currency = currency
         return contract
 
-    ## Overwrite EClient.historicalData
+    # Overwrite EClient.historicalData
     def historicalData(self, reqId, bar):
         print(f"Time: {bar.date} Close: {bar.close}")
         self.hist_data.append([bar.date, bar.close])
@@ -284,7 +286,7 @@ class IBBroker(Broker, EWrapper, EClient):
         return full_cost
 
 
-## not working. Seems like a developer account needs to be created with TDA
+# not working. Seems like a developer account needs to be created with TDA
 class TDABroker(Broker):
     def __init__(self, events) -> None:
         super(TDABroker, self).__init__()
@@ -316,13 +318,13 @@ class TDABroker(Broker):
         login_button = driver.find_element_by_css_selector("#accept")
         login_button.click()
 
-        ## click accept
+        # click accept
         accept_button = driver.find_element_by_css_selector("#accept")
         try:
             accept_button.click()
         except selenium.common.exceptions.WebDriverException:
             new_url = driver.current_url
-            code = new_url.split("code=")[1] 
+            code = new_url.split("code=")[1]
             logging.info("Coded:\n"+code)
             return code
         finally:
@@ -357,7 +359,8 @@ class TDABroker(Broker):
                 else:
                     print(res)
                     print(res.json())
-                    raise Exception(f"API POST exception: Error {res.status_code}")
+                    raise Exception(
+                        f"API POST exception: Error {res.status_code}")
             else:
                 raise Exception("Could not sign in and obtain code")
         elif grant_type == "refresh":
@@ -414,20 +417,21 @@ class TDABroker(Broker):
             data=json.dumps(data),
             headers={
                 "Authorization": f"Bearer {self.access_token}",
-                "Content-Type" : "application/json"
+                "Content-Type": "application/json"
             }
         )
         if res.ok:
             fill_event = FillEvent(event, self.calculate_commission())
             self.events.put(fill_event)
             return True
-        print(f"Place Order Unsuccessful: {event.print_order()}\n{res.status_code}\n{res.json()}")
+        print(
+            f"Place Order Unsuccessful: {event.print_order()}\n{res.status_code}\n{res.json()}")
         print(res.text)
-        return False 
-    
+        return False
+
     def cancel_order(self, order_id) -> bool:
-        ## NOTE: Unused and only skeleton.
-        ## TODO: Implement while improving TDABroker class
+        # NOTE: Unused and only skeleton.
+        # TODO: Implement while improving TDABroker class
         res = requests.delete(
             f"https://api.tdameritrade.com/v1/accounts/{self.account_id}/orders/{order_id}",
             headers={"Authorization": f"Bearer {self.access_token}"}
@@ -438,15 +442,16 @@ class TDABroker(Broker):
 
     def _filter_execute_order(self, event: OrderEvent) -> bool:
         return True
-    
+
     def get_past_transactions(self):
         return requests.get(
             f"https://api.tdameritrade.com/v1/accounts/{self.account_id}/transactions",
-            params= {
-               "type": "ALL",
+            params={
+                "type": "ALL",
             },
             headers={"Authorization": f"Bearer {self.access_token}"}
         ).json()
+
 
 class AlpacaBroker(Broker):
     def __init__(self,):
@@ -490,7 +495,7 @@ class AlpacaBroker(Broker):
                 )
                 event.trade_price = event.signal_price
             else:
-                ## todo: figure out a way to get trade_price for market orders
+                # todo: figure out a way to get trade_price for market orders
                 order = self.api.submit_order(
                     symbol=event.symbol,
                     qty=event.quantity,
@@ -498,7 +503,11 @@ class AlpacaBroker(Broker):
                     type="market",
                     time_in_force="day",
                 )
-        except alpaca_trade_api.rest.APIError:
+                logging.info(f"{order}")
+        except alpaca_trade_api.rest.APIError as e:
+            logging.info(f"{self.api.get_account()}")
+            logging.info(
+                f"Status Code [{e.status_code}] {e.code}: {str(e)}\nResponse: {e.response}")
             return False
         if order.status == "accepted":
             fill_event = FillEvent(event, self.calculate_commission())
@@ -526,4 +535,3 @@ class AlpacaBroker(Broker):
 
     def get_quote(self, ticker):
         return self.api.get_last_quote(ticker)
-
