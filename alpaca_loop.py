@@ -23,31 +23,22 @@ load_credentials(args.credentials)
 if args.name != "":
     logging.basicConfig(filename=args.name + ".log", level=logging.INFO)
 
-with open("data/snp500.txt", "r") as fin:
-    stock_list = fin.readlines()
-stock_list_downloaded = list(map(remove_bs, stock_list))
-
 with open("data/dow_stock_list.txt", "r") as fin:
     stock_list = fin.readlines()
 dow_stock_list = list(map(remove_bs, stock_list))
 
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
-symbol_list = random.sample(stock_list_downloaded, 120) + random.sample(
+symbol_list = random.sample(
     dow_stock_list, 20
 )
-symbol_list = list(set(symbol_list))
 # Declare the components with respective parameters
-# broker = AlpacaBroker()
 NY = "America/New_York"
 SG = "Singapore"
 live = True
 start_date = "2017-04-05" if not live else None
 
 bars = AlpacaData(event_queue, symbol_list, live=live, start_date=start_date)
-# strategy = MeanReversionTA(
-#     bars, event_queue, timeperiod=14, ma_type=talib.SMA, sd=2, exit=True
-# )
 strategy = MultipleAnyStrategy([
     BuyDips(
         bars, event_queue, short_time=80, long_time=150
@@ -83,16 +74,12 @@ port = PercentagePortFolio(
     percentage=0.05,
     mode="asset",
     expires=3,
-    portfolio_name="alpaca_loop",
+    portfolio_name=(args.name if args.name != "" else "alpaca_loop"),
     order_type=OrderType.MARKET,
     portfolio_strategy=DefaultOrder,
     rebalance=SellLongLosers
 )
 
-# port = NaivePortfolio(
-#     bars, event_queue, order_queue, 100, "alpaca_loop", initial_capital=150000,
-#     expires = 3, portfolio_strategy=LongOnly
-# )
 if live:
     broker = AlpacaBroker()
     backtest(

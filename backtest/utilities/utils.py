@@ -7,7 +7,10 @@ import logging
 from backtest.Plots.plot import Plot
 import pandas as pd
 
+from backtest.utilities.constants import backtest_basepath
+
 NY = "America/New_York"
+
 
 def remove_bs(s: str):
     # remove backslash at the end from reading from a stock_list.txt
@@ -64,17 +67,56 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
     start = time.time()
     while True:
         # Update the bars (specific backtest code, as opposed to live trading)
+        if bars.continue_backtest == True:
+            bars.update_bars()
+        else:
+            while not event_queue.empty():
+                event_queue.get()
+            break
+        while True:
+            try:
+                event = event_queue.get(block=False)
+            except queue.Empty:
+                break
+            else:
+                if event is not None:
+                    if event.type == 'MARKET':
+                        port.update_timeindex(event)
+                        if (signal_list := strategy.calculate_signals(event)) is not None:
+                            for signal in signal_list:
+                                event_queue.put(signal)
+                        while not order_queue.empty():
+                            event_queue.put(order_queue.get())
+
+                    elif event.type == 'SIGNAL':
+                        port.update_signal(event)
+
+                    elif event.type == 'ORDER':
+                        if broker.execute_order(event):
+                            logging.info(event.print_order())
+
+                    elif event.type == 'FILL':
+                        port.update_fill(event)
+
+    print(f"Backtest finished in {time.time() - start}. Getting summary stats")
+    port.create_equity_curve_df()
+    logging.log(32, port.output_summary_stats())
+
+    plotter = Plot(port)
+    plotter.plot()
+    return plotter
+
+
+def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
+    start = time.time()
+    while True:
+        # Update the bars (specific backtest code, as opposed to live trading)
         now = pd.Timestamp.now(tz=NY)
         if now.hour == 9 and now.minute >= 45:
             # Update the bars (specific backtest code, as opposed to live trading)
-            if bars.continue_backtest == True:
-                bars.update_bars()
-            else:
-                while not event_queue.empty():
-                    event_queue.get()
-                break
-            if loop_live and bars.start_date.dayofweek > 4:
-                time.sleep(60*60)
+            bars.update_bars()
+            if bars.start_date.dayofweek > 4:
+                time.sleep(23 * 60 * 60)
             while True:
                 try:
                     event = event_queue.get(block=False)
@@ -90,7 +132,9 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
                                     event_queue.put(signal)
                             while not order_queue.empty():
                                 event_queue.put(order_queue.get())
-                                
+                            # not sync w alpaca, only reflect current strat
+                            logging.info(f"{bars.all_holdings[-1]}")
+
                         elif event.type == 'SIGNAL':
                             port.update_signal(event)
 
@@ -101,12 +145,4 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
                         elif event.type == 'FILL':
                             port.update_fill(event)
 
-            if loop_live:
-                time.sleep(60 * 60 - 5)
-    print(f"Backtest finished in {time.time() - start}. Getting summary stats")
-    port.create_equity_curve_df()
-    logging.log(32, port.output_summary_stats())
-
-    plotter = Plot(port)
-    plotter.plot()
-    return plotter
+            time.sleep(23 * 60 * 60)  # 23 hrs
