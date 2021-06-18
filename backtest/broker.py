@@ -454,7 +454,8 @@ class TDABroker(Broker):
 
 
 class AlpacaBroker(Broker):
-    def __init__(self,):
+    def __init__(self, event_queue):
+        self.events = event_queue
         self.base_url = "https://paper-api.alpaca.markets"
         self.data_url = "https://data.alpaca.markets/v2"
         self.api = alpaca_trade_api.REST(
@@ -503,7 +504,7 @@ class AlpacaBroker(Broker):
                     type="market",
                     time_in_force="day",
                 )
-                logging.info(f"{order}")
+                event.trade_price = event.signal_price
         except alpaca_trade_api.rest.APIError as e:
             logging.info(f"{self.api.get_account()}")
             logging.info(

@@ -112,11 +112,17 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
     while True:
         # Update the bars (specific backtest code, as opposed to live trading)
         now = pd.Timestamp.now(tz=NY)
-        if now.hour == 9 and now.minute >= 45:
+        if now.hour == 9 and now.minute >= 35:
             # Update the bars (specific backtest code, as opposed to live trading)
             bars.update_bars()
             if bars.start_date.dayofweek > 4:
-                time.sleep(23 * 60 * 60)
+                port.create_equity_curve_df()
+                results_dir = os.path.join(backtest_basepath, "results")
+                if not os.path.exists(results_dir):
+                    os.mkdir(results_dir)
+
+                port.equity_curve.to_csv(os.path.join(
+                    results_dir, f"{port.name}.json"))
             while True:
                 try:
                     event = event_queue.get(block=False)
@@ -132,8 +138,6 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
                                     event_queue.put(signal)
                             while not order_queue.empty():
                                 event_queue.put(order_queue.get())
-                            # not sync w alpaca, only reflect current strat
-                            logging.info(f"{bars.all_holdings[-1]}")
 
                         elif event.type == 'SIGNAL':
                             port.update_signal(event)
@@ -145,4 +149,5 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
                         elif event.type == 'FILL':
                             port.update_fill(event)
 
-            time.sleep(23 * 60 * 60)  # 23 hrs
+            # write the day's portfolio status before sleeping
+            time.sleep(12 * 60 * 60)  # 12 hrs

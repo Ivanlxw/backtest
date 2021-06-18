@@ -39,33 +39,33 @@ live = True
 start_date = "2017-04-05" if not live else None
 
 bars = AlpacaData(event_queue, symbol_list, live=live, start_date=start_date)
-strategy = MultipleAnyStrategy([
-    BuyDips(
-        bars, event_queue, short_time=80, long_time=150
-    ),
+# strategy = MultipleAnyStrategy([
+#     BuyDips(
+#         bars, event_queue, short_time=80, long_time=150
+#     ),
+#     BoundedTA(bars, event_queue,
+#               period=10, ta_period=14,
+#               floor=37.0, ceiling=70.0,
+#               ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs
+#               )
+# ])
+
+strategy = MultipleAllStrategy([
     BoundedTA(bars, event_queue,
-              period=10, ta_period=14,
+              period=7, ta_period=20,
+              floor=-95.0, ceiling=140.0,
+              ta_indicator=talib.CCI, ta_indicator_type=TAIndicatorType.ThreeArgs
+              ),
+    BoundedTA(bars, event_queue,
+              period=7, ta_period=14,
               floor=37.0, ceiling=70.0,
               ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs
+              ),
+    ExtremaTA(bars, event_queue,
+              ta_indicator=talib.RSI, ta_period=14, ta_indicator_type=TAIndicatorType.TwoArgs,
+              extrema_period=10, consecutive=2
               )
 ])
-
-# strategy = MultipleAllStrategy([
-#     BoundedTA(bars, event_queue,
-#         period=7, ta_period=20,
-#         floor=-95.0, ceiling=140.0,
-#         ta_indicator=talib.CCI, ta_indicator_type=TAIndicatorType.ThreeArgs
-#     ),
-#     BoundedTA(bars, event_queue,
-#         period=7, ta_period=14,
-#         floor=37.0, ceiling=70.0,
-#         ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs
-#     ),
-#     ExtremaTA(bars, event_queue,
-#         ta_indicator=talib.RSI, ta_period=14, ta_indicator_type=TAIndicatorType.TwoArgs,
-#         extrema_period=10, consecutive=2
-#     )
-# ])
 
 port = PercentagePortFolio(
     bars,
@@ -81,7 +81,7 @@ port = PercentagePortFolio(
 )
 
 if live:
-    broker = AlpacaBroker()
+    broker = AlpacaBroker(event_queue)
     backtest(
         symbol_list,
         bars,
