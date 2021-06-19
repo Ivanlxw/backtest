@@ -3,6 +3,7 @@ real_credentials.json
 *.pyc 
 *.log
 *.txt
+data/*.json
 
 ## directories
 data/data/
