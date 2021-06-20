@@ -4,7 +4,7 @@ import logging
 import talib
 
 from backtest.broker import SimulatedBroker
-from backtest.data.dataHandler import HistoricCSVDataHandler
+from trading_common.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.portfolio import PercentagePortFolio
 from backtest.portfolio.strategy import LongOnly
 from backtest.strategy.fundamental import FundamentalFScoreStrategy
@@ -24,8 +24,11 @@ with open("data/dow_stock_list.txt", 'r') as fin:
     dow_stock_list = fin.readlines()
 dow_stock_list = list(map(remove_bs, dow_stock_list))
 
+with open("data/snp500.txt", 'r') as fin:
+    snp500 = fin.readlines()
+snp500 = list(map(remove_bs, snp500))
 
-symbol_list = random.sample(dow_stock_list, 15)
+symbol_list = random.sample(snp500+dow_stock_list, 15)
 symbol_list += ["DUK", "JPM", "TXN", "UAL", "AMZN", "TSLA"]
 symbol_list = set(symbol_list)  # move duplicate
 

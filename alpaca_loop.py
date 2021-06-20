@@ -13,7 +13,7 @@ from backtest.strategy.statistics import BuyDips
 from backtest.strategy.ta import BoundedTA, ExtremaTA, MeanReversionTA, TAIndicatorType
 from backtest.portfolio.strategy import DefaultOrder, ProgressiveOrder
 from backtest.utilities.backtest import backtest
-from backtest.data.dataHandler import AlpacaData
+from trading_common.data.dataHandler import AlpacaData
 from trading_common.utilities.utils import load_credentials, parse_args, remove_bs
 from trading_common.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
 from trading_common.utilities.enum import OrderType

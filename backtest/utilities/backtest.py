@@ -1,4 +1,4 @@
-from backtest.data.dataHandler import HistoricCSVDataHandler
+from trading_common.data.dataHandler import HistoricCSVDataHandler
 import queue
 import os
 import copy

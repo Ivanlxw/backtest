@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-from backtest.data.dataHandler import DataHandler
+from trading_common.data.dataHandler import DataHandler
 from trading_common.utilities.enum import OrderPosition
 from trading_common.event import SignalEvent
 
