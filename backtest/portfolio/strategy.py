@@ -1,8 +1,8 @@
 from abc import ABCMeta, abstractmethod
 from backtest.data.dataHandler import DataHandler
 
-from backtest.event import OrderEvent, SignalEvent
-from backtest.utilities.enums import OrderPosition, OrderType
+from trading_common.event import OrderEvent, SignalEvent
+from trading_common.utilities.enum import OrderPosition, OrderType
 
 
 class PortfolioStrategy(metaclass=ABCMeta):

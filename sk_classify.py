@@ -8,7 +8,7 @@ import logging
 from sklearn.ensemble import RandomForestClassifier
 
 from backtest.broker import SimulatedBroker
-from backtest.utilities.utils import load_credentials, parse_args, remove_bs
+from trading_common.utilities.utils import load_credentials, parse_args, remove_bs
 from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.portfolio import PercentagePortFolio
 from backtest.portfolio.rebalance import BaseRebalance

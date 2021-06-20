@@ -1,11 +1,11 @@
 from abc import ABCMeta, abstractmethod
-from backtest.event import SignalEvent
 import logging
 
 import numpy as np
 import pandas as pd
-from backtest.strategy.naive import Strategy
-from backtest.utilities.enums import OrderPosition
+from trading_common.event import SignalEvent
+from trading_common.strategy.naive import Strategy
+from trading_common.utilities.enum import OrderPosition
 
 class BuyDips(Strategy):
     def __init__(self, bars, events, short_time, long_time, consecutive=2) -> None:

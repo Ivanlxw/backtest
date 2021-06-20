@@ -7,7 +7,7 @@ import pandas as pd
 from abc import ABC, abstractmethod
 import alpaca_trade_api
 
-from backtest.event import MarketEvent
+from trading_common.event import MarketEvent
 
 NY = 'America/New_York'
 
@@ -303,7 +303,7 @@ class TDAData(HistoricCSVDataHandler):
         self.latest_symbol_data = {}
         self.data_fields = ['symbol', 'datetime', 'open', 'high', 'low', 'close', 'volume']
         self.period_type = period_type
-        self.period = self.period
+        self.period = period
         self.frequency_type = frequency_type
         self.frequency = frequency
         self._get_price_history(self.period_type, self.period, self.frequency_type, self.frequency)

@@ -1,10 +1,9 @@
 from abc import ABCMeta, abstractmethod
-from backtest.utilities.enums import OrderPosition
-
-from numpy.lib.stride_tricks import broadcast_arrays
-from backtest.event import SignalEvent
-from backtest.strategy.naive import Strategy
 import numpy as np
+
+from trading_common.utilities.enum import OrderPosition
+from trading_common.event import SignalEvent
+from trading_common.strategy.naive import Strategy
 
 class FundamentalStrategy(Strategy):
     __metaclass__ = ABCMeta

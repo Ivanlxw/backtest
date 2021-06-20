@@ -1,8 +1,8 @@
 import numpy as np
 from enum import Enum, auto
-from backtest.event import SignalEvent
-from backtest.strategy.naive import Strategy
-from backtest.utilities.enums import OrderPosition
+from trading_common.event import SignalEvent
+from trading_common.strategy.naive import Strategy
+from trading_common.utilities.enum import OrderPosition
 
 
 class SimpleTACross(Strategy):

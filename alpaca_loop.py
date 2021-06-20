@@ -11,12 +11,12 @@ from backtest.portfolio.portfolio import PercentagePortFolio
 from backtest.portfolio.rebalance import SellLongLosers
 from backtest.strategy.statistics import BuyDips
 from backtest.strategy.ta import BoundedTA, ExtremaTA, MeanReversionTA, TAIndicatorType
-from backtest.utilities.utils import load_credentials, parse_args, remove_bs
 from backtest.portfolio.strategy import DefaultOrder, ProgressiveOrder
-from backtest.utilities.enums import OrderType
 from backtest.utilities.backtest import backtest
 from backtest.data.dataHandler import AlpacaData
-from backtest.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
+from trading_common.utilities.utils import load_credentials, parse_args, remove_bs
+from trading_common.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
+from trading_common.utilities.enum import OrderType
 
 args = parse_args()
 load_credentials(args.credentials)

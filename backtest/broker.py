@@ -14,8 +14,8 @@ from ibapi.contract import Contract
 from ibapi.wrapper import EWrapper
 import alpaca_trade_api
 
-from backtest.event import FillEvent, OrderEvent
-from backtest.utilities.enums import OrderPosition, OrderType
+from trading_common.event import FillEvent, OrderEvent
+from trading_common.utilities.enum import OrderPosition, OrderType
 
 
 class Broker(ABC):
@@ -300,7 +300,7 @@ class TDABroker(Broker):
     def _signin_code(self):
         import selenium
         from selenium import webdriver
-        from backtest.utilities.utils import load_credentials, parse_args
+        from trading_common.utilities.utils import load_credentials, parse_args
 
         args = parse_args()
         load_credentials(args.credentials)

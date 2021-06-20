@@ -8,12 +8,12 @@ from backtest.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.portfolio import PercentagePortFolio
 from backtest.portfolio.strategy import LongOnly
 from backtest.strategy.fundamental import FundamentalFScoreStrategy
-from backtest.strategy.statistics import BuyDips
-from backtest.strategy.ta import BoundedTA, SimpleTACross, TAIndicatorType
+from backtest.strategy.statistics import BuyDips, DipswithTA
+from backtest.strategy.ta import BoundedTA, ExtremaTA, SimpleTACross, TAIndicatorType
 from backtest.utilities.backtest import backtest
-from backtest.utilities.utils import load_credentials, parse_args, remove_bs
-from backtest.strategy.multiple import MultipleAllStrategy
-from backtest.portfolio.rebalance import BaseRebalance
+from trading_common.utilities.utils import load_credentials, parse_args, remove_bs
+from trading_common.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
+from backtest.portfolio.rebalance import BaseRebalance, SellLongLosers
 
 args = parse_args()
 
@@ -21,9 +21,13 @@ if args.name != "":
     logging.basicConfig(filename=args.name+'.log', level=logging.INFO)
 
 with open("data/dow_stock_list.txt", 'r') as fin:
-    stock_list = fin.readlines()
-stock_list = list(map(remove_bs, stock_list))
-symbol_list = random.sample(stock_list, 10)
+    dow_stock_list = fin.readlines()
+dow_stock_list = list(map(remove_bs, dow_stock_list))
+
+
+symbol_list = random.sample(dow_stock_list, 15)
+symbol_list += ["DUK", "JPM", "TXN", "UAL", "AMZN", "TSLA"]
+symbol_list = set(symbol_list)  # move duplicate
 
 load_credentials(args.credentials)
 
@@ -42,11 +46,22 @@ bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
 #     ),
 #     SimpleTACross(bars, event_queue, timeperiod=20, ma_type=talib.SMA)
 # ])
+
 strategy = MultipleAllStrategy([
     BoundedTA(bars, event_queue, 10, 20, -95, 150,
               talib.CCI, ta_indicator_type=TAIndicatorType.ThreeArgs),
+    ExtremaTA(
+        bars, event_queue,
+        ta_indicator=talib.CCI, ta_period=20, extrema_period=12,
+        ta_indicator_type=TAIndicatorType.ThreeArgs,
+    ),
     BoundedTA(bars, event_queue, 7, 14, 35.0, 70.0,
-              talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs)
+              talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs),
+    ExtremaTA(
+        bars, event_queue,
+        ta_indicator=talib.RSI, ta_period=14, extrema_period=10,
+        ta_indicator_type=TAIndicatorType.TwoArgs,
+    ),
 ])
 
 if args.fundamental:

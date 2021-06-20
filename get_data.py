@@ -2,7 +2,7 @@ import argparse
 import json
 import time
 import logging
-from backtest.utilities.utils import remove_bs
+from trading_common.utilities.utils import remove_bs
 from data.get_csv import get_av_csv, get_tiingo_eod
 
 def parse_args():

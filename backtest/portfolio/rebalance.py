@@ -1,8 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from backtest.data.dataHandler import DataHandler
-import pandas as pd
-from backtest.utilities.enums import OrderPosition
-from backtest.event import SignalEvent
+from trading_common.utilities.enum import OrderPosition
+from trading_common.event import SignalEvent
 
 class Rebalance(metaclass=ABCMeta):                
     def __init__(self, events, bars: DataHandler) -> None:

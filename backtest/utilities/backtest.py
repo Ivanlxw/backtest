@@ -7,10 +7,9 @@ import matplotlib.pyplot as plt
 from backtest.broker import SimulatedBroker
 from backtest.portfolio.portfolio import PercentagePortFolio, Portfolio
 from backtest.strategy.naive import BuyAndHoldStrategy
-from backtest.utilities.constants import benchmark_ticker
-from backtest.utilities.enums import OrderType
 from backtest.utilities.utils import _backtest_loop, _life_loop
-
+from trading_common.utilities.enum import OrderType
+from trading_common.utilities.constants import benchmark_ticker
 
 def backtest(symbol_list,
              bars, event_queue, order_queue,

@@ -1,14 +1,13 @@
 # portfolio.py
 
 from backtest.portfolio.strategy import DefaultOrder
-import logging
-from backtest.utilities.enums import OrderPosition, OrderType
+from trading_common.utilities.enum import OrderPosition, OrderType
 import numpy as np
 import pandas as pd
 from datetime import timedelta
 from abc import ABCMeta, abstractmethod
 
-from backtest.event import FillEvent, OrderEvent, SignalEvent
+from trading_common.event import FillEvent, OrderEvent, SignalEvent
 from backtest.performance import create_sharpe_ratio, create_drawdowns
 from backtest.portfolio.rebalance import NoRebalance
 
