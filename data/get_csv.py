@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from datetime import datetime
 
-from backtest.utilities.utils import parse_args, load_credentials
+from trading_common.utilities.utils import parse_args, load_credentials
 
 args = parse_args()
 load_credentials(args.credentials)
@@ -48,7 +48,7 @@ def get_av_csv(symbol, csv_dir, key, full=False, interval=None,):
     merge_n_save(filepath, df)
 
 
-def get_tiingo_eod(ticker, fp, full: bool, key):
+def get_tiingo_eod(ticker, full: bool, key):
     headers = {
         'Content-Type': 'application/json'
     }
@@ -71,29 +71,30 @@ def get_tiingo_eod(ticker, fp, full: bool, key):
             df.index = df['date']
             df = df.drop("date", axis=1)
             df = df[["open", "high", "low", "close", "volume"]]
-            merge_n_save(fp, df)
+            merge_n_save(ticker, df)
         except Exception as e:
             print(json_df)
             print(e)
 
 
-def merge_n_save(filepath, df):
-    daily_fp = os.path.join(os.getcwd(), 'data', 'data', 'daily')
+def merge_n_save(ticker, df):
+    daily_fp = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data', 'daily')
+    filepath = os.path.join(daily_fp, ticker)
     if not os.path.exists(daily_fp):
         os.makedirs(daily_fp)
-    if os.path.exists(filepath):
+    if os.path.exists(os.path.join(daily_fp, ticker)):
         # merge data
         existing_df = pd.read_csv(filepath, index_col=0)
         df = pd.concat([existing_df, df])
         df = df[~df.index.duplicated(keep='last')]
         df.sort_index(inplace=True)
         assert df.index.nunique() == df.index.size
-    df.to_csv(os.path.join(daily_fp, filepath))
-    print("Data is stored at {}".format(os.path.join(daily_fp, filepath)))
+    df.to_csv(filepath)
+    print("Data is stored at {}".format(filepath))
 
 
 def refresh_data(tiingo_key):
-    from backtest.utilities.utils import remove_bs
+    from trading_common.utilities.utils import remove_bs
     with open(f"{os.path.dirname(__file__)}/dow_stock_list.txt", "r") as fin:
         stock_list = fin.readlines()
     dow_stock_list = list(map(remove_bs, stock_list))

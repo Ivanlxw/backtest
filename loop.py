@@ -1,10 +1,11 @@
 import queue
 import random
 import logging
+import os
 import talib
 
 from backtest.broker import SimulatedBroker
-from trading_common.data.dataHandler import HistoricCSVDataHandler
+from backtest.portfolio.rebalance import BaseRebalance, SellLongLosers
 from backtest.portfolio.portfolio import PercentagePortFolio
 from backtest.portfolio.strategy import LongOnly
 from backtest.strategy.fundamental import FundamentalFScoreStrategy
@@ -13,7 +14,7 @@ from backtest.strategy.ta import BoundedTA, ExtremaTA, SimpleTACross, TAIndicato
 from backtest.utilities.backtest import backtest
 from trading_common.utilities.utils import load_credentials, parse_args, remove_bs
 from trading_common.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
-from backtest.portfolio.rebalance import BaseRebalance, SellLongLosers
+from trading_common.data.dataHandler import HistoricCSVDataHandler
 
 args = parse_args()
 
@@ -36,13 +37,13 @@ load_credentials(args.credentials)
 
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
-start_date = "2018-01-02"  # YYYY-MM-DD
+start_date = "2017-06-02"  # YYYY-MM-DD
 
-bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
-                              symbol_list=symbol_list,
-                              start_date=start_date,
-                              fundamental=args.fundamental
-                              )
+bars = HistoricCSVDataHandler(event_queue, 
+                            csv_dir=os.path.abspath(os.path.dirname(__file__))+"/data/data/daily",
+                            symbol_list=symbol_list,
+                            start_date=start_date,
+)
 # strategy = MultipleAnyStrategy([
 #     BuyDips(
 #         bars, event_queue, short_time=80, long_time=150
