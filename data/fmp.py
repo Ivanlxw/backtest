@@ -8,6 +8,9 @@ BASE_URL = "https://financialmodelingprep.com/api/v3/"
 with open(f"{os.path.dirname(__file__)}/dow_stock_list.txt", "r") as fin:
     stock_list = fin.readlines()
 dow_stock_list = list(map(remove_bs, stock_list))
+with open(f"{os.path.dirname(__file__)}/snp500.txt", "r") as fin:
+    stock_list = fin.readlines()
+snp500 = list(map(remove_bs, stock_list))
 
 
 def parseFmpScreenerRes(res_json: list):
@@ -21,7 +24,7 @@ def parseFmpScreenerRes(res_json: list):
 
 def getindustryByStock():
     industry_by_stock = {}
-    for stock in dow_stock_list:
+    for stock in snp500[200:400]:
         res = requests.get(
             f"https://financialmodelingprep.com/api/v3/profile/{stock}?apikey={os.environ['FMP_API']}")
         if res.ok:

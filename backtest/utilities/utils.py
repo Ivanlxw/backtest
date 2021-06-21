@@ -23,8 +23,9 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
                 if event is not None:
                     if event.type == 'MARKET':
                         port.update_timeindex(event)
-                        if (signal_list := strategy.calculate_signals(event)) is not None:
-                            for signal in signal_list:
+                        signal_list = strategy.calculate_signals(event)
+                        for signal in signal_list:
+                            if signal is not None:
                                 event_queue.put(signal)
                         while not order_queue.empty():
                             event_queue.put(order_queue.get())
@@ -49,14 +50,13 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
 
 
 def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
-    start = time.time()
     while True:
         # Update the bars (specific backtest code, as opposed to live trading)
         now = pd.Timestamp.now(tz=NY)
-        if now.hour == 9 and now.minute >= 35:
+        if now.hour == 10:  # and now.minute >= 35:
             # Update the bars (specific backtest code, as opposed to live trading)
-            bars.update_bars()
-            if bars.start_date.dayofweek > 4:
+            if now.dayofweek > 4:
+                logging.info("saving info")
                 port.create_equity_curve_df()
                 results_dir = os.path.join(backtest_basepath, "results")
                 if not os.path.exists(results_dir):
@@ -64,6 +64,9 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
 
                 port.equity_curve.to_csv(os.path.join(
                     results_dir, f"{port.name}.json"))
+                break
+
+            bars.update_bars()
             while True:
                 try:
                     event = event_queue.get(block=False)
@@ -91,4 +94,5 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
                             port.update_fill(event)
 
             # write the day's portfolio status before sleeping
-            time.sleep(12 * 60 * 60)  # 12 hrs
+            logging.info(f"{pd.Timestamp.now(tz=NY)}: sleeping")
+            time.sleep(2 * 60 * 60)  # 12 hrs

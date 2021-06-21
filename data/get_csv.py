@@ -99,7 +99,11 @@ def refresh_data(tiingo_key):
         stock_list = fin.readlines()
     dow_stock_list = list(map(remove_bs, stock_list))
 
-    for ticker in dow_stock_list:
+    with open(f"{os.path.dirname(__file__)}/snp500.txt", "r") as fin:
+        stock_list = fin.readlines()
+    snp500 = list(map(remove_bs, stock_list))
+
+    for ticker in snp500[300:]:
         get_tiingo_eod(ticker, f"{ticker}.csv", full=True,
                        key=tiingo_key)
 
