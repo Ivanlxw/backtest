@@ -1,4 +1,5 @@
 import queue
+import os
 import random
 import logging
 import os
@@ -8,42 +9,44 @@ from backtest.broker import SimulatedBroker
 from backtest.portfolio.rebalance import BaseRebalance, SellLongLosers
 from backtest.portfolio.portfolio import PercentagePortFolio
 from backtest.portfolio.strategy import LongOnly
-from backtest.strategy.fundamental import FundamentalFScoreStrategy
-from backtest.strategy.statistics import BuyDips, DipswithTA
-from backtest.strategy.ta import BoundedTA, ExtremaTA, SimpleTACross, TAIndicatorType
 from backtest.utilities.backtest import backtest
-from trading_common.utilities.utils import load_credentials, parse_args, remove_bs
-from trading_common.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
+from backtest.strategy.fundamental import FundamentalFScoreStrategy
 from trading_common.data.dataHandler import HistoricCSVDataHandler
+from trading_common.strategy.multiple import MultipleAllStrategy
+from trading_common.strategy.ta import BoundedTA, ExtremaTA, TAIndicatorType
+from trading_common.utilities.utils import parse_args, remove_bs, load_credentials
 
 args = parse_args()
 
 if args.name != "":
     logging.basicConfig(filename=args.name+'.log', level=logging.INFO)
 
-with open("data/dow_stock_list.txt", 'r') as fin:
-    dow_stock_list = fin.readlines()
-dow_stock_list = list(map(remove_bs, dow_stock_list))
+with open(f"{os.path.abspath(os.path.dirname(__file__))}/data/dow_stock_list.txt", 'r') as fin:
+    stock_list = fin.readlines()
+stock_list = list(map(remove_bs, stock_list))
 
-with open("data/snp500.txt", 'r') as fin:
+
+with open(f"{os.path.abspath(os.path.dirname(__file__))}/data/snp500.txt", 'r') as fin:
     snp500 = fin.readlines()
-snp500 = list(map(remove_bs, snp500))
-
-symbol_list = random.sample(snp500+dow_stock_list, 15)
+stock_list += list(map(remove_bs, snp500))
+symbol_list = random.sample(stock_list, 45)
 symbol_list += ["DUK", "JPM", "TXN", "UAL", "AMZN", "TSLA"]
-symbol_list = set(symbol_list)  # move duplicate
+symbol_list = list(set(symbol_list))  # move duplicate
+
+symbol_list = stock_list
 
 load_credentials(args.credentials)
 
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
-start_date = "2017-06-02"  # YYYY-MM-DD
+start_date = "2017-01-05"  # YYYY-MM-DD
 
-bars = HistoricCSVDataHandler(event_queue, 
-                            csv_dir=os.path.abspath(os.path.dirname(__file__))+"/data/data/daily",
-                            symbol_list=symbol_list,
-                            start_date=start_date,
-)
+bars = HistoricCSVDataHandler(event_queue,
+                              csv_dir=os.path.abspath(
+                                  os.path.dirname(__file__))+"/data/data/daily",
+                              symbol_list=symbol_list,
+                              start_date=start_date,
+                              )
 # strategy = MultipleAnyStrategy([
 #     BuyDips(
 #         bars, event_queue, short_time=80, long_time=150

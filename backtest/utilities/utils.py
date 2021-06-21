@@ -1,7 +1,12 @@
 import time
 import queue
 import logging
+import os
+import pandas as pd
 from trading_common.plots.plot import Plot, PlotTradePrices
+from trading_common.utilities.constants import backtest_basepath
+
+NY = "America/New_York"
 
 
 def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_live: bool = False) -> Plot:
