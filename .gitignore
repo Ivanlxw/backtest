@@ -4,6 +4,7 @@ real_credentials.json
 *.log
 *.txt
 data/*.json
+*.__init__.py
 
 ## directories
 data/data/
@@ -11,3 +12,4 @@ backtest.egg-info/
 data/stock_tiingo_issues.txt
 .vscode/
 results/
+__pycache__/
