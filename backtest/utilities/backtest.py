@@ -1,4 +1,4 @@
-from trading_common.data.dataHandler import HistoricCSVDataHandler
+from trading''.data.dataHandler import HistoricCSVDataHandler
 import queue
 import os
 import copy
@@ -8,8 +8,9 @@ from backtest.broker import SimulatedBroker
 from backtest.portfolio.portfolio import PercentagePortFolio, Portfolio
 from backtest.strategy.naive import BuyAndHoldStrategy
 from backtest.utilities.utils import _backtest_loop, _life_loop
-from trading_common.utilities.enum import OrderType
-from trading_common.utilities.constants import benchmark_ticker
+from trading''.utilities.enum import OrderType
+from trading''.utilities.constants import benchmark_ticker
+
 
 def backtest(symbol_list,
              bars, event_queue, order_queue,

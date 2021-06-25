@@ -11,10 +11,11 @@ from backtest.portfolio.portfolio import PercentagePortFolio
 from backtest.portfolio.strategy import LongOnly
 from backtest.utilities.backtest import backtest
 from backtest.strategy.fundamental import FundamentalFScoreStrategy
-from trading_common.data.dataHandler import HistoricCSVDataHandler
-from trading_common.strategy.multiple import MultipleAllStrategy
-from trading_common.strategy.ta import BoundedTA, ExtremaTA, TAIndicatorType
-from trading_common.utilities.utils import parse_args, remove_bs, load_credentials
+from trading''.data.dataHandler import HistoricCSVDataHandler
+from trading''.strategy.multiple import MultipleAllStrategy
+from trading''.strategy.ta import BoundedTA, ExtremaTA, TAIndicatorType
+from trading''.strategy.statistics import ExtremaBounce, LongTermCorrTrend
+from trading''.utilities.utils import parse_args, remove_bs, load_credentials
 
 args = parse_args()
 
@@ -24,51 +25,36 @@ if args.name != "":
 with open(f"{os.path.abspath(os.path.dirname(__file__))}/data/dow_stock_list.txt", 'r') as fin:
     stock_list = fin.readlines()
 stock_list = list(map(remove_bs, stock_list))
-
-
-with open(f"{os.path.abspath(os.path.dirname(__file__))}/data/snp500.txt", 'r') as fin:
-    snp500 = fin.readlines()
-stock_list += list(map(remove_bs, snp500))
-symbol_list = random.sample(stock_list, 45)
-symbol_list += ["DUK", "JPM", "TXN", "UAL", "AMZN", "TSLA"]
-symbol_list = list(set(symbol_list))  # move duplicate
-
 symbol_list = stock_list
 
 load_credentials(args.credentials)
 
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
-start_date = "2017-01-05"  # YYYY-MM-DD
+# YYYY-MM-DD
+start_date = f"{random.randint(2005, 2019+1)}-{random.randint(1,13)}-05"
 
+csv_dir = os.path.abspath(
+    os.path.dirname(__file__))+"/data/data/daily"
+symbol_list = list(set(
+    random.sample([
+        fn.replace('.csv', '') for fn in os.listdir(csv_dir)
+    ], 75) + ["DUK", "JPM", "TXN", "UAL", "AMZN", "TSLA"]))
 bars = HistoricCSVDataHandler(event_queue,
-                              csv_dir=os.path.abspath(
-                                  os.path.dirname(__file__))+"/data/data/daily",
-                              symbol_list=symbol_list,
+                              csv_dir,
+                              symbol_list,
                               start_date=start_date,
                               )
-# strategy = MultipleAnyStrategy([
-#     BuyDips(
-#         bars, event_queue, short_time=80, long_time=150
-#     ),
-#     SimpleTACross(bars, event_queue, timeperiod=20, ma_type=talib.SMA)
-# ])
 
 strategy = MultipleAllStrategy([
-    BoundedTA(bars, event_queue, 10, 20, -95, 150,
-              talib.CCI, ta_indicator_type=TAIndicatorType.ThreeArgs),
-    ExtremaTA(
-        bars, event_queue,
-        ta_indicator=talib.CCI, ta_period=20, extrema_period=12,
-        ta_indicator_type=TAIndicatorType.ThreeArgs,
-    ),
-    BoundedTA(bars, event_queue, 7, 14, 35.0, 70.0,
-              talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs),
-    ExtremaTA(
-        bars, event_queue,
-        ta_indicator=talib.RSI, ta_period=14, extrema_period=10,
-        ta_indicator_type=TAIndicatorType.TwoArgs,
-    ),
+    ExtremaBounce(bars, 7, 60),
+    ExtremaTA(bars, event_queue, talib.RSI, 14,
+              TAIndicatorType.TwoArgs,
+              extrema_period=10, strat_contrarian=True,
+              consecutive=2),
+    BoundedTA(bars, event_queue, 7, 14, floor=32, ceiling=70,
+              ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs),
+    LongTermCorrTrend(bars, event_queue, 120)
 ])
 
 if args.fundamental:

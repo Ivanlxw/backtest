@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from datetime import datetime
 
-from trading_common.utilities.utils import parse_args, load_credentials
+from trading''.utilities.utils import parse_args, load_credentials
 
 args = parse_args()
 load_credentials(args.credentials)
@@ -78,7 +78,8 @@ def get_tiingo_eod(ticker, full: bool, key):
 
 
 def merge_n_save(ticker, df):
-    daily_fp = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data', 'daily')
+    daily_fp = os.path.join(os.path.abspath(
+        os.path.dirname(__file__)), 'data', 'daily')
     filepath = os.path.join(daily_fp, ticker)
     if not os.path.exists(daily_fp):
         os.makedirs(daily_fp)
@@ -94,7 +95,7 @@ def merge_n_save(ticker, df):
 
 
 def refresh_data(tiingo_key):
-    from trading_common.utilities.utils import remove_bs
+    from trading''.utilities.utils import remove_bs
     with open(f"{os.path.dirname(__file__)}/dow_stock_list.txt", "r") as fin:
         stock_list = fin.readlines()
     dow_stock_list = list(map(remove_bs, stock_list))
