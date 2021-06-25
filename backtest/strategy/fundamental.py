@@ -1,9 +1,9 @@
 from abc import ABCMeta, abstractmethod
 import numpy as np
 
-from trading''.utilities.enum import OrderPosition
-from trading''.event import SignalEvent
-from trading''.strategy.naive import Strategy
+from trading.utilities.enum import OrderPosition
+from trading.event import SignalEvent
+from trading.strategy.naive import Strategy
 
 
 class FundamentalStrategy(Strategy):

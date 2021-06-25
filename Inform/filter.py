@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from trading''.event import SignalEvent
-from trading''.strategy.naive import Strategy
+from trading.event import SignalEvent
+from trading.strategy.naive import Strategy
 import numpy as np
-from trading''.utilities.enum import OrderPosition
+from trading.utilities.enum import OrderPosition
 
 
 class FundamentalFilter(Strategy):

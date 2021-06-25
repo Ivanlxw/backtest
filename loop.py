@@ -11,11 +11,11 @@ from backtest.portfolio.portfolio import PercentagePortFolio
 from backtest.portfolio.strategy import LongOnly
 from backtest.utilities.backtest import backtest
 from backtest.strategy.fundamental import FundamentalFScoreStrategy
-from trading''.data.dataHandler import HistoricCSVDataHandler
-from trading''.strategy.multiple import MultipleAllStrategy
-from trading''.strategy.ta import BoundedTA, ExtremaTA, TAIndicatorType
-from trading''.strategy.statistics import ExtremaBounce, LongTermCorrTrend
-from trading''.utilities.utils import parse_args, remove_bs, load_credentials
+from trading.data.dataHandler import HistoricCSVDataHandler
+from trading.strategy.multiple import MultipleAllStrategy
+from trading.strategy.ta import BoundedTA, ExtremaTA, TAIndicatorType
+from trading.strategy.statistics import ExtremaBounce, LongTermCorrTrend
+from trading.utilities.utils import parse_args, remove_bs, load_credentials
 
 args = parse_args()
 

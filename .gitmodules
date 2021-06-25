@@ -1,3 +1,3 @@
-[submodule "trading_common"]
-	path = trading_common
-	url = https://github.com/Ivanlxw/trading_common.git
+[submodule "trading"]
+	path = trading
+	url = https://github.com/Ivanlxw/trading.git

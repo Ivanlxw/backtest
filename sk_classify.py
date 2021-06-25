@@ -8,8 +8,8 @@ import logging
 from sklearn.ensemble import RandomForestClassifier
 
 from backtest.broker import SimulatedBroker
-from trading''.utilities.utils import load_credentials, parse_args, remove_bs
-from trading''.data.dataHandler import HistoricCSVDataHandler
+from trading.utilities.utils import load_credentials, parse_args, remove_bs
+from trading.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.portfolio import PercentagePortFolio
 from backtest.portfolio.rebalance import BaseRebalance
 from backtest.strategy.stat_data import ClassificationData

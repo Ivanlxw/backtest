@@ -4,7 +4,7 @@ Actual file to run for backtesting
 import os
 import queue
 import logging
-from trading''.strategy.statistics import ExtremaBounce, LongTermCorrTrend
+from trading.strategy.statistics import ExtremaBounce, LongTermCorrTrend
 import talib
 
 from backtest.broker import AlpacaBroker, SimulatedBroker
@@ -12,11 +12,11 @@ from backtest.portfolio.portfolio import PercentagePortFolio
 from backtest.portfolio.rebalance import SellLongLosers
 from backtest.portfolio.strategy import DefaultOrder, LongOnly
 from backtest.utilities.backtest import backtest
-from trading''.data.dataHandler import AlpacaData
-from trading''.utilities.utils import load_credentials, parse_args, remove_bs
-from trading''.strategy.ta import BoundedTA, ExtremaTA, MeanReversionTA, TAIndicatorType
-from trading''.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
-from trading''.utilities.enum import OrderType
+from trading.data.dataHandler import AlpacaData
+from trading.utilities.utils import load_credentials, parse_args, remove_bs
+from trading.strategy.ta import BoundedTA, ExtremaTA, MeanReversionTA, TAIndicatorType
+from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
+from trading.utilities.enum import OrderType
 
 args = parse_args()
 load_credentials(args.credentials)

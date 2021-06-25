@@ -1,8 +1,8 @@
 from abc import ABCMeta, abstractmethod
-from trading''.data.dataHandler import DataHandler
+from trading.data.dataHandler import DataHandler
 
-from trading''.event import OrderEvent, SignalEvent
-from trading''.utilities.enum import OrderPosition, OrderType
+from trading.event import OrderEvent, SignalEvent
+from trading.utilities.enum import OrderPosition, OrderType
 
 
 class PortfolioStrategy(metaclass=ABCMeta):

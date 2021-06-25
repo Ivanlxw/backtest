@@ -4,17 +4,17 @@ import logging
 import os
 import queue
 import time
-from trading''.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
+from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
 
 import talib
 import pandas as pd
 
-from trading''.data.dataHandler import HistoricCSVDataHandler, NY, TDAData
+from trading.data.dataHandler import HistoricCSVDataHandler, NY, TDAData
 from Inform.filter import FundamentalFilter
 from Inform.telegram.inform import telegram_bot_sendtext
-from trading''.strategy.statistics import ExtremaBounce, LongTermCorrTrend
-from trading''.strategy.ta import BoundedTA, ExtremaTA, MeanReversionTA, TAIndicatorType
-from trading''.plots.plot import PlotIndividual
+from trading.strategy.statistics import ExtremaBounce, LongTermCorrTrend
+from trading.strategy.ta import BoundedTA, ExtremaTA, MeanReversionTA, TAIndicatorType
+from trading.plots.plot import PlotIndividual
 
 
 def parse_args():

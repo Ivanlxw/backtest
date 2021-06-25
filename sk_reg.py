@@ -8,8 +8,8 @@ import talib
 import logging
 
 from backtest.broker import SimulatedBroker
-from trading''.utilities.utils import load_credentials, parse_args, remove_bs
-from trading''.data.dataHandler import HistoricCSVDataHandler
+from trading.utilities.utils import load_credentials, parse_args, remove_bs
+from trading.data.dataHandler import HistoricCSVDataHandler
 from backtest.portfolio.portfolio import PercentagePortFolio
 from backtest.strategy.stat_data import BaseStatisticalData
 from backtest.strategy.statistics import RawRegression

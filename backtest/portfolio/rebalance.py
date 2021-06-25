@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
-from trading''.data.dataHandler import DataHandler
-from trading''.utilities.enum import OrderPosition
-from trading''.event import SignalEvent
+from trading.data.dataHandler import DataHandler
+from trading.utilities.enum import OrderPosition
+from trading.event import SignalEvent
 
 
 class Rebalance(metaclass=ABCMeta):

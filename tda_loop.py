@@ -7,12 +7,12 @@ import talib
 import logging
 
 from backtest.broker import SimulatedBroker, TDABroker
-from trading''.data.dataHandler import TDAData
+from trading.data.dataHandler import TDAData
 from backtest.portfolio.portfolio import PercentagePortFolio
 from backtest.portfolio.strategy import LongOnly
 from backtest.strategy.statistics import BuyDips
 from backtest.strategy.ta import MeanReversionTA
-from trading''.utilities.utils import load_credentials, parse_args, remove_bs
+from trading.utilities.utils import load_credentials, parse_args, remove_bs
 from backtest.utilities.backtest import backtest
 
 args = parse_args()

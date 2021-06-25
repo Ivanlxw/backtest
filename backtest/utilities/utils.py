@@ -3,8 +3,8 @@ import queue
 import logging
 import os
 import pandas as pd
-from trading''.plots.plot import Plot
-from trading''.utilities.constants import backtest_basepath
+from trading.plots.plot import Plot
+from trading.utilities.constants import backtest_basepath
 
 NY = "America/New_York"
 
