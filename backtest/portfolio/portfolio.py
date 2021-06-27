@@ -89,7 +89,7 @@ class NaivePortfolio(Portfolio):
         d['datetime'] = self.start_date
         return d
 
-    def update_timeindex(self, event):
+    def update_timeindex(self):
         bars = {}
         for sym in self.symbol_list:
             bars[sym] = self.bars.get_latest_bars(sym, N=1)

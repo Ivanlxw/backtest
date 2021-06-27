@@ -8,3 +8,4 @@ ibapi
 alpaca-trade-api
 TA-Lib
 selenium
+pathos

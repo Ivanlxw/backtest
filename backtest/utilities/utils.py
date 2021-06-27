@@ -54,7 +54,7 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
             else:
                 if event is not None:
                     if event.type == 'MARKET':
-                        port.update_timeindex(event)
+                        port.update_timeindex()
                         signal_list = strategy.calculate_signals(event)
                         for signal in signal_list:
                             if signal is not None:
@@ -109,7 +109,7 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
                 if event is not None:
                     if event.type == 'MARKET':
                         logging.info(f"{now}: MarketEvent")
-                        port.update_timeindex(event)
+                        port.update_timeindex()
                         if (signal_list := strategy.calculate_signals(event)) is not None:
                             for signal in signal_list:
                                 event_queue.put(signal)
