@@ -37,7 +37,7 @@ start_date = generate_start_date()
 while pd.Timestamp(start_date).dayofweek > 4:
     start_date = generate_start_date() 
 print(start_date)
-
+end_date = "2020-01-30"
 csv_dir = os.path.abspath(
     os.path.dirname(__file__))+"/data/data/daily"
 symbol_list = list(set(
@@ -48,6 +48,7 @@ bars = HistoricCSVDataHandler(event_queue,
                               csv_dir,
                               symbol_list,
                               start_date=start_date,
+                              end_date=end_date
                               )
 
 strategy = MultipleAllStrategy([

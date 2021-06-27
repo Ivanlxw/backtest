@@ -37,7 +37,7 @@ def load_credentials(credentials_fp):
 def generate_start_date():
     return "{}-{:02d}-{:02d}".format(
         random.randint(2012, 2019), 
-        random.randint(1,13), 
+        random.randint(1,12), 
         random.randint(1,28)
     )
 

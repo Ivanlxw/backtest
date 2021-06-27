@@ -38,27 +38,29 @@ start_date = generate_start_date()
 while pd.Timestamp(start_date).dayofweek > 4:
     start_date = generate_start_date() 
 print(start_date)
+end_date = "2020-01-30"
 if not args.live:
     csv_dir = os.path.abspath(os.path.abspath(
         os.path.dirname(__file__)) + "/data/data/daily")
     bars = HistoricCSVDataHandler(event_queue,
                                   csv_dir,
                                   list(set(random.sample(symbol_list, 50))) + ["DUK", "AON", "C", "UAL", "AMZN", "COG"],
-                                  start_date=start_date, fundamental=False
+                                  start_date=start_date, fundamental=False,
+                                  end_date=end_date
                                   )
 else:
     bars = TDAData(event_queue, symbol_list, start_date, live=True)
 
 filter = MultipleAllStrategy([
-    # ExtremaBounce(bars, event_queue, 7, 60, percentile=25),
-    RelativeExtrema(bars, event_queue, 
-        long_time=120, 
-        percentile=10, strat_contrarian=True),
-    LongTermCorrTrend(bars, event_queue, 120, corr=0.4, strat_contrarian=False),
+    ExtremaBounce(bars, event_queue, 7, 100, percentile=25),
+    # RelativeExtrema(bars, event_queue, 
+    #     long_time=50, 
+    #     percentile=10, strat_contrarian=True),
+    # LongTermCorrTrend(bars, event_queue, 150, corr=0.4, strat_contrarian=False),
     BoundedTA(bars, event_queue, 7, 20, floor=30, ceiling=70,
             ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs),
-    # BoundedTA(bars, event_queue, 7, 20, floor=-150, ceiling=150,
-    #           ta_indicator=talib.CCI, ta_indicator_type=TAIndicatorType.ThreeArgs),
+    BoundedTA(bars, event_queue, 7, 20, floor=-100, ceiling=100,
+              ta_indicator=talib.CCI, ta_indicator_type=TAIndicatorType.ThreeArgs),
 ])
 
 signals = queue.Queue()
