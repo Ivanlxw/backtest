@@ -5,7 +5,7 @@ real_credentials.json
 *.txt
 data/*.json
 *.__init__.py
-*.profitable.py
+*profitable.py
 
 ## directories
 data/data/
