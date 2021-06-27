@@ -4,12 +4,12 @@ import time
 import queue
 import logging
 import os
+import random
 import pandas as pd
 from trading.plots.plot import Plot
 from trading.utilities.constants import backtest_basepath
 
 NY = "America/New_York"
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Configs for running main.')
@@ -23,7 +23,6 @@ def parse_args():
                         help='inform life?')
     return parser.parse_args()
 
-
 def remove_bs(s: str):
     # remove backslash at the end from reading from a stock_list.txt
     return s.replace("\n", "")
@@ -35,6 +34,12 @@ def load_credentials(credentials_fp):
         for k, v in credentials.items():
             os.environ[k] = v
 
+def generate_start_date():
+    return "{}-{:02d}-{:02d}".format(
+        random.randint(2012, 2019), 
+        random.randint(1,13), 
+        random.randint(1,28)
+    )
 
 def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_live: bool = False) -> Plot:
     start = time.time()
