@@ -65,21 +65,18 @@ filter = MultipleAllStrategy([
               ta_indicator=talib.CCI, ta_indicator_type=TAIndicatorType.ThreeArgs),
 ])
 
-filter = MultipleAllStrategy([
-    ExtremaBounce(bars, event_queue, 10, 80, percentile=20),
-    LongTermCorrTrend(bars, event_queue, 200, corr=0.2,
-                      strat_contrarian=False),
-    OneSidedOrderOnly(bars, event_queue, OrderPosition.BUY)
-])
+# filter = MultipleAllStrategy([
+#     ExtremaBounce(bars, event_queue, 10, 80, percentile=20),
+#     LongTermCorrTrend(bars, event_queue, 200, corr=0.2,
+#                       strat_contrarian=False),
+#     OneSidedOrderOnly(bars, event_queue, OrderPosition.BUY)
+# ])
 
 signals = queue.Queue()
 start = time.time()
 while True:
     now = pd.Timestamp.now(tz=NY)
-    if now.minute == 50:
-        logging.log(level=32, msg=f"beginning of loop: {now}")
-        time.sleep(60)
-    if args.live and not (now.hour == 9 and now.minute != 35 and now.dayofweek <= 4):
+    if args.live and not (now.hour == 9 and now.minute == 35 and now.dayofweek <= 4):
         continue
     if bars.continue_backtest == True:
         logging.info(msg=f"{pd.Timestamp.now(tz=NY)}: update_bars")

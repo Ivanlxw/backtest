@@ -95,7 +95,7 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
         now = pd.Timestamp.now(tz=NY)
         if now.minute == 45:
             logging.info(f"beginning of loop: {now}")
-        if not (now.hour == 9 and now.minute != 35):  # only run @ 0935 NY timing
+        if not (now.hour == 9 and now.minute == 35):  # only run @ 0935 NY timing
             continue
         if now.dayofweek > 4:
             # Update the bars (specific backtest code, as opposed to live trading)
