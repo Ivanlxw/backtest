@@ -3,6 +3,8 @@ import os
 import random
 import logging
 import os
+from trading.strategy.basic import BoundedPercChange, OneSidedOrderOnly
+from trading.utilities.enum import OrderPosition
 import talib
 import pandas as pd
 
@@ -33,9 +35,9 @@ load_credentials(args.credentials)
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
 # YYYY-MM-DD
-start_date = generate_start_date() 
+start_date = generate_start_date()
 while pd.Timestamp(start_date).dayofweek > 4:
-    start_date = generate_start_date() 
+    start_date = generate_start_date()
 print(start_date)
 end_date = "2020-01-30"
 csv_dir = os.path.abspath(
@@ -52,12 +54,22 @@ bars = HistoricCSVDataHandler(event_queue,
                               )
 
 strategy = MultipleAllStrategy([
-    RelativeExtrema(bars, event_queue, 
-        long_time=100, 
-        percentile=10, strat_contrarian=True),
-    LongTermCorrTrend(bars, event_queue, 100, corr=0.4, strat_contrarian=False),
+    RelativeExtrema(bars, event_queue,
+                    long_time=100,
+                    percentile=10, strat_contrarian=True),
+    LongTermCorrTrend(bars, event_queue, 100, corr=0.4,
+                      strat_contrarian=False),
     BoundedTA(bars, event_queue, 7, 20, floor=30, ceiling=70,
-              ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs),  
+              ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs),
+])
+
+
+strategy = MultipleAllStrategy([
+    ExtremaBounce(bars, event_queue, 10, 80, percentile=20),
+    # LongTermCorrTrend(bars, event_queue, 200, corr=0.2,
+    #                   strat_contrarian=False),
+    BoundedPercChange(bars, event_queue, 0.05, strat_contrarian=False),
+    OneSidedOrderOnly(bars, event_queue, OrderPosition.BUY)
 ])
 
 if args.fundamental:
@@ -70,7 +82,7 @@ port = PercentagePortFolio(bars, event_queue, order_queue,
                            expires=7,
                            rebalance=BaseRebalance,
                            portfolio_strategy=LongOnly
-)
+                           )
 broker = SimulatedBroker(bars, port, event_queue, order_queue)
 
 backtest(symbol_list, bars, event_queue, order_queue,
