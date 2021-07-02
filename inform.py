@@ -4,7 +4,8 @@ import os
 import queue
 import time
 import random
-from trading.strategy.naive import Strategy
+from trading.utilities.enum import OrderPosition
+from trading.strategy.naive import OneSidedOrderOnly, Strategy
 from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
 
 import talib
@@ -34,9 +35,9 @@ with open(args.credentials, 'r') as f:
         os.environ[k] = v
 
 event_queue = queue.LifoQueue()
-start_date = generate_start_date() 
+start_date = generate_start_date()
 while pd.Timestamp(start_date).dayofweek > 4:
-    start_date = generate_start_date() 
+    start_date = generate_start_date()
 print(start_date)
 end_date = "2020-01-30"
 if not args.live:
@@ -44,7 +45,8 @@ if not args.live:
         os.path.dirname(__file__)) + "/data/data/daily")
     bars = HistoricCSVDataHandler(event_queue,
                                   csv_dir,
-                                  list(set(random.sample(symbol_list, 50))) + ["DUK", "AON", "C", "UAL", "AMZN", "COG"],
+                                  list(set(random.sample(symbol_list, 50))) +
+                                  ["DUK", "AON", "C", "UAL", "AMZN", "COG"],
                                   start_date=start_date, fundamental=False,
                                   end_date=end_date
                                   )
@@ -53,23 +55,34 @@ else:
 
 filter = MultipleAllStrategy([
     ExtremaBounce(bars, event_queue, 7, 100, percentile=25),
-    # RelativeExtrema(bars, event_queue, 
-    #     long_time=50, 
+    # RelativeExtrema(bars, event_queue,
+    #     long_time=50,
     #     percentile=10, strat_contrarian=True),
     # LongTermCorrTrend(bars, event_queue, 150, corr=0.4, strat_contrarian=False),
     BoundedTA(bars, event_queue, 7, 20, floor=30, ceiling=70,
-            ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs),
+              ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs),
     BoundedTA(bars, event_queue, 7, 20, floor=-100, ceiling=100,
               ta_indicator=talib.CCI, ta_indicator_type=TAIndicatorType.ThreeArgs),
+])
+
+filter = MultipleAllStrategy([
+    ExtremaBounce(bars, event_queue, 10, 80, percentile=20),
+    LongTermCorrTrend(bars, event_queue, 200, corr=0.2,
+                      strat_contrarian=False),
+    OneSidedOrderOnly(bars, event_queue, OrderPosition.BUY)
 ])
 
 signals = queue.Queue()
 start = time.time()
 while True:
     now = pd.Timestamp.now(tz=NY)
-    if args.live and not (now.hour == 9 and now.minute > 35 and now.dayofweek <= 4):
+    if now.minute == 50:
+        logging.log(level=32, msg=f"beginning of loop: {now}")
+        time.sleep(60)
+    if args.live and not (now.hour == 9 and now.minute != 35 and now.dayofweek <= 4):
         continue
     if bars.continue_backtest == True:
+        logging.info(msg=f"{pd.Timestamp.now(tz=NY)}: update_bars")
         bars.update_bars()  # will take about 550s
     else:
         break
@@ -77,9 +90,6 @@ while True:
     if not event_queue.empty():
         event = event_queue.get(block=False)
         if event.type == 'MARKET':
-            if args.live:
-                logging.log(
-                    level=35, msg=f"{pd.Timestamp.now(tz=NY)}: MarketEvent")
             signal_events = filter.calculate_signals(event)
             for signal_event in signal_events:
                 if signal_event is not None:
@@ -91,8 +101,8 @@ while True:
             print(signal_event.details())
             res = telegram_bot_sendtext(signal_event.details(),
                                         os.environ["TELEGRAM_APIKEY"], os.environ["TELEGRAM_CHATID"])
-        logging.log(level=35, msg=f"{pd.Timestamp.now(tz=NY)}: sleeping")
-        time.sleep(23 * 60 * 60)
+        # logging.log(level=35, msg=f"{pd.Timestamp.now(tz=NY)}: sleeping")
+        # time.sleep(8 * 3600)
 
 signals = list(signals.queue)
 print(f"Event loop finished in {time.time() - start}s.\n\
