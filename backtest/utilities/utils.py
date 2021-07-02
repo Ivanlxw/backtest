@@ -11,6 +11,7 @@ from trading.utilities.constants import backtest_basepath
 
 NY = "America/New_York"
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Configs for running main.')
     parser.add_argument('-c', '--credentials', required=True,
@@ -23,6 +24,7 @@ def parse_args():
                         help='inform life?')
     return parser.parse_args()
 
+
 def remove_bs(s: str):
     # remove backslash at the end from reading from a stock_list.txt
     return s.replace("\n", "")
@@ -34,12 +36,14 @@ def load_credentials(credentials_fp):
         for k, v in credentials.items():
             os.environ[k] = v
 
+
 def generate_start_date():
     return "{}-{:02d}-{:02d}".format(
-        random.randint(2012, 2019), 
-        random.randint(1,12), 
-        random.randint(1,28)
+        random.randint(2012, 2019),
+        random.randint(1, 12),
+        random.randint(1, 28)
     )
+
 
 def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_live: bool = False) -> Plot:
     start = time.time()
@@ -80,7 +84,6 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
     print(f"Backtest finished in {time.time() - start}. Getting summary stats")
     port.create_equity_curve_df()
     logging.log(32, port.output_summary_stats())
-
     plotter = Plot(port)
     plotter.plot()
     return plotter
@@ -90,7 +93,9 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
     while True:
         # Update the bars (specific backtest code, as opposed to live trading)
         now = pd.Timestamp.now(tz=NY)
-        if not (now.hour == 9 and now.minute > 35):
+        if now.minute == 45:
+            logging.info(f"beginning of loop: {now}")
+        if not (now.hour == 9 and now.minute != 35):  # only run @ 0935 NY timing
             continue
         if now.dayofweek > 4:
             # Update the bars (specific backtest code, as opposed to live trading)
@@ -132,5 +137,6 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
                         port.update_fill(event)
 
         # write the day's portfolio status before sleeping
-        logging.info(f"{pd.Timestamp.now(tz=NY)}: sleeping")
-        time.sleep(18 * 60 * 60)  # 18 hrs
+        # logging.info(f"{pd.Timestamp.now(tz=NY)}: sleeping")
+        # time.sleep(6 * 60 * 60)  # 18 hrs
+        # logging.info("sleep done")
