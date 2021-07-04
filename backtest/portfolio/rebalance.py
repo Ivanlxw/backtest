@@ -55,12 +55,12 @@ class BaseRebalance(Rebalance):
                         symbol, current_holdings['datetime'], OrderPosition.EXIT_SHORT, latest_close_price))
 
 
-class SellLongLosers(Rebalance):
-    ''' Sell losers on LONG positions'''
-
+class SellLongLosers(metaclass=ABCMeta):
+    ''' Sell stocks that have recorded >5% losses '''
+    @abstractmethod
     def need_rebalance(self, current_holdings):
-        # every quarter
-        return current_holdings['datetime'].is_quarter_start
+        raise NotImplementedError(
+            "Should implement need_rebalance().")
 
     def rebalance(self, stock_list, current_holdings) -> None:
         if self.need_rebalance(current_holdings):
@@ -68,9 +68,20 @@ class SellLongLosers(Rebalance):
                 # sell all losers
                 latest_close_price = self.bars.get_latest_bars(symbol)[
                     'close'][-1]
-                if current_holdings[symbol]["quantity"] > 0 and latest_close_price < current_holdings[symbol]["last_trade_price"]:
+                if current_holdings[symbol]["quantity"] > 0 and latest_close_price * 0.95 < current_holdings[symbol]["last_trade_price"]:
                     self.events.put(SignalEvent(
                         symbol, current_holdings['datetime'], OrderPosition.EXIT_LONG, latest_close_price))
-                elif current_holdings[symbol]["quantity"] < 0 and latest_close_price > current_holdings[symbol]["last_trade_price"]:
+                elif current_holdings[symbol]["quantity"] < 0 and latest_close_price * 0.95 > current_holdings[symbol]["last_trade_price"]:
                     self.events.put(SignalEvent(
                         symbol, current_holdings['datetime'], OrderPosition.EXIT_SHORT, latest_close_price))
+
+
+class SellLongLosersYearly(SellLongLosers, Rebalance):
+    def need_rebalance(self, current_holdings):
+        return current_holdings['datetime'].dayofyear < 3
+
+
+class SellLongLosersQuarterly(SellLongLosers, Rebalance):
+    def need_rebalance(self, current_holdings):
+        # every quarter
+        return current_holdings['datetime'].is_quarter_start
