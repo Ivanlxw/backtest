@@ -76,7 +76,7 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_
 
                     elif event.type == 'ORDER':
                         if broker.execute_order(event):
-                            logging.info(event.print_order())
+                            logging.info(event.order_details())
 
                     elif event.type == 'FILL':
                         port.update_fill(event)
@@ -131,7 +131,7 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
 
                     elif event.type == 'ORDER':
                         if broker.execute_order(event):
-                            logging.info(event.print_order())
+                            logging.info(event.order_details())
 
                     elif event.type == 'FILL':
                         port.update_fill(event)

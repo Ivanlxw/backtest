@@ -1,4 +1,7 @@
 from abc import ABCMeta, abstractmethod
+from math import fabs
+from typing import List, Optional
+import pandas as pd
 from trading.data.dataHandler import DataHandler
 
 from trading.event import OrderEvent, SignalEvent
@@ -6,13 +9,13 @@ from trading.utilities.enum import OrderPosition, OrderType
 
 
 class PortfolioStrategy(metaclass=ABCMeta):
-    def __init__(self, bar: DataHandler, current_positions, order_type: OrderType) -> None:
-        self.bar = bar
+    def __init__(self, bars: DataHandler, current_positions, order_type: OrderType) -> None:
+        self.bars = bars
         self.current_holdings = current_positions
         self.order_type = order_type
 
     @abstractmethod
-    def _filter_order_to_send(self, signal: SignalEvent) -> OrderEvent:
+    def _filter_order_to_send(self, signal: SignalEvent) -> List[OrderEvent]:
         """
         Updates portfolio based on rebalancing criteria
         """
@@ -21,98 +24,163 @@ class PortfolioStrategy(metaclass=ABCMeta):
 
 
 class DefaultOrder(PortfolioStrategy):
-    def _filter_order_to_send(self, signal: SignalEvent) -> OrderEvent:
+    def _filter_order_to_send(self, signal: SignalEvent) -> List[OrderEvent]:
         """
-        takes a signal to long or short an asset and then sends an order 
+        takes a signal to long or short an asset and then sends an order
         of signal.quantity=signal.quantity of such an asset
         """
-        assert signal.quantity is not None
+        assert signal.quantity > 0
         order = None
         symbol = signal.symbol
         direction = signal.signal_type
-        latest_snapshot = self.bar.get_latest_bars(signal.symbol)
+        latest_snapshot = self.bars.get_latest_bars(signal.symbol)
 
         cur_quantity = self.current_holdings[symbol]["quantity"]
 
         if direction == OrderPosition.EXIT_LONG:
             if cur_quantity > 0:
                 order = OrderEvent(
-                    symbol, latest_snapshot['datetime'][-1], cur_quantity, OrderPosition.SELL, signal.price)
+                    symbol, latest_snapshot['datetime'][-1], cur_quantity, OrderPosition.SELL, self.order_type, signal.price)
         elif direction == OrderPosition.EXIT_SHORT:
             if cur_quantity < 0:
                 order = OrderEvent(
-                    symbol, latest_snapshot['datetime'][-1], -cur_quantity, OrderPosition.BUY, signal.price)
+                    symbol, latest_snapshot['datetime'][-1], -cur_quantity, OrderPosition.BUY, self.order_type, signal.price)
         elif direction == OrderPosition.BUY and cur_quantity <= 0:
             order = OrderEvent(
-                symbol, latest_snapshot['datetime'][-1], signal.quantity-cur_quantity, direction, signal.price)
+                symbol, latest_snapshot['datetime'][-1], signal.quantity-cur_quantity, direction, self.order_type, signal.price)
         elif direction == OrderPosition.SELL and cur_quantity >= 0:
             order = OrderEvent(
-                symbol, latest_snapshot['datetime'][-1], signal.quantity+cur_quantity, direction, signal.price)
+                symbol, latest_snapshot['datetime'][-1], signal.quantity+cur_quantity, direction, self.order_type, signal.price)
         if order is not None:
             order.signal_price = signal.price
-        return order
+        return [order]
 
 
 class ProgressiveOrder(PortfolioStrategy):
-    def _filter_order_to_send(self, signal: SignalEvent) -> OrderEvent:
+    def _filter_order_to_send(self, signal: SignalEvent) -> List[OrderEvent]:
         """
-        takes a signal to long or short an asset and then sends an order 
+        takes a signal to long or short an asset and then sends an order
         of signal.quantity=signal.quantity of such an asset
         """
-        assert signal.quantity is not None
+        assert signal.quantity > 0
         order = None
         symbol = signal.symbol
         direction = signal.signal_type
-        latest_snapshot = self.bar.get_latest_bars(signal.symbol)
+        latest_snapshot = self.bars.get_latest_bars(signal.symbol)
 
         cur_quantity = self.current_holdings[symbol]["quantity"]
 
         if direction == OrderPosition.EXIT_LONG:
             if cur_quantity > 0:
                 order = OrderEvent(
-                    symbol, latest_snapshot['datetime'][-1], cur_quantity, OrderPosition.SELL, signal.price)
+                    symbol, latest_snapshot['datetime'][-1], cur_quantity, OrderPosition.SELL, self.order_type, signal.price)
         elif direction == OrderPosition.EXIT_SHORT:
             if cur_quantity < 0:
                 order = OrderEvent(
-                    symbol, latest_snapshot['datetime'][-1], -cur_quantity, OrderPosition.BUY, signal.price)
+                    symbol, latest_snapshot['datetime'][-1], -cur_quantity, OrderPosition.BUY, self.order_type, signal.price)
         elif direction == OrderPosition.BUY:
             if cur_quantity < 0:
                 order = OrderEvent(
-                    symbol, latest_snapshot['datetime'][-1], signal.quantity-cur_quantity, direction, signal.price)
+                    symbol, latest_snapshot['datetime'][-1], signal.quantity-cur_quantity, direction, self.order_type, signal.price)
             else:
                 order = OrderEvent(
-                    symbol, latest_snapshot['datetime'][-1], signal.quantity, direction, signal.price)
+                    symbol, latest_snapshot['datetime'][-1], signal.quantity, direction, self.order_type, signal.price)
         elif direction == OrderPosition.SELL:
             if cur_quantity > 0:
                 order = OrderEvent(
-                    symbol, latest_snapshot['datetime'][-1], signal.quantity+cur_quantity, direction, signal.price)
+                    symbol, latest_snapshot['datetime'][-1], signal.quantity+cur_quantity, direction, self.order_type, signal.price)
             else:
                 order = OrderEvent(
-                    symbol, latest_snapshot['datetime'][-1], signal.quantity, direction, signal.price)
+                    symbol, latest_snapshot['datetime'][-1], signal.quantity, direction, self.order_type, signal.price)
         if order is not None:
             order.signal_price = signal.price
-        return order
+        return [order]
 
 
 class LongOnly(PortfolioStrategy):
-    def _filter_order_to_send(self, signal: SignalEvent):
+    def _filter_order_to_send(self, signal: SignalEvent) -> List[OrderEvent]:
         """
-        takes a signal, short=exit 
+        takes a signal, short=exit
         and then sends an order of signal.quantity=signal.quantity of such an asset
         """
-        assert signal.quantity is not None
+        assert signal.quantity > 0
         order = None
         symbol = signal.symbol
         direction = signal.signal_type
-        latest_snapshot = self.bar.get_latest_bars(signal.symbol)
+        latest_snapshot = self.bars.get_latest_bars(signal.symbol)
 
-        if direction == OrderPosition.BUY:
+        if direction == OrderPosition.BUY or direction == OrderPosition.EXIT_SHORT:
             order = OrderEvent(symbol, latest_snapshot['datetime'][-1], signal.quantity,
-                               direction, signal.price)
+                               OrderPosition.BUY, self.order_type, signal.price)
         elif (direction == OrderPosition.SELL or direction == OrderPosition.EXIT_LONG) \
                 and self.current_holdings[symbol]["quantity"] > 0:
             order = OrderEvent(symbol, latest_snapshot['datetime'][-1],
                                self.current_holdings[symbol]["quantity"], OrderPosition.SELL, signal.price)
         if order is not None:
             order.signal_price = signal.price
-        return order
+        return [order]
+
+# TODO: Needs work
+
+
+class SellLowestPerforming(PortfolioStrategy):
+    def _days_hold(self, today: pd.Timestamp, last_traded_date: pd.Timestamp):
+        if last_traded_date is None:
+            return
+        return pd.Timedelta(today-last_traded_date).days
+
+    def signal_least_performing(self):
+        min = ("", 10000)
+        for sym in self.bars.symbol_list:
+            latest_snapshot = self.bars.get_latest_bars(sym)
+            last_traded_price = self.current_holdings[sym]["last_trade_price"]
+            if last_traded_price is None or self.current_holdings[sym]["quantity"] <= 0:
+                continue
+            # last_traded_date = self.current_holdings[sym]["last_trade_date"]
+            # print(self._days_hold(
+            #     latest_snapshot["datetime"][-1], last_traded_date))
+            perc_change = (latest_snapshot["close"][-1] - last_traded_price) / \
+                last_traded_price
+            if perc_change < min[1]:
+                min = (sym, perc_change)
+        return min[0]
+
+    def _filter_order_to_send(self, signal: SignalEvent) -> List[Optional[OrderEvent]]:
+        assert signal.quantity > 0
+        latest_snapshot = self.bars.get_latest_bars(
+            signal.symbol)
+        market_value = latest_snapshot["close"][-1] * signal.quantity * \
+            (-1 if signal.signal_type == OrderPosition.SELL else 1)
+        if signal.signal_type == OrderPosition.BUY:
+            if market_value < self.current_holdings["cash"]:
+                return [OrderEvent(signal.symbol, latest_snapshot['datetime'][-1],
+                                   signal.quantity, signal.signal_type, self.order_type, price=signal.price)]
+            sym = self.signal_least_performing()
+            if sym != "":
+                # print(sym, f"current order: {signal.signal_type}")
+                return [
+                    OrderEvent(signal.symbol, latest_snapshot['datetime'][-1],
+                               signal.quantity, direction=OrderPosition.BUY, order_type=self.order_type, price=signal.price),
+                    OrderEvent(sym, latest_snapshot['datetime'][-1],
+                               fabs(self.current_holdings[sym]["quantity"]), direction=OrderPosition.SELL, order_type=OrderType.MARKET, price=signal.price)
+                ]
+        elif signal.signal_type == OrderPosition.EXIT_SHORT:
+            if self.current_holdings[signal.symbol]["quantity"] < 0:
+                if market_value < self.current_holdings["cash"]:
+                    return [OrderEvent(signal.symbol, latest_snapshot['datetime'][-1],
+                                       fabs(self.current_holdings[signal.symbol]["quantity"]), OrderPosition.BUY, self.order_type, price=signal.price)]
+                sym = self.signal_least_performing()
+                if sym != "":
+                    return [
+                        OrderEvent(signal.symbol, latest_snapshot['datetime'][-1],
+                                   fabs(self.current_holdings[signal.symbol]["quantity"]), OrderPosition.BUY, self.order_type, price=signal.price),
+                        OrderEvent(sym, latest_snapshot['datetime'][-1],
+                                   fabs(self.current_holdings[sym]["quantity"]), OrderPosition.SELL, OrderType.MARKET, price=signal.price)
+                    ]
+        elif signal.signal_type == OrderPosition.EXIT_LONG:
+            if self.current_holdings[signal.symbol]["quantity"] > 0:
+                return [OrderEvent(signal.symbol, latest_snapshot['datetime'][-1],
+                                   fabs(self.current_holdings[signal.symbol]["quantity"]), OrderPosition.SELL, self.order_type, price=signal.price)]
+        else:  # OrderPosition.SELL
+            return [OrderEvent(signal.symbol, latest_snapshot['datetime'][-1],
+                               signal.quantity, signal.signal_type, self.order_type, price=signal.price)]

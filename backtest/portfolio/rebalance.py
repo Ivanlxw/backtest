@@ -5,9 +5,10 @@ from trading.event import SignalEvent
 
 
 class Rebalance(metaclass=ABCMeta):
-    def __init__(self, events, bars: DataHandler) -> None:
+    def __init__(self, events, bars: DataHandler, current_positions) -> None:
         self.events = events
         self.bars = bars
+        self.current_positions = current_positions
 
     @abstractmethod
     def need_rebalance(self, current_holdings):
@@ -38,9 +39,6 @@ class NoRebalance():
 class BaseRebalance(Rebalance):
     ''' EXIT for all positions every year '''
 
-    def __init__(self, events, bars) -> None:
-        super().__init__(events, bars)
-
     def need_rebalance(self, current_holdings):
         return current_holdings['datetime'].dayofyear < 4
 
@@ -49,16 +47,16 @@ class BaseRebalance(Rebalance):
             for symbol in stock_list:
                 latest_close_price = self.bars.get_latest_bars(symbol)[
                     'close'][-1]
-                # only 1 will go through if there is position
-                self.events.put(SignalEvent(
-                    symbol, current_holdings['datetime'], OrderPosition.EXIT_LONG, latest_close_price))
-                self.events.put(SignalEvent(
-                    symbol, current_holdings['datetime'], OrderPosition.EXIT_SHORT, latest_close_price))
+                if self.current_positions[symbol]['quantity'] > 0:
+                    self.events.put(SignalEvent(
+                        symbol, current_holdings['datetime'], OrderPosition.EXIT_LONG, latest_close_price))
+                elif self.current_positions[symbol]['quantity'] < 0:
+                    self.events.put(SignalEvent(
+                        symbol, current_holdings['datetime'], OrderPosition.EXIT_SHORT, latest_close_price))
 
 
 class SellLongLosers(Rebalance):
-    def __init__(self, events, bars) -> None:
-        super().__init__(events, bars)
+    ''' Sell losers on LONG positions'''
 
     def need_rebalance(self, current_holdings):
         # every quarter

@@ -1,5 +1,7 @@
 # portfolio.py
 
+from math import fabs
+from typing import List
 from backtest.portfolio.strategy import DefaultOrder
 from trading.utilities.enum import OrderPosition, OrderType
 import numpy as np
@@ -22,7 +24,7 @@ class Portfolio(object):
     @abstractmethod
     def update_fill(self, event):
         """
-        Updates portfolio current positions and holdings 
+        Updates portfolio current positions and holdings
         from FillEvent
         """
         raise NotImplementedError("Should implement update_fill()")
@@ -32,7 +34,7 @@ class NaivePortfolio(Portfolio):
     def __init__(self, bars, events, order_queue, stock_size, portfolio_name,
                  initial_capital=100000.0, order_type=OrderType.LIMIT, portfolio_strategy=DefaultOrder,
                  rebalance=None, expires: int = 1, ):
-        """ 
+        """
         Parameters:
         bars - The DataHandler object with current market data.
         events - The Event Queue object.
@@ -55,9 +57,9 @@ class NaivePortfolio(Portfolio):
         self.all_holdings = self.construct_all_holdings()
         self.order_type = order_type
         self.portfolio_strategy = portfolio_strategy(
-            self.bars, self.current_holdings, self.order_type)
+            self.bars, self.current_holdings, order_type)
         self.rebalance = rebalance(
-            self.events, self.bars) if rebalance is not None else NoRebalance()
+            self.events, self.bars, self.current_holdings) if rebalance is not None else NoRebalance()
 
     def construct_all_holdings(self,):
         """
@@ -65,7 +67,7 @@ class NaivePortfolio(Portfolio):
         to determine when the time index will begin.
         self. all_holdings = list({
             symbols: market_value,
-            datetime, 
+            datetime,
             cash,
             daily_commission,
             total_asset,
@@ -81,7 +83,7 @@ class NaivePortfolio(Portfolio):
     def construct_current_holdings(self, ):
         d = dict((s, {
             'quantity': 0.0,
-            'last_traded': None,
+            'last_trade_date': None,
             'last_trade_price': None
         }) for s in self.symbol_list)
         d['cash'] = self.initial_capital
@@ -117,42 +119,42 @@ class NaivePortfolio(Portfolio):
         self.rebalance.rebalance(self.symbol_list, self.current_holdings)
 
     def update_holdings_from_fill(self, fill: FillEvent):
-        fill_dir = 0
-        if fill.order_event.direction == OrderPosition.BUY:
-            fill_dir = 1
-        elif fill.order_event.direction == OrderPosition.SELL:
-            fill_dir = -1
+        fill_dir = 1 if fill.order_event.direction == OrderPosition.BUY else -1
 
         cash = fill_dir * fill.order_event.trade_price * fill.order_event.quantity
-        self.current_holdings[fill.order_event.symbol]['last_traded'] = fill.order_event.date
+        self.current_holdings[fill.order_event.symbol]['last_trade_date'] = fill.order_event.date
         self.current_holdings[fill.order_event.symbol]["quantity"] += fill_dir * \
             fill.order_event.quantity
         # latest trade price. Might need to change to avg trade price
         self.current_holdings[fill.order_event.symbol]['last_trade_price'] = fill.order_event.trade_price
         self.current_holdings['commission'] += fill.commission
         self.current_holdings['cash'] -= (cash + fill.commission)
+        assert self.current_holdings["cash"] > 0
+        for sym in self.symbol_list:
+            if self.current_holdings[sym]["quantity"] < 0:
+                print(sym, "< 0 :\t", self.current_holdings)
+                raise Exception("Qty shouldn't be < 0")
 
     def update_fill(self, event):
         if event.type == "FILL":
             self.update_holdings_from_fill(event)
 
-    def generate_order(self, signal: SignalEvent) -> OrderEvent:
+    def generate_order(self, signal: SignalEvent) -> List[OrderEvent]:
         signal.quantity = self.qty
         return self.portfolio_strategy._filter_order_to_send(signal)
 
-    def _put_to_event(self, order):
-        if order is not None:
-            order.order_type = self.order_type
-            if order.order_type == OrderType.LIMIT:
-                order.expires = order.date + timedelta(days=self.expires)
-                self.order_queue.put(order)
-            elif order.order_type == OrderType.MARKET:
+    def _put_to_event(self, order_list):
+        for order in order_list:
+            if order is not None:
+                if self.order_type == OrderType.LIMIT:
+                    order.expires = order.date + timedelta(days=self.expires)
                 self.events.put(order)
 
     def update_signal(self, event):
         if event.type == 'SIGNAL':
-            order = self.generate_order(event)
-            self._put_to_event(order)
+            order_list = self.generate_order(event)  # list of OrderEvent
+            if order_list is not None:
+                self._put_to_event(order_list)
 
     def create_equity_curve_df(self):
         curve = pd.DataFrame(self.all_holdings)
@@ -201,11 +203,13 @@ class PercentagePortFolio(NaivePortfolio):
         else:
             self.perc = percentage
 
-    def generate_order(self, signal: SignalEvent) -> OrderEvent:
+    def generate_order(self, signal: SignalEvent) -> List[OrderEvent]:
         latest_snapshot = self.bars.get_latest_bars(signal.symbol)
         if 'close' not in latest_snapshot or latest_snapshot['close'][-1] == 0.0:
             return
         size = int(self.current_holdings["cash"] * self.perc / latest_snapshot['close'][-1]) if self.mode == 'cash' \
-            else int(self.all_holdings[-1]["total"] * self.perc / latest_snapshot['close'][-1])
+            else int(fabs(self.all_holdings[-1]["total"]) * self.perc / latest_snapshot['close'][-1])
+        if size == 0:
+            return
         signal.quantity = size
         return self.portfolio_strategy._filter_order_to_send(signal)

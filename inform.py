@@ -5,7 +5,8 @@ import queue
 import time
 import random
 from trading.utilities.enum import OrderPosition
-from trading.strategy.naive import OneSidedOrderOnly, Strategy
+from trading.strategy.naive import Strategy
+from trading.strategy.basic import OneSidedOrderOnly
 from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
 
 import talib
@@ -45,8 +46,8 @@ if not args.live:
         os.path.dirname(__file__)) + "/data/data/daily")
     bars = HistoricCSVDataHandler(event_queue,
                                   csv_dir,
-                                  list(set(random.sample(symbol_list, 50))) +
-                                  ["DUK", "AON", "C", "UAL", "AMZN", "COG"],
+                                  list(set(random.sample(symbol_list, 75) +
+                                           ["DUK", "AON", "C", "UAL", "AMZN", "COG"])),
                                   start_date=start_date, fundamental=False,
                                   end_date=end_date
                                   )
@@ -54,23 +55,25 @@ else:
     bars = TDAData(event_queue, symbol_list, start_date, live=True)
 
 filter = MultipleAllStrategy([
-    ExtremaBounce(bars, event_queue, 7, 100, percentile=25),
-    # RelativeExtrema(bars, event_queue,
-    #     long_time=50,
-    #     percentile=10, strat_contrarian=True),
-    # LongTermCorrTrend(bars, event_queue, 150, corr=0.4, strat_contrarian=False),
+    RelativeExtrema(bars, event_queue,
+                    long_time=70,
+                    percentile=5, strat_contrarian=True),
+    # LongTermCorrTrend(bars, event_queue, 150, corr=0.4,
+    #                   strat_contrarian=False),
     BoundedTA(bars, event_queue, 7, 20, floor=30, ceiling=70,
               ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs),
     BoundedTA(bars, event_queue, 7, 20, floor=-100, ceiling=100,
               ta_indicator=talib.CCI, ta_indicator_type=TAIndicatorType.ThreeArgs),
+    OneSidedOrderOnly(bars, event_queue, OrderPosition.BUY)
 ])
 
 # filter = MultipleAllStrategy([
-#     ExtremaBounce(bars, event_queue, 10, 80, percentile=20),
-#     LongTermCorrTrend(bars, event_queue, 200, corr=0.2,
+#     ExtremaBounce(bars, event_queue, 10, 100, percentile=20),
+#     LongTermCorrTrend(bars, event_queue, 100, corr=0.4,
 #                       strat_contrarian=False),
 #     OneSidedOrderOnly(bars, event_queue, OrderPosition.BUY)
 # ])
+
 
 signals = queue.Queue()
 start = time.time()

@@ -12,7 +12,7 @@ from backtest.utilities.utils import generate_start_date, parse_args, remove_bs,
 from backtest.broker import SimulatedBroker
 from backtest.portfolio.rebalance import BaseRebalance, SellLongLosers
 from backtest.portfolio.portfolio import PercentagePortFolio
-from backtest.portfolio.strategy import DefaultOrder, LongOnly, ProgressiveOrder
+from backtest.portfolio.strategy import DefaultOrder, LongOnly, ProgressiveOrder, SellLowestPerforming
 from backtest.utilities.backtest import backtest
 from backtest.strategy.fundamental import FundamentalFScoreStrategy
 from trading.data.dataHandler import HistoricCSVDataHandler
@@ -45,7 +45,7 @@ csv_dir = os.path.abspath(
 symbol_list = list(set(
     random.sample([
         fn.replace('.csv', '') for fn in os.listdir(csv_dir)
-    ], 75) + ["DUK", "AON", "C", "UAL", "AMZN", "COG"]))
+    ], 100) + ["DUK", "AON", "C", "UAL", "AMZN", "COG"]))
 bars = HistoricCSVDataHandler(event_queue,
                               csv_dir,
                               symbol_list,
@@ -53,35 +53,51 @@ bars = HistoricCSVDataHandler(event_queue,
                               end_date=end_date
                               )
 
+
 strategy = MultipleAllStrategy([
-    RelativeExtrema(bars, event_queue,
-                    long_time=100,
-                    percentile=10, strat_contrarian=True),
+    ExtremaBounce(bars, event_queue, 10, 100, percentile=20),
     LongTermCorrTrend(bars, event_queue, 100, corr=0.4,
                       strat_contrarian=False),
-    BoundedTA(bars, event_queue, 7, 20, floor=30, ceiling=70,
-              ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs),
+    OneSidedOrderOnly(bars, event_queue, OrderPosition.BUY)
 ])
 
+# strategy = MultipleAllStrategy([
+#     # ExtremaBounce(bars, event_queue, 7, 100, percentile=25),
+#     RelativeExtrema(bars, event_queue,
+#                     long_time=70,
+#                     percentile=5, strat_contrarian=True),
+#     # LongTermCorrTrend(bars, event_queue, 150, corr=0.4,
+#     #                   strat_contrarian=False),
+#     BoundedTA(bars, event_queue, 7, 20, floor=30, ceiling=70,
+#               ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs),
+#     BoundedTA(bars, event_queue, 7, 20, floor=-100, ceiling=100,
+#               ta_indicator=talib.CCI, ta_indicator_type=TAIndicatorType.ThreeArgs),
+#     OneSidedOrderOnly(bars, event_queue, OrderPosition.BUY)
+# ])
 
 strategy = MultipleAllStrategy([
-    ExtremaBounce(bars, event_queue, 10, 80, percentile=20),
-    # LongTermCorrTrend(bars, event_queue, 200, corr=0.2,
+    RelativeExtrema(bars, event_queue,
+                    long_time=70,
+                    percentile=5, strat_contrarian=True),
+    # LongTermCorrTrend(bars, event_queue, 150, corr=0.4,
     #                   strat_contrarian=False),
-    BoundedPercChange(bars, event_queue, 0.05, strat_contrarian=False),
+    BoundedTA(bars, event_queue, 7, 20, floor=30, ceiling=70,
+              ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs),
+    BoundedTA(bars, event_queue, 7, 20, floor=-100, ceiling=100,
+              ta_indicator=talib.CCI, ta_indicator_type=TAIndicatorType.ThreeArgs),
     OneSidedOrderOnly(bars, event_queue, OrderPosition.BUY)
 ])
 
 if args.fundamental:
     strategy = FundamentalFScoreStrategy(bars, event_queue)
 port = PercentagePortFolio(bars, event_queue, order_queue,
-                           percentage=0.10,
+                           percentage=0.05,
                            portfolio_name=(
                                args.name if args.name != "" else "loop"),
                            mode='asset',
                            expires=7,
                            rebalance=BaseRebalance,
-                           portfolio_strategy=LongOnly
+                           portfolio_strategy=SellLowestPerforming
                            )
 broker = SimulatedBroker(bars, port, event_queue, order_queue)
 

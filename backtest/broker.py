@@ -62,7 +62,7 @@ class SimulatedBroker(Broker):
     def calculate_commission(self, quantity=None, fill_cost=None) -> float:
         return 0.0
 
-    def _enough_credits(self, order, latest_snapshot) -> bool:
+    def _enough_credits(self, order: OrderEvent, latest_snapshot) -> bool:
         if order is None:
             return False
         mkt_price = latest_snapshot["close"][-1]
@@ -78,7 +78,7 @@ class SimulatedBroker(Broker):
         return False
 
     def _filter_execute_order(self, order_event: OrderEvent) -> bool:
-        latest_snapshot = self.bars.get_latest_bars(order_event.symbol, 1)
+        latest_snapshot = self.bars.get_latest_bars(order_event.symbol)
         if self._enough_credits(order_event, latest_snapshot):
             if order_event.order_type == OrderType.LIMIT:
                 """                
@@ -425,7 +425,7 @@ class TDABroker(Broker):
             self.events.put(fill_event)
             return True
         print(
-            f"Place Order Unsuccessful: {event.print_order()}\n{res.status_code}\n{res.json()}")
+            f"Place Order Unsuccessful: {event.order_details()}\n{res.status_code}\n{res.json()}")
         print(res.text)
         return False
 
