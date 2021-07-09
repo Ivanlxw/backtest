@@ -111,11 +111,11 @@ class LongOnly(PortfolioStrategy):
 
         if direction == OrderPosition.BUY or direction == OrderPosition.EXIT_SHORT:
             order = OrderEvent(symbol, latest_snapshot['datetime'][-1], signal.quantity,
-                               OrderPosition.BUY, self.order_type, signal.price)
+                               OrderPosition.BUY, self.order_type, price=signal.price)
         elif (direction == OrderPosition.SELL or direction == OrderPosition.EXIT_LONG) \
                 and self.current_holdings[symbol]["quantity"] > 0:
             order = OrderEvent(symbol, latest_snapshot['datetime'][-1],
-                               self.current_holdings[symbol]["quantity"], OrderPosition.SELL, signal.price)
+                               self.current_holdings[symbol]["quantity"], OrderPosition.SELL, self.order_type, signal.price)
         if order is not None:
             order.signal_price = signal.price
         return [order]
