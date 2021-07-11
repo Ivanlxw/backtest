@@ -43,11 +43,8 @@ def plot_benchmark(symbol_list, portfolio_name, benchmark_bars=None, freq="daily
     elif benchmark_bars is None and start_date is not None:
         # create new benchmark_bars with index only
         benchmark_bars = HistoricCSVDataHandler(event_queue,
-                                                csv_dir=os.path.join(os.path.dirname(
-                                                    __file__), "../../data/data/daily"),
                                                 symbol_list=symbol_list,
                                                 start_date=start_date,
-                                                fundamental=False
                                                 )
     benchmark_bars.events = event_queue
     # Declare the components with relsspective parameters
