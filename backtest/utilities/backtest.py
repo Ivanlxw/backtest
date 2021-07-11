@@ -26,7 +26,7 @@ def backtest(symbol_list,
     else:
         _backtest_loop(bars, event_queue, order_queue, strategy, port, broker)
         benchmark_strat_bars = copy.copy(bars)
-        plot_benchmark(symbol_list=symbol_list,
+        plot_benchmark(symbol_list=bars.symbol_list,
                        portfolio_name="benchmark_strat", benchmark_bars=benchmark_strat_bars)
         plot_benchmark(symbol_list=[benchmark_ticker],
                        portfolio_name="benchmark_index", benchmark_bars=None, start_date=start_date)
