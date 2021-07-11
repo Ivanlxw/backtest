@@ -13,6 +13,22 @@ with open(f"{os.path.dirname(__file__)}/snp500.txt", "r") as fin:
 snp500 = list(map(remove_bs, stock_list))
 
 
+def get_all_tradable_symbols():
+    url = f"https://financialmodelingprep.com/api/v3/available-traded/list?apikey={os.environ["FMP_API"]}"
+    resp = requests.get(url)
+    if resp.ok:
+        list_symbols = list(map(lambda x: x["symbol"], resp.json()))
+        return list_symbols
+
+
+def get_tradable_symbols_exchange(exchange):
+    url = f"https://financialmodelingprep.com/api/v3/stock-screener?exchange={exchange}&apikey={os.environ["FMP_API"]}"
+    resp = requests.get(url)
+    if resp.ok:
+        list_symbols = list(map(lambda x: x["symbol"], resp.json()))
+        return list_symbols
+
+
 def parseFmpScreenerRes(res_json: list):
     final_stocks = []
     for ticker in res_json:
