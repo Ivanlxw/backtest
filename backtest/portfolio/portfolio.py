@@ -130,10 +130,6 @@ class NaivePortfolio(Portfolio):
         self.current_holdings['commission'] += fill.commission
         self.current_holdings['cash'] -= (cash + fill.commission)
         assert self.current_holdings["cash"] > 0
-        for sym in self.symbol_list:
-            if self.current_holdings[sym]["quantity"] < 0:
-                print(sym, "< 0 :\t", self.current_holdings)
-                raise Exception("Qty shouldn't be < 0")
 
     def update_fill(self, event):
         if event.type == "FILL":
