@@ -1,4 +1,7 @@
 from abc import ABCMeta, abstractmethod
+
+from ibapi.utils import current_fn_name
+from trading.data.dataHandler import FMPData
 import numpy as np
 
 from trading.utilities.enum import OrderPosition
@@ -10,52 +13,34 @@ class FundamentalStrategy(Strategy):
     __metaclass__ = ABCMeta
 
     def __init__(self, bars, events) -> None:
-        super().__init__()
         self.bars = bars
         self.events = events
 
     @abstractmethod
-    def calculate_signals(self, event):
+    def _calculate_signal(self, sym) -> SignalEvent:
         raise NotImplementedError(
-            "Please use a subclass of FundamentalStrategy")
+            "Use a subclass of FundamentalStrategy that implements _calculate_signal")
 
 
-class FundamentalFScoreStrategy(FundamentalStrategy):
-    def __init__(self, bars, events) -> None:
+class LowDCF(FundamentalStrategy):
+    def __init__(self, bars: FMPData, events) -> None:
         super().__init__(bars, events)
-        self.scores = {sym: [] for sym in self.bars.symbol_list}
-        assert self.bars.fundamental_data is not None
-
-    def _get_quarter_and_year(self, bars_list):
-        date = bars_list[1]
-        return (date.year, int((date.month - 1)/3) + 1)
-
-    def _calc_score(self, bars_list: list):
-        year, qtr = self._get_quarter_and_year(bars_list[-1])
-        fundamental_data = list(filter(
-            lambda x: x['year'] == year and
-            x['quarter'] == qtr,
-            self.bars.fundamental_data[bars_list[-1][0]]
-        ))
-        if len(fundamental_data) > 0:
-            close_price = bars_list[-1][5]
-            ma = np.average(np.array(bars_list)[:, 5])
-            metrics = dict((x['dataCode'], x['value'])
-                           for x in fundamental_data[0]['statementData']['overview'])
-            return metrics['piotroskiFScore'] + (ma-close_price)/ma
+        self.bars.get_historical_fundamentals()
 
     def _calculate_signal(self, sym) -> SignalEvent:
-        bars = self.bars.get_latest_bars(sym, 30)
-        if len(bars['close']) < 30:
+        # get most "recent" fundamental data
+        curr_date = self.bars.latest_symbol_data[sym][0]["datetime"]
+        idx_date = list(filter(lambda x: (curr_date.year == x.year and curr_date.quarter ==
+                                          x.quarter+1) or (x.quarter == 1 and curr_date.year == x.year + 1 and x.quarter == 4), self.bars.fundamental_data[sym].index))
+        if not idx_date:
             return
-        score = self._calc_score(bars['close'])
-        if not score:
-            return
-        self.scores[sym].append(score)
+        dcf_val = self.bars.fundamental_data[sym].loc[idx_date[-1], "dcf"]
 
-        if len(self.scores[sym]) < 30:
-            return
-        if score > np.percentile(self.scores[sym][-min(50, len(self.scores)):], 95):
-            return SignalEvent(bars[-1], bars['datetime'][-1], OrderPosition.BUY,  bars[-1])
-        elif score < np.percentile(self.scores[sym][-min(50, len(self.scores)):], 5):
-            return SignalEvent(bars[-1], bars['datetime'][-1], OrderPosition.SELL, bars[-1])
+        # curr price
+        latest = self.bars.get_latest_bars(sym)
+        dcf_ratio = latest["close"][-1]/dcf_val
+        if dcf_ratio < 1.2:
+            # buy
+            return SignalEvent(sym, latest["datetime"][-1], OrderPosition.BUY, latest["close"][-1], f"dcf_ratio: {dcf_ratio}")
+        elif dcf_ratio > 3:
+            return SignalEvent(sym, latest["datetime"][-1], OrderPosition.SELL, latest["close"][-1], f"dcf_ratio: {dcf_ratio}")

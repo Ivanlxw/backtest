@@ -300,7 +300,7 @@ class TDABroker(Broker):
     def _signin_code(self):
         import selenium
         from selenium import webdriver
-        from trading.utilities.utils import load_credentials, parse_args
+        from backtest.utilities.utils import load_credentials, parse_args
 
         args = parse_args()
         load_credentials(args.credentials)
