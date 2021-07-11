@@ -18,8 +18,6 @@ def parse_args():
                         type=str, help="credentials filepath")
     parser.add_argument('-n', '--name', required=False, default="",
                         type=str, help="name of backtest/live strat run")
-    parser.add_argument('-f', '--fundamental', required=False,
-                        type=bool, default=False, help="Use fundamental data or not")
     parser.add_argument('-l', '--live', required=False, type=bool, default=False,
                         help='inform life?')
     return parser.parse_args()

@@ -1,3 +1,4 @@
+from backtest.strategy.fundamental import HighRevGain, LowDCF
 import json
 import logging
 import os
@@ -14,7 +15,7 @@ import pandas as pd
 
 from backtest.utilities.utils import parse_args
 from backtest.utilities.utils import generate_start_date
-from trading.data.dataHandler import HistoricCSVDataHandler, NY, TDAData
+from trading.data.dataHandler import FMPData, HistoricCSVDataHandler, NY, TDAData
 from Inform.filter import FundamentalFilter
 from Inform.telegram.inform import telegram_bot_sendtext
 from trading.strategy.statistics import ExtremaBounce, LongTermCorrTrend, RelativeExtrema
@@ -40,26 +41,24 @@ start_date = generate_start_date()
 while pd.Timestamp(start_date).dayofweek > 4:
     start_date = generate_start_date()
 print(start_date)
-end_date = "2020-01-30"
 if not args.live:
-    csv_dir = os.path.abspath(os.path.abspath(
-        os.path.dirname(__file__)) + "/data/data/daily")
+    end_date = "2020-01-30"
     bars = HistoricCSVDataHandler(event_queue,
-                                  csv_dir,
                                   list(set(random.sample(symbol_list, 75) +
                                            ["DUK", "AON", "C", "UAL", "AMZN", "COG"])),
-                                  start_date=start_date, fundamental=False,
+                                  start_date=start_date,
                                   end_date=end_date
                                   )
+
+    # bars = FMPData(event_queue, random.sample(symbol_list, 75), start_date,
+    #                frequency_type="daily")
 else:
     bars = TDAData(event_queue, symbol_list, start_date, live=True)
 
 filter = MultipleAllStrategy([
     RelativeExtrema(bars, event_queue,
-                    long_time=70,
+                    long_time=100,
                     percentile=5, strat_contrarian=True),
-    # LongTermCorrTrend(bars, event_queue, 150, corr=0.4,
-    #                   strat_contrarian=False),
     BoundedTA(bars, event_queue, 7, 20, floor=30, ceiling=70,
               ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs),
     BoundedTA(bars, event_queue, 7, 20, floor=-100, ceiling=100,
@@ -68,12 +67,24 @@ filter = MultipleAllStrategy([
 ])
 
 # filter = MultipleAllStrategy([
-#     ExtremaBounce(bars, event_queue, 10, 100, percentile=20),
-#     LongTermCorrTrend(bars, event_queue, 100, corr=0.4,
-#                       strat_contrarian=False),
+#     ExtremaBounce(bars, event_queue, 10, 100, percentile=15),
+#     MeanReversionTA(bars, event_queue, 20, talib.SMA, exit=False),
+#     ExtremaTA(bars, event_queue, talib.RSI, 14, TAIndicatorType.TwoArgs,
+#               7, strat_contrarian=False, consecutive=1),
 #     OneSidedOrderOnly(bars, event_queue, OrderPosition.BUY)
 # ])
 
+filter = MultipleAllStrategy([
+    OneSidedOrderOnly(bars, event_queue, OrderPosition.BUY),
+    # LowDCF(bars, event_queue, buy_ratio=1.25, sell_ratio=3.2),
+    HighRevGain(bars, event_queue, perc=5),
+    RelativeExtrema(bars, event_queue,
+                    long_time=100,
+                    percentile=5, strat_contrarian=True),
+    BoundedTA(bars, event_queue, 7, 20, floor=30, ceiling=70,
+              ta_indicator=talib.RSI, ta_indicator_type=TAIndicatorType.TwoArgs)
+    # ExtremaBounce(bars, event_queue, 7, 50, percentile=25),
+])
 
 signals = queue.Queue()
 start = time.time()

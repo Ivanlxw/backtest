@@ -12,9 +12,11 @@ from trading.strategy.naive import Strategy
 class FundamentalStrategy(Strategy):
     __metaclass__ = ABCMeta
 
-    def __init__(self, bars, events) -> None:
+    def __init__(self, bars: FMPData, events) -> None:
         self.bars = bars
         self.events = events
+        if self.bars.fundamental_data is None:
+            self.bars.get_historical_fundamentals()
 
     @abstractmethod
     def _calculate_signal(self, sym) -> SignalEvent:
@@ -23,9 +25,10 @@ class FundamentalStrategy(Strategy):
 
 
 class LowDCF(FundamentalStrategy):
-    def __init__(self, bars: FMPData, events) -> None:
+    def __init__(self, bars: FMPData, events, buy_ratio, sell_ratio) -> None:
         super().__init__(bars, events)
-        self.bars.get_historical_fundamentals()
+        self.buy_ratio = buy_ratio
+        self.sell_ratio = sell_ratio
 
     def _calculate_signal(self, sym) -> SignalEvent:
         # get most "recent" fundamental data
@@ -39,8 +42,34 @@ class LowDCF(FundamentalStrategy):
         # curr price
         latest = self.bars.get_latest_bars(sym)
         dcf_ratio = latest["close"][-1]/dcf_val
-        if dcf_ratio < 1.2:
+        if dcf_ratio < self.buy_ratio:
             # buy
             return SignalEvent(sym, latest["datetime"][-1], OrderPosition.BUY, latest["close"][-1], f"dcf_ratio: {dcf_ratio}")
-        elif dcf_ratio > 3:
+        elif dcf_ratio > self.sell_ratio:
             return SignalEvent(sym, latest["datetime"][-1], OrderPosition.SELL, latest["close"][-1], f"dcf_ratio: {dcf_ratio}")
+
+
+class HighRevGain(FundamentalStrategy):
+    def __init__(self, bars: FMPData, events, perc: int) -> None:
+        assert perc > 1 and perc < 100
+        super().__init__(bars, events)
+        self.perc = perc/100
+
+    def _calculate_signal(self, sym) -> SignalEvent:
+        # get most "recent" fundamental data
+        curr_date = self.bars.latest_symbol_data[sym][0]["datetime"]
+        idx_date = list(filter(lambda x: (curr_date.year == x.year and curr_date.quarter ==
+                                          x.quarter+1) or (x.quarter == 1 and curr_date.year == x.year + 1 and x.quarter == 4), self.bars.fundamental_data[sym].index))
+        if not idx_date:
+            return
+        rev_growth = self.bars.fundamental_data[sym].loc[idx_date[-1],
+                                                         "revenueGrowth"]
+        five_yr_rev_growth = self.bars.fundamental_data[sym].loc[idx_date[-1],
+                                                                 "fiveYRevenueGrowthPerShare"]
+
+        latest = self.bars.get_latest_bars(sym)
+        if rev_growth > self.perc:  # and five_yr_rev_growth > self.perc/2:
+            # buy
+            return SignalEvent(sym, latest["datetime"][-1], OrderPosition.BUY, latest["close"][-1], f"revenueGrowth:  {rev_growth}\nfiveYRevenueGrowthPerShare:  {five_yr_rev_growth}")
+        elif rev_growth < -self.perc:  # and five_yr_rev_growth < -self.perc/2:
+            return SignalEvent(sym, latest["datetime"][-1], OrderPosition.SELL, latest["close"][-1], f"revenueGrowth:  {rev_growth}\nfiveYRevenueGrowthPerShare:  {five_yr_rev_growth}")
