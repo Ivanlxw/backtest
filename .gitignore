@@ -8,9 +8,8 @@ data/*.json
 *profitable.py
 
 ## directories
-data/data/
+Data/data/
 backtest.egg-info/
-data/stock_tiingo_issues.txt
 .vscode/
 results/
 __pycache__/

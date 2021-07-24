@@ -32,10 +32,10 @@ for idx, symbol in enumerate(stock_list):
             logging.info("Using alphavantage")
             if idx % 5 == 0 and idx > 0:
                 time.sleep(65)
-            get_av_csv(symbol, csv_dir="./data/data/daily", full=True, key=KEY)
+            get_av_csv(symbol, csv_dir="./Data/data/daily", full=True, key=KEY)
         else:
             logging.info("Using tiingo")
             get_tiingo_eod(
-                symbol, f"data/data/daily/{symbol}.csv", full=True, key=KEY)
+                symbol, f"Data/data/daily/{symbol}.csv", full=True, key=KEY)
     except Exception as e:
         raise KeyError(f"Symbol: {symbol}, error: {e}")

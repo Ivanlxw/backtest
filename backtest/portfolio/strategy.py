@@ -10,6 +10,7 @@ from trading.utilities.enum import OrderPosition, OrderType
 
 class PortfolioStrategy(metaclass=ABCMeta):
     def __init__(self, bars: DataHandler, current_positions, order_type: OrderType) -> None:
+        """ bars should be subclass of DataHandler """
         self.bars = bars
         self.current_holdings = current_positions
         self.order_type = order_type
@@ -134,13 +135,12 @@ class SellLowestPerforming(PortfolioStrategy):
         for sym in self.bars.symbol_list:
             latest_snapshot = self.bars.get_latest_bars(sym)
             last_traded_price = self.current_holdings[sym]["last_trade_price"]
-            if last_traded_price is None or self.current_holdings[sym]["quantity"] <= 0:
+            if last_traded_price is None or self.current_holdings[sym]["quantity"] == 0:
                 continue
-            # last_traded_date = self.current_holdings[sym]["last_trade_date"]
-            # print(self._days_hold(
-            #     latest_snapshot["datetime"][-1], last_traded_date))
             perc_change = (latest_snapshot["close"][-1] - last_traded_price) / \
                 last_traded_price
+            if self.current_holdings[sym]["quantity"] < 0:
+                perc_change *= -1
             if perc_change < min[1]:
                 min = (sym, perc_change)
         return min[0]
@@ -157,12 +157,11 @@ class SellLowestPerforming(PortfolioStrategy):
                                    signal.quantity, signal.signal_type, self.order_type, price=signal.price)]
             sym = self.signal_least_performing()
             if sym != "":
-                # print(sym, f"current order: {signal.signal_type}")
                 return [
-                    OrderEvent(signal.symbol, latest_snapshot['datetime'][-1],
-                               signal.quantity, direction=OrderPosition.BUY, order_type=self.order_type, price=signal.price),
                     OrderEvent(sym, latest_snapshot['datetime'][-1],
-                               fabs(self.current_holdings[sym]["quantity"]), direction=OrderPosition.SELL, order_type=OrderType.MARKET, price=signal.price)
+                               fabs(self.current_holdings[sym]["quantity"]), direction=OrderPosition.SELL, order_type=OrderType.MARKET, price=signal.price),
+                    OrderEvent(signal.symbol, latest_snapshot['datetime'][-1],
+                               signal.quantity, direction=OrderPosition.BUY, order_type=self.order_type, price=signal.price)
                 ]
         elif signal.signal_type == OrderPosition.EXIT_SHORT:
             if self.current_holdings[signal.symbol]["quantity"] < 0:
@@ -172,10 +171,10 @@ class SellLowestPerforming(PortfolioStrategy):
                 sym = self.signal_least_performing()
                 if sym != "":
                     return [
+                        OrderEvent(sym, latest_snapshot['datetime'][-1],
+                                   fabs(self.current_holdings[sym]["quantity"]), OrderPosition.SELL, OrderType.MARKET, price=signal.price),
                         OrderEvent(signal.symbol, latest_snapshot['datetime'][-1],
                                    fabs(self.current_holdings[signal.symbol]["quantity"]), OrderPosition.BUY, self.order_type, price=signal.price),
-                        OrderEvent(sym, latest_snapshot['datetime'][-1],
-                                   fabs(self.current_holdings[sym]["quantity"]), OrderPosition.SELL, OrderType.MARKET, price=signal.price)
                     ]
         elif signal.signal_type == OrderPosition.EXIT_LONG:
             if self.current_holdings[signal.symbol]["quantity"] > 0:

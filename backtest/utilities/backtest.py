@@ -1,4 +1,4 @@
-from trading.data.dataHandler import HistoricCSVDataHandler
+from trading.data.dataHandler import DataHandler, HistoricCSVDataHandler
 import queue
 import os
 import copy
@@ -12,8 +12,7 @@ from trading.utilities.enum import OrderType
 from trading.utilities.constants import benchmark_ticker
 
 
-def backtest(symbol_list,
-             bars, event_queue, order_queue,
+def backtest(bars: DataHandler, event_queue, order_queue,
              strategy, port, broker,
              start_date=None,
              plot_trade_prices: bool = False,
@@ -24,8 +23,8 @@ def backtest(symbol_list,
     if loop_live:
         _life_loop(bars, event_queue, order_queue, strategy, port, broker)
     else:
-        _backtest_loop(bars, event_queue, order_queue, strategy, port, broker)
         benchmark_strat_bars = copy.copy(bars)
+        _backtest_loop(bars, event_queue, order_queue, strategy, port, broker)
         plot_benchmark(symbol_list=bars.symbol_list,
                        portfolio_name="benchmark_strat", benchmark_bars=benchmark_strat_bars)
         plot_benchmark(symbol_list=[benchmark_ticker],

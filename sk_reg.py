@@ -37,7 +37,7 @@ symbol_list = random.sample(stock_list, 15)
 start = time.time()
 # Declare the components with respective parameters
 # bars_test dates should not overlap with bars_train
-bars = HistoricCSVDataHandler(event_queue, csv_dir="data/data/daily",
+bars = HistoricCSVDataHandler(event_queue, csv_dir="Data/data/daily",
                               symbol_list=symbol_list,
                               start_date=start_date,
                               )

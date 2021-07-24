@@ -26,7 +26,7 @@ class Rebalance(metaclass=ABCMeta):
             "Should implement rebalance(). If not required, just pass")
 
 
-class NoRebalance():
+class NoRebalance(Rebalance):
     ''' No variables initialized as need_balance returns false'''
 
     def need_rebalance(self, current_holdings):
