@@ -36,11 +36,10 @@ class NoRebalance(Rebalance):
         return
 
 
-class BaseRebalance(Rebalance):
+class RebalanceYearly(Rebalance):
     ''' EXIT for all positions every year '''
-
     def need_rebalance(self, current_holdings):
-        return current_holdings['datetime'].dayofyear < 4
+        return current_holdings['datetime'].week == 1 and current_holdings['datetime'].weekday() == 1
 
     def rebalance(self, stock_list, current_holdings) -> None:
         if self.need_rebalance(current_holdings):
@@ -54,6 +53,20 @@ class BaseRebalance(Rebalance):
                     self.events.put(SignalEvent(
                         symbol, current_holdings['datetime'], OrderPosition.EXIT_SHORT, latest_close_price))
 
+class RebalanceBiennial(RebalanceYearly):
+    ''' EXIT for all positions every 2 years '''
+    def need_rebalance(self, current_holdings):
+        return current_holdings['datetime'].week == 1 and current_holdings['datetime'].weekday() == 0 and current_holdings['datetime'].year % 2 == 0
+
+class RebalanceQuarterly(RebalanceYearly):
+    ''' EXIT for all positions every quarterly '''
+    def need_rebalance(self, current_holdings):
+            return current_holdings['datetime'].is_quarter_start
+
+class RebalanceHalfYearly(RebalanceYearly):
+    ''' EXIT for all positions every HalfYearly '''
+    def need_rebalance(self, current_holdings):
+        return current_holdings['datetime'].month % 6 == 1 and current_holdings['datetime'].day < 7 and current_holdings['datetime'].weekday() == 0
 
 class SellLongLosers(metaclass=ABCMeta):
     ''' Sell stocks that have recorded >5% losses '''
@@ -77,11 +90,15 @@ class SellLongLosers(metaclass=ABCMeta):
 
 
 class SellLongLosersYearly(SellLongLosers, Rebalance):
+    ''' Sell stocks that have recorded >5% losses at the start of the year '''
+
     def need_rebalance(self, current_holdings):
-        return current_holdings['datetime'].dayofyear < 3
+        return current_holdings['datetime'].dayofyear < 7 and current_holdings['datetime'].weekday() == 0
 
 
 class SellLongLosersQuarterly(SellLongLosers, Rebalance):
+    ''' Sell stocks that have recorded >5% losses at the start of the quarter '''
+
     def need_rebalance(self, current_holdings):
         # every quarter
         return current_holdings['datetime'].is_quarter_start
