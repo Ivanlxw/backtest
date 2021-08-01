@@ -2,12 +2,21 @@ import requests
 import pandas as pd
 import os
 import time
+import logging
 from datetime import datetime
+from pathlib import Path
 
-from backtest.utilities.utils import parse_args, load_credentials, remove_bs
+from backtest.utilities.utils import log_message, parse_args, load_credentials
 
 args = parse_args()
 load_credentials(args.credentials)
+with open(f"{os.path.dirname(__file__)}/snp500.txt", "r") as fin:
+    stock_list = fin.readlines()
+    stock_list = [stock.replace("\n", "") for stock in stock_list]
+
+ABSOLUTE_FILEDIR = Path(os.path.dirname(os.path.abspath(__file__)))
+logging.basicConfig(filename=ABSOLUTE_FILEDIR /
+                    'logging/GetCsv.log', level=logging.INFO)
 
 
 def get_av_csv(symbol, key, full=False, interval=None,):
@@ -26,8 +35,6 @@ def get_av_csv(symbol, key, full=False, interval=None,):
 
         if not os.path.exists(f"{interval}"):
             os.mkdir(f"{interval}")
-
-        filepath = f"./{interval}/{symbol}.csv"
     else:
         if full:
             url = "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=" + \
@@ -42,9 +49,12 @@ def get_av_csv(symbol, key, full=False, interval=None,):
             parsed_data = res.json()
             df = pd.DataFrame.from_dict(
                 parsed_data['Time Series (Daily)'], orient='index')
-            df = df.iloc[::-1]  # reverse from start to end instead of end to start
+            # reverse from start to end instead of end to start
+            df.index = df.index.map(lambda x: pd.Timestamp(
+                pd.to_datetime(x), unit="ms").normalize().value // 10**6)
+            df = df.iloc[::-1]
             df.columns = ["open", "high", "low", "close", "volume"]
-            merge_n_save(symbol, df)
+            merge_n_save(symbol, df.sort_index())
         except Exception as e:
             print(e)
             raise Exception(parsed_data)
@@ -67,17 +77,19 @@ def get_tiingo_eod(ticker, full: bool, key):
 
     requestResponse = requests.get(url, headers=headers)
     if requestResponse.ok:
-        json_df = requestResponse.json()
         try:
+            json_df = requestResponse.json()
             df = pd.DataFrame(json_df)
             df['date'] = df['date'].apply(
                 lambda x: x.replace("T00:00:00.000Z", ""))
             df.index = df['date']
             df = df.drop("date", axis=1)
+            df.index = df.index.map(lambda x: pd.Timestamp(
+                pd.to_datetime(x), unit="ms").normalize().value // 10**6)
             df = df[["open", "high", "low", "close", "volume"]]
-            merge_n_save(ticker, df)
+            merge_n_save(ticker, df.sort_index())
         except Exception as e:
-            print(json_df)
+            print(requestResponse.json())
             print(e)
 
 
@@ -99,31 +111,67 @@ def merge_n_save(ticker, df):
 
 
 def refresh_data_tiingo(tiingo_key):
-    with open(f"{os.path.dirname(__file__)}/dow_stock_list.txt", "r") as fin:
-        stock_list = fin.readlines()
-    dow_stock_list = list(map(remove_bs, stock_list))
-
-    with open(f"{os.path.dirname(__file__)}/snp500.txt", "r") as fin:
-        stock_list = fin.readlines()
-    snp500 = list(map(remove_bs, stock_list))
-
-    for ticker in snp500[320:]:
+    for idx, ticker in enumerate(stock_list[-500:]):
+        print(idx)
         get_tiingo_eod(ticker, full=True, key=tiingo_key)
 
+
 def refresh_data_av(av_key):
-    with open(f"{os.path.dirname(__file__)}/dow_stock_list.txt", "r") as fin:
-        stock_list = fin.readlines()
-    dow_stock_list = list(map(remove_bs, stock_list))
-
-    with open(f"{os.path.dirname(__file__)}/snp500.txt", "r") as fin:
-        stock_list = fin.readlines()
-    snp500 = list(map(remove_bs, stock_list))
-
-    for idx, ticker in enumerate(snp500[449:]):
+    for idx, ticker in enumerate(stock_list[480:]):
         print(idx+1)
         if (idx+1) % 4 == 0:
             time.sleep(61)
         get_av_csv(ticker, full=True, key=av_key)
 
 
-refresh_data_av(os.environ["alpha_vantage_key"])
+def get_price_history_tda(ticker, period_type: str, period: int, frequency_type: str, frequency: int):
+    assert frequency_type in ["minute", "daily", "weekly", "monthly"]
+    assert frequency in [1, 5, 10, 15, 30]
+    try:
+        res = requests.get(
+            f"https://api.tdameritrade.com/v1/marketdata/{ticker}/pricehistory",
+            params={
+                "apikey": os.environ["TDD_consumer_key"],
+                "periodType": period_type,
+                "period": period,
+                "frequencyType": frequency_type,
+                "frequency": frequency,
+            },
+        )
+    except requests.exceptions.RequestException as e:
+        log_message(f"Cannot get {ticker}")
+        return None
+    if res.ok:
+        return res.json()
+    return None
+
+
+def get_tda_price_hist(sym_list):
+    dne = []
+    for idx, sym in enumerate(sym_list):
+        log_message(idx+1)
+        df = get_price_history_tda(
+            sym, period_type="year", period=20, frequency=1, frequency_type="daily")
+        if df is not None and "candles" in df.keys() and not df["empty"]:
+            df = pd.DataFrame(df["candles"])
+            df.set_index("datetime", inplace=True)
+            df.index = df.index.map(lambda x: pd.Timestamp(
+                x, unit="ms").normalize().value // 10 ** 6)
+            merge_n_save(sym, df)
+        else:
+            dne.append(sym)
+    log_message(f"Failed symbols: f{dne}")
+
+
+if __name__ == "__main__":
+    get_av_csv("SPY", full=True, key=os.environ["alpha_vantage_key"])
+    # get_tiingo_eod("GTT", full=True, key=os.environ["TIINGO_API"])
+    # refresh_data_av(os.environ["alpha_vantage_key"])
+
+    # from multiprocessing import Process
+    # p1 = Process(target=get_tda_price_hist, args=(['JKHY', 'LDOS'],))
+    # p2 = Process(target=get_tda_price_hist, args=(stock_list[700:],))
+    # p1.start()
+    # p2.start()
+    # p1.join()
+    # p2.join()

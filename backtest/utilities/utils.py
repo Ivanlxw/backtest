@@ -46,13 +46,6 @@ def generate_start_date():
 def log_message(message: str):
     logging.info(f"{pd.Timestamp.now()}: {message}")
 
-
-def convert_ms_to_timestamp(time_ms: int):
-    convert = pd.Timestamp(int(time_ms), unit="ms")
-    assert convert.year > 2000
-    return convert
-
-
 def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_live: bool = False) -> Plot:
     start = time.time()
     while True:

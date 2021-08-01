@@ -1,5 +1,4 @@
 import os
-import json
 import logging
 
 from backtest.utilities.utils import load_credentials, parse_args, remove_bs
@@ -37,41 +36,6 @@ def parseFmpScreenerRes(res_json: list):
         if ticker['marketCap'] > 50000000 and ticker['country'] == "US":
             final_stocks.append(ticker['symbol'])
     return final_stocks
-
-
-def getindustryByStock():
-    industry_by_stock = {}
-    for stock in snp500[200:400]:
-        res = requests.get(
-            f"https://financialmodelingprep.com/api/v3/profile/{stock}?apikey={os.environ['FMP_API']}")
-        if res.ok:
-            # print(res.json())
-            try:
-                res = res.json()[0]
-                if res["industry"] in industry_by_stock.keys():
-                    industry_by_stock[res["industry"]].add(stock)
-                else:
-                    industry_by_stock[res["industry"]] = {stock}  # set
-            except Exception as e:
-                print(res.json())
-                print(e)
-
-    # convert dict of set to dict of list
-    for k in industry_by_stock.keys():
-        industry_by_stock[k] = list(industry_by_stock[k])
-
-    curr_data = {}
-    with open("industry_by_symbols.json", "r+") as f:
-        curr_data = json.load(f)
-
-    with open("industry_by_symbols.json", "w") as f:
-        # combine curr_data and industry_by_stock
-        for k in curr_data.keys():
-            if k in industry_by_stock.keys():
-                industry_by_stock[k] += curr_data[k]
-            else:
-                industry_by_stock[k] = curr_data[k]
-        json.dump(industry_by_stock, f)
 
 
 def getUSScreenedStocks(**kwargs):
