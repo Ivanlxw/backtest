@@ -1,3 +1,4 @@
+from backtest.utilities.utils import log_message
 import datetime
 import os
 import threading
@@ -506,8 +507,8 @@ class AlpacaBroker(Broker):
                 )
                 event.trade_price = event.signal_price
         except alpaca_trade_api.rest.APIError as e:
-            logging.info(f"{self.api.get_account()}")
-            logging.info(
+            log_message(f"{self.api.get_account()}")
+            log_message(
                 f"Status Code [{e.status_code}] {e.code}: {str(e)}\nResponse: {e.response}")
             return False
         if order.status == "accepted":

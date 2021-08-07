@@ -15,7 +15,6 @@ from trading.utilities.constants import benchmark_ticker
 def backtest(bars: DataHandler, event_queue, order_queue,
              strategy, port, broker,
              start_date=None,
-             plot_trade_prices: bool = False,
              loop_live: bool = False):
     if not loop_live and start_date is None:
         raise Exception("If backtesting, start_date is required.")

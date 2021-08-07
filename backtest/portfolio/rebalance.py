@@ -93,7 +93,12 @@ class SellLongLosersYearly(SellLongLosers, Rebalance):
     ''' Sell stocks that have recorded >5% losses at the start of the year '''
 
     def need_rebalance(self, current_holdings):
-        return current_holdings['datetime'].dayofyear < 7 and current_holdings['datetime'].weekday() == 0
+        return current_holdings['datetime'].week == 1 and current_holdings['datetime'].weekday() == 0
+
+class SellLongLosersHalfYearly(SellLongLosers, Rebalance):
+    ''' EXIT for all positions every HalfYearly '''
+    def need_rebalance(self, current_holdings):
+        return current_holdings['datetime'].month % 6 == 1 and current_holdings['datetime'].day < 7 and current_holdings['datetime'].weekday() == 0
 
 
 class SellLongLosersQuarterly(SellLongLosers, Rebalance):
