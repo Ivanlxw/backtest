@@ -44,7 +44,7 @@ class NaivePortfolio(Portfolio):
         self.bars = bars
         self.events = events
         self.order_queue = order_queue
-        self.symbol_list = self.bars.symbol_list
+        self.symbol_list = list(self.bars.symbol_data.keys())
         if type(self.bars.start_date) == str:
             self.start_date = pd.Timestamp(self.bars.start_date)
         else:

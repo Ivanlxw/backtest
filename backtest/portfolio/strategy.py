@@ -132,7 +132,7 @@ class SellLowestPerforming(PortfolioStrategy):
 
     def signal_least_performing(self):
         min = ("", 10000)
-        for sym in self.bars.symbol_list:
+        for sym in self.bars.symbol_data:
             latest_snapshot = self.bars.get_latest_bars(sym)
             last_traded_price = self.current_holdings[sym]["last_trade_price"]
             if last_traded_price is None or self.current_holdings[sym]["quantity"] == 0:

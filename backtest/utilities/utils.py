@@ -1,5 +1,6 @@
 import json
 import argparse
+from pathlib import Path
 import time
 import queue
 import logging
@@ -10,6 +11,10 @@ from trading.plots.plot import Plot
 from trading.utilities.constants import backtest_basepath
 
 NY = "America/New_York"
+UTILS_ABS_FP = Path(os.path.dirname(os.path.abspath(__file__)))
+MODELINFO_DIR = UTILS_ABS_FP / "../../Data/strategies"
+if not os.path.exists(MODELINFO_DIR):
+    os.makedirs(MODELINFO_DIR, exist_ok=True)
 
 
 def parse_args():
