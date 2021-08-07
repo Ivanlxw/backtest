@@ -15,7 +15,8 @@ from trading.utilities.constants import benchmark_ticker
 def backtest(bars: DataHandler, event_queue, order_queue,
              strategy, port, broker,
              start_date=None,
-             loop_live: bool = False):
+             loop_live: bool = False,
+             show_plot: bool=True):
     if not loop_live and start_date is None:
         raise Exception("If backtesting, start_date is required.")
 
@@ -25,12 +26,12 @@ def backtest(bars: DataHandler, event_queue, order_queue,
         benchmark_strat_bars = copy.copy(bars)
         _backtest_loop(bars, event_queue, order_queue, strategy, port, broker)
         plot_benchmark(symbol_list=bars.symbol_list,
-                       portfolio_name="benchmark_strat", benchmark_bars=benchmark_strat_bars)
+                    portfolio_name="benchmark_strat", benchmark_bars=benchmark_strat_bars)
         plot_benchmark(symbol_list=[benchmark_ticker],
-                       portfolio_name="benchmark_index", benchmark_bars=None, start_date=start_date)
-
-        plt.legend()
-        plt.show()
+                    portfolio_name="benchmark_index", benchmark_bars=None, start_date=start_date)
+        if show_plot:
+            plt.legend()
+            plt.show()
 
 
 def plot_benchmark(symbol_list, portfolio_name, benchmark_bars=None, freq="daily", start_date=None):

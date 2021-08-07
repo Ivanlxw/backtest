@@ -169,13 +169,16 @@ class NaivePortfolio(Portfolio):
         sharpe_ratio = create_sharpe_ratio(returns)
         max_dd, dd_duration = create_drawdowns(pnl)
 
-        stats = [("Total Return", "%0.2f%%" % ((total_return - 1.0) * 100.0)),
-                 ("Sharpe Ratio", "%0.2f" % sharpe_ratio),
-                 ("Max Drawdown", "%0.2f%%" % (max_dd * 100.0)),
-                 ("Drawdown Duration", "%d" % dd_duration),
-                 ("Lowest point", "%0.2f%%" %
-                  ((np.amin(self.equity_curve["equity_curve"]) - 1) * 100)),
-                 ("Lowest Cash", "%f" % (np.amin(self.equity_curve["cash"])))]
+        stats = [
+            ("Portfolio name", f"{self.name}"),
+            ("Start date",  f"{self.start_date}"),
+            ("Total Return", "%0.2f%%" % ((total_return - 1.0) * 100.0)),
+            ("Sharpe Ratio", "%0.2f" % sharpe_ratio),
+            ("Max Drawdown", "%0.2f%%" % (max_dd * 100.0)),
+            ("Drawdown Duration", "%d" % dd_duration),
+            ("Lowest point", "%0.2f%%" %
+             ((np.amin(self.equity_curve["equity_curve"]) - 1) * 100)),
+            ("Lowest Cash", "%f" % (np.amin(self.equity_curve["cash"])))]
         return stats
 
     def get_backtest_results(self, fp):

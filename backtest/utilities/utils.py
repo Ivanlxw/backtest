@@ -25,6 +25,7 @@ def parse_args():
                         type=str, help="name of backtest/live strat run")
     parser.add_argument('-l', '--live', required=False, type=bool, default=False,
                         help='inform life?')
+    parser.add_argument("--num-runs", type=int, default=1, help="Run backtest x times, get more aggregated performance details from log")
     return parser.parse_args()
 
 
@@ -51,7 +52,7 @@ def generate_start_date():
 def log_message(message: str):
     logging.info(f"{pd.Timestamp.now()}: {message}")
 
-def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker, loop_live: bool = False) -> Plot:
+def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
     start = time.time()
     while True:
         # Update the bars (specific backtest code, as opposed to live trading)
