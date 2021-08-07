@@ -12,4 +12,6 @@ Data/data/
 backtest.egg-info/
 .vscode/
 results/
+scrap/
+strategies/
 __pycache__/
