@@ -16,10 +16,10 @@ from backtest.utilities.utils import load_credentials, log_message, parse_args, 
 args = parse_args()
 load_credentials(args.credentials)
 
-ABSOLUTE_FILEDIR = Path(os.path.dirname(os.path.abspath(__file__)))
-logging.basicConfig(filename=ABSOLUTE_FILEDIR /
+ABSOLUTE_BT_DATA_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+logging.basicConfig(filename=ABSOLUTE_BT_DATA_DIR /
                     'logging/DataWriter.log', level=logging.INFO)
-with open(ABSOLUTE_FILEDIR / "us_stocks.txt") as fin:
+with open(ABSOLUTE_BT_DATA_DIR / "us_stocks.txt") as fin:
     SYM_LIST = list(map(remove_bs, fin.readlines()))
 NY = 'America/New_York'
 TIMEFRAMES = ["daily", "1min", "5min", "10min", "15min", "30min"]
@@ -92,7 +92,7 @@ def get_fundamentals_hist_quarterly(ticker: str):
 
 
 def update_data(time_freq: str, symbol_list: list):
-    csv_dir = ABSOLUTE_FILEDIR / f"data/{time_freq}"
+    csv_dir = ABSOLUTE_BT_DATA_DIR / f"data/{time_freq}"
     if not os.path.exists(csv_dir):
         raise Exception(
             f"File for frequency ({time_freq}) does not exist")
@@ -145,7 +145,7 @@ def update_ohlc(time_freq: str, symbol_list:list):
 def main():
     while True:
         now = pd.Timestamp.now(tz=NY)
-        if not (now.hour == 0 and now.minute == 15 and now.dayofweek > 0):
+        if not (now.hour == 0 and now.minute == 15 and now.dayofweek >= 0):
             continue
         log_message("Update data")
         processes = []
@@ -167,7 +167,7 @@ def update_ohlc_once(symbol_list):
     processes = [t.result() for t in processes]
 
 def write_fundamental():
-    fundamental_dir = ABSOLUTE_FILEDIR / "data/fundamental/quarterly"
+    fundamental_dir = ABSOLUTE_BT_DATA_DIR / "data/fundamental/quarterly"
     failed_syms = []
     for sym in SYM_LIST:
         try:

@@ -1,5 +1,5 @@
-# portfolio.py
-
+import json
+import os
 from math import fabs
 from typing import List
 from backtest.portfolio.strategy import DefaultOrder
@@ -12,7 +12,9 @@ from abc import ABCMeta, abstractmethod
 from trading.event import FillEvent, OrderEvent, SignalEvent
 from backtest.performance import create_sharpe_ratio, create_drawdowns
 from backtest.portfolio.rebalance import NoRebalance
-
+from trading.utilities.utils import convert_ms_to_timestamp
+from backtest.utilities.utils import log_message
+from Data.DataWriter import ABSOLUTE_BT_DATA_DIR
 
 class Portfolio(object):
     __metaclass__ = ABCMeta
@@ -53,8 +55,13 @@ class NaivePortfolio(Portfolio):
         self.qty = stock_size
         self.expires = expires
         self.name = portfolio_name
-        self.current_holdings = self.construct_current_holdings()
-        self.all_holdings = self.construct_all_holdings()
+        # checks if a saved current_holdings is alr present and if present,
+        # load it. Otherwise construct
+        if os.path.exists(ABSOLUTE_BT_DATA_DIR / f"portfolio/{portfolio_name}.json"):
+            self._setup_holdings_from_json(ABSOLUTE_BT_DATA_DIR / f"portfolio/{portfolio_name}.json")
+        else:
+            self.current_holdings = self.construct_current_holdings()
+            self.all_holdings = self.construct_all_holdings()
         self.order_type = order_type
         self.portfolio_strategy = portfolio_strategy(
             self.bars, self.current_holdings, order_type)
@@ -90,6 +97,18 @@ class NaivePortfolio(Portfolio):
         d['commission'] = 0.0
         d['datetime'] = self.start_date
         return d
+
+    def _setup_holdings_from_json(self, fp):
+        with open(fp, 'r+') as fin:
+            self.current_holdings = json.load(fin)
+        for f in self.current_holdings:
+            if f == "datetime":
+                self.current_holdings["datetime"] = convert_ms_to_timestamp(self.current_holdings["datetime"])
+            elif isinstance(self.current_holdings[f], dict) and "last_trade_date" in self.current_holdings[f]:
+                if self.current_holdings[f]["last_trade_date"] is not None:
+                    self.current_holdings[f]["last_trade_date"] = convert_ms_to_timestamp(self.current_holdings[f]["last_trade_date"])
+
+        self.all_holdings = self.construct_all_holdings()
 
     def update_timeindex(self):
         bars = {}
@@ -185,6 +204,19 @@ class NaivePortfolio(Portfolio):
         if self.equity_curve == None:
             raise Exception("Error: equity_curve is not initialized.")
         self.equity_curve.to_csv(fp)
+    
+    def write_curr_holdings(self):
+        for f in self.current_holdings:
+            if f == "datetime":
+                self.current_holdings["datetime"] = int(self.current_holdings["datetime"].timestamp() * 1000)
+            elif isinstance(self.current_holdings[f], dict) and "last_trade_date" in self.current_holdings[f]:
+                if self.current_holdings[f]["last_trade_date"] is not None:
+                    self.current_holdings[f]["last_trade_date"] = int(self.current_holdings[f]["last_trade_date"].timestamp() * 1000)
+        curr_holdings_fp = ABSOLUTE_BT_DATA_DIR / f"portfolio/{self.name}.json"
+        with open(curr_holdings_fp, 'w') as fout:
+            fout.write(json.dumps(self.current_holdings))
+        log_message(f"Written curr_holdings result to {curr_holdings_fp}")
+
 
 
 class PercentagePortFolio(NaivePortfolio):
@@ -208,7 +240,7 @@ class PercentagePortFolio(NaivePortfolio):
             return
         size = int(self.current_holdings["cash"] * self.perc / latest_snapshot['close'][-1]) if self.mode == 'cash' \
             else int(fabs(self.all_holdings[-1]["total"]) * self.perc / latest_snapshot['close'][-1])
-        if size == 0:
+        if size <= 0:
             return
         signal.quantity = size
         return self.portfolio_strategy._filter_order_to_send(signal)
