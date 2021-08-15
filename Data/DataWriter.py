@@ -18,7 +18,7 @@ load_credentials(args.credentials)
 
 ABSOLUTE_BT_DATA_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 logging.basicConfig(filename=ABSOLUTE_BT_DATA_DIR /
-                    'logging/DataWriter.log', level=logging.INFO)
+                    'logging/DataWriter.log', level=logging.INFO, force=True)
 with open(ABSOLUTE_BT_DATA_DIR / "us_stocks.txt") as fin:
     SYM_LIST = list(map(remove_bs, fin.readlines()))
 NY = 'America/New_York'
@@ -117,6 +117,7 @@ def update_data(time_freq: str, symbol_list: list):
         if df is not None and "candles" in df.keys() and not df["empty"]:
             data = pd.DataFrame(df["candles"])
             data.set_index("datetime", inplace=True)
+            print(data.tail())
             # need to convert time of data to 12am -- only for daily
             if time_freq == "daily":
                 data.index = data.index.map(lambda x: pd.Timestamp(
@@ -130,8 +131,9 @@ def update_data(time_freq: str, symbol_list: list):
             data.to_csv(csv_fp)
         else:
             missing_syms.append(symbol)
-    log_message(f"[{time_freq}] missing symbols: {missing_syms}, trying again")
+    log_message(f"[{time_freq}] missing symbols: {missing_syms}")
     if len(missing_syms) > 15: 
+        log_message("trying again")
         update_data(time_freq, missing_syms)
 
 
@@ -145,7 +147,7 @@ def update_ohlc(time_freq: str, symbol_list:list):
 def main():
     while True:
         now = pd.Timestamp.now(tz=NY)
-        if not (now.hour == 0 and now.minute == 15 and now.dayofweek >= 0):
+        if not (now.hour == 9 and now.minute == 15 and now.dayofweek >= 0):
             continue
         log_message("Update data")
         processes = []

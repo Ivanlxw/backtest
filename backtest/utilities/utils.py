@@ -102,17 +102,6 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
         now = pd.Timestamp.now(tz=NY)
         if not (now.hour == 9 and now.minute >= 35):  # only run @ 0935 NY timing
             continue
-        if now.dayofweek > 4:
-            # Update the bars (specific backtest code, as opposed to live trading)
-            logging.info("saving info")
-            port.create_equity_curve_df()
-            results_dir = os.path.join(backtest_basepath, "results")
-            if not os.path.exists(results_dir):
-                os.mkdir(results_dir)
-
-            port.equity_curve.to_csv(os.path.join(
-                results_dir, f"{port.name}.json"))
-            break
         log_message("update_bars()")
         bars.update_bars()
         while True:
@@ -140,7 +129,8 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
 
                     elif event.type == 'FILL':
                         port.update_fill(event)
-
-        logging.info(f"{pd.Timestamp.now(tz=NY)}: sleeping")
+        if now.dayofweek >= 4:
+            break
+        log_message("sleeping")
         time.sleep(18 * 60 * 60)  # 18 hrs
-        logging.info("sleep done")
+        log_message("sleep over")

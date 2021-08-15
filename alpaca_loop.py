@@ -4,24 +4,25 @@ Actual file to run for backtesting
 import os, signal, json, queue, logging
 from pathlib import Path
 
-from backtest.broker import AlpacaBroker, SimulatedBroker
-from backtest.portfolio.portfolio import PercentagePortFolio
-from backtest.portfolio.rebalance import RebalanceYearly, SellLongLosers, SellLongLosersYearly
-from backtest.portfolio.strategy import DefaultOrder, LongOnly, SellLowestPerforming
+from backtest.broker import AlpacaBroker
+from trading.portfolio.portfolio import PercentagePortFolio
+from trading.portfolio.rebalance import RebalanceYearly, SellLongLosers, SellLongLosersYearly
+from trading.portfolio.strategy import LongOnly, SellLowestPerforming
 from backtest.utilities.backtest import backtest
-from backtest.utilities.utils import MODELINFO_DIR, load_credentials, parse_args, remove_bs
+from backtest.utilities.utils import MODELINFO_DIR, load_credentials, log_message, parse_args, remove_bs
 from trading.data.dataHandler import TDAData
 from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
 from trading.utilities.enum import OrderPosition, OrderType
 from trading.strategy import ta, broad, fundamental
-from trading.strategy.statistics import ExtremaBounce, RelativeExtrema
+from trading.strategy.statistics import ExtremaBounce
+from backtest.strategy import profitable
 
 ABSOLUTE_LOOP_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 args = parse_args()
 load_credentials(args.credentials)
 if args.name != "":
     logging.basicConfig(filename=ABSOLUTE_LOOP_DIR /
-                        f"Data/logging/{args.name}.log", level=logging.INFO)
+                        f"Data/logging/{args.name}.log", level=logging.INFO, force=True)
 
 with open(f"{os.path.abspath(os.path.dirname(__file__))}/Data/us_stocks.txt", 'r') as fin:
     symbol_list = list(map(remove_bs, fin.readlines()))
@@ -58,7 +59,7 @@ strat_value = MultipleAllStrategy(bars, event_queue, [
     ]),
 ])
 
-strategy = strat_value
+strategy = profitable.comprehensive_longshort(bars, event_queue)
 
 if args.name != "":
     with open(MODELINFO_DIR / f'{args.name}.json', 'w') as fout:
@@ -73,18 +74,14 @@ port = PercentagePortFolio(
     expires=3,
     portfolio_name=(args.name if args.name != "" else "alpaca_loop"),
     order_type=OrderType.MARKET,
-    portfolio_strategy=SellLowestPerforming,
+    portfolio_strategy=LongOnly,
     rebalance=RebalanceYearly
 )
 
-def handler():
-    port.write_curr_holdings()
-
 if args.live:
     broker = AlpacaBroker(event_queue)
-    signal.signal(signal.SIGINT, handler)
     backtest(
         bars, event_queue, order_queue,
-         strategy, port, broker, loop_live=args.live
-    )
+        strategy, port, broker, loop_live=True)
+    log_message("saving curr_holdings")
     port.write_curr_holdings()

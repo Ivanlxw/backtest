@@ -1,11 +1,10 @@
 from trading.data.dataHandler import DataHandler, HistoricCSVDataHandler
 import queue
-import os
 import copy
 import matplotlib.pyplot as plt
 
 from backtest.broker import SimulatedBroker
-from backtest.portfolio.portfolio import PercentagePortFolio, Portfolio
+from trading.portfolio.portfolio import PercentagePortFolio, Portfolio
 from backtest.strategy.naive import BuyAndHoldStrategy
 from backtest.utilities.utils import _backtest_loop, _life_loop
 from trading.utilities.enum import OrderType
