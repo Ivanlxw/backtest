@@ -1,3 +1,4 @@
+from typing import List
 from trading.event import SignalEvent
 from trading.strategy.naive import Strategy
 from trading.utilities.enum import OrderPosition
@@ -24,9 +25,9 @@ class BuyAndHoldStrategy(Strategy):
         for s in self.bars.symbol_list:
             self.bought[s] = False
 
-    def _calculate_signal(self, symbol) -> SignalEvent:
+    def _calculate_signal(self, symbol) -> List[SignalEvent]:
         if not self.bought[symbol]:
             bars = self.bars.get_latest_bars(symbol, N=1)
             if bars is not None and bars != []:  # there's an entry
                 self.bought[symbol] = True
-                return SignalEvent(symbol, bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])
+                return [SignalEvent(symbol, bars['datetime'][-1], OrderPosition.BUY, bars['close'][-1])]

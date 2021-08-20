@@ -117,18 +117,20 @@ def update_data(time_freq: str, symbol_list: list):
         if df is not None and "candles" in df.keys() and not df["empty"]:
             data = pd.DataFrame(df["candles"])
             data.set_index("datetime", inplace=True)
-            print(data.tail())
             # need to convert time of data to 12am -- only for daily
             if time_freq == "daily":
                 data.index = data.index.map(lambda x: pd.Timestamp(
                     x, unit="ms").normalize().value // 10 ** 6)
             csv_fp = csv_dir / f"{symbol}.csv"
-            if os.path.exists(csv_fp):
-                existing = pd.read_csv(csv_fp, index_col=0)
-                data = pd.concat(
-                    [existing, data], axis=0)
-                data = data[~data.index.duplicated(keep='last')]
-            data.to_csv(csv_fp)
+            try:
+                if os.path.exists(csv_fp):
+                    existing = pd.read_csv(csv_fp, index_col=0)
+                    data = pd.concat(
+                        [existing, data], axis=0)
+                    data = data[~data.index.duplicated(keep='last')]
+                data.to_csv(csv_fp)
+            except Exception as e:
+                log_message(f"Error updating symbol [{symbol}, {time_freq}]: \n{e}")
         else:
             missing_syms.append(symbol)
     log_message(f"[{time_freq}] missing symbols: {missing_syms}")
@@ -147,11 +149,11 @@ def update_ohlc(time_freq: str, symbol_list:list):
 def main():
     while True:
         now = pd.Timestamp.now(tz=NY)
-        if not (now.hour == 9 and now.minute == 15 and now.dayofweek >= 0):
+        if not (now.hour == 8 and now.minute == 40 and now.dayofweek >= 0):
             continue
         log_message("Update data")
         processes = []
-        with fut.ProcessPoolExecutor(5) as p:
+        with fut.ProcessPoolExecutor(6) as p:
             for time_freq in TIMEFRAMES:
                 processes.append(p.submit(update_ohlc, time_freq, SYM_LIST))
         processes = [t.result() for t in processes]
@@ -163,7 +165,7 @@ def main():
 
 def update_ohlc_once(symbol_list):
     processes = []
-    with fut.ProcessPoolExecutor(5) as p:
+    with fut.ProcessPoolExecutor(6) as p:
         for time_freq in TIMEFRAMES:
             processes.append(p.submit(update_ohlc, time_freq, symbol_list))
     processes = [t.result() for t in processes]
