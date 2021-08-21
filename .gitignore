@@ -8,7 +8,7 @@ data/*.json
 *profitable.py
 
 ## directories
-Data/data/
+Data/*
 backtest.egg-info/
 .vscode/
 results/
