@@ -63,24 +63,26 @@ class SimulatedBroker(Broker):
     def calculate_commission(self, quantity=None, fill_cost=None) -> float:
         return 0.0
 
-    def _enough_credits(self, order: OrderEvent, latest_snapshot) -> bool:
+    def _enough_credits(self, order: OrderEvent) -> bool:
         if order is None:
             return False
-        mkt_price = latest_snapshot["close"][-1]
-        order_value = fabs(order.quantity * mkt_price)
+        order_value = fabs(order.quantity * order.signal_price)
         if (
             order.direction == OrderPosition.BUY
             and self.port.current_holdings["cash"] > order_value
         ) or (
-            self.port.all_holdings[-1]["total"] > order_value
+            2 * self.port.all_holdings[-1]["total"] > order_value
             and order.direction == OrderPosition.SELL
         ):
             return True
         return False
 
-    def _filter_execute_order(self, order_event: OrderEvent) -> bool:
-        latest_snapshot = self.bars.get_latest_bars(order_event.symbol)
-        if self._enough_credits(order_event, latest_snapshot):
+    def _order_expired(self, latest_ohlc, order_event: OrderEvent):                
+        # check for expiry
+        return latest_ohlc["datetime"][-1] > order_event.expires
+
+    def _filter_execute_order(self, latest_snapshot, order_event: OrderEvent) -> bool:
+        if self._enough_credits(order_event):
             if order_event.order_type == OrderType.LIMIT:
                 """                
                 print("Price data:", price_data_dict)
@@ -91,10 +93,6 @@ class SimulatedBroker(Broker):
                     "Expires": event.expires
                 })
                 """
-                # check for expiry
-                if latest_snapshot["datetime"][-1] > order_event.expires:
-                    return False
-
                 if (
                     order_event.signal_price > latest_snapshot["high"][-1]
                     and order_event.direction == OrderPosition.BUY
@@ -106,21 +104,28 @@ class SimulatedBroker(Broker):
             return True
         return False
 
+    def _put_fill_event(self, order_event: OrderEvent):
+        order_event.trade_price = order_event.signal_price
+        fill_event = FillEvent(order_event, self.calculate_commission())
+        self.events.put(fill_event)
+        return True
+
     def execute_order(self, event: OrderEvent) -> bool:
-        if event.type == "ORDER" and self._filter_execute_order(event):
-            close_price = self.bars.get_latest_bars(event.symbol)["close"][
-                -1
-            ]  # close price
-            event.trade_price = close_price
-            if event.order_type == OrderType.LIMIT and not event.processed:
-                event.processed = True
-                event.date += datetime.timedelta(days=1)
-                self.order_queue.put(event)
-                return False
-            else:
-                fill_event = FillEvent(event, self.calculate_commission())
-                self.events.put(fill_event)
-                return True
+        if event.type == "ORDER":
+            latest_snapshot = self.bars.get_latest_bars(event.symbol)
+            if event.order_type == OrderType.LIMIT:
+                if not self._order_expired(latest_snapshot, event):
+                    if not event.processed:
+                        event.processed = True
+                        event.date += datetime.timedelta(days=1)
+                        self.order_queue.put(event)
+                        return False
+                    if self._filter_execute_order(latest_snapshot, event):
+                        return self._put_fill_event(event)
+                    event.date += datetime.timedelta(days=1)
+                    self.order_queue.put(event)
+            elif event.order_type == OrderType.MARKET:
+                return self._put_fill_event(event)
         return False
 
 

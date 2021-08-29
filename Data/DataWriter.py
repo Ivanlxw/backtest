@@ -21,6 +21,10 @@ logging.basicConfig(filename=ABSOLUTE_BT_DATA_DIR /
                     'logging/DataWriter.log', level=logging.INFO, force=True)
 with open(ABSOLUTE_BT_DATA_DIR / "us_stocks.txt") as fin:
     SYM_LIST = list(map(remove_bs, fin.readlines()))
+with open(ABSOLUTE_BT_DATA_DIR / "snp500.txt") as fin:
+    SYM_LIST += list(map(remove_bs, fin.readlines()))
+SYM_LIST = list(set(SYM_LIST))
+
 NY = 'America/New_York'
 TIMEFRAMES = ["daily", "1min", "5min", "10min", "15min", "30min"]
 

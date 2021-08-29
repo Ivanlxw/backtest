@@ -4,8 +4,8 @@ import copy
 import matplotlib.pyplot as plt
 
 from backtest.broker import SimulatedBroker
-from trading.portfolio.portfolio import PercentagePortFolio, Portfolio
-from backtest.strategy.naive import BuyAndHoldStrategy
+from trading.portfolio.portfolio import PercentagePortFolio
+from trading.strategy.naive import BuyAndHoldStrategy
 from backtest.utilities.utils import _backtest_loop, _life_loop
 from trading.utilities.enum import OrderType
 from trading.utilities.constants import benchmark_ticker
