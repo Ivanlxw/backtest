@@ -26,6 +26,7 @@ def parse_args():
     parser.add_argument('-l', '--live', required=False, type=bool, default=False,
                         help='inform life?')
     parser.add_argument("--num-runs", type=int, default=1, help="Run backtest x times, get more aggregated performance details from log")
+    parser.add_argument("--frequency", type=str, default="daily", help="Frequency of data. Searches a dir with same name")
     return parser.parse_args()
 
 
@@ -100,7 +101,7 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
     while True:
         # Update the bars (specific backtest code, as opposed to live trading)
         now = pd.Timestamp.now(tz=NY)
-        if not (now.hour == 9 and now.minute >= 35):  # only run @ 0935 NY timing
+        if not (now.hour == 9 and now.minute >= 40):  # only run @ 0935 NY timing
             continue
         log_message("update_bars()")
         bars.update_bars()
@@ -114,8 +115,9 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
                     if event.type == 'MARKET':
                         logging.info(f"{now}: MarketEvent")
                         port.update_timeindex()
-                        if (signal_list := strategy.calculate_signals(event)) is not None:
-                            for signal in signal_list:
+                        signal_list = strategy.calculate_signals(event)
+                        for signal in signal_list:
+                            if signal is not None:
                                 event_queue.put(signal)
                         while not order_queue.empty():
                             event_queue.put(order_queue.get())

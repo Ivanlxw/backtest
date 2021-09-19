@@ -8,12 +8,13 @@ from trading.strategy.multiple import MultipleSendAllStrategy
 
 from backtest.broker import AlpacaBroker
 from trading.portfolio.portfolio import PercentagePortFolio
-from trading.portfolio.rebalance import RebalanceYearly
+from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, SellLosersHalfYearly
 from trading.portfolio.strategy import LongOnly 
 from backtest.utilities.backtest import backtest
 from backtest.utilities.utils import MODELINFO_DIR, load_credentials, log_message, parse_args, remove_bs
 from trading.data.dataHandler import TDAData
-from trading.utilities.enum import OrderPosition, OrderType
+from trading.utilities.enum import OrderType
+from backtest.strategy import profitable
 
 ABSOLUTE_LOOP_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 args = parse_args()
@@ -22,8 +23,11 @@ if args.name != "":
     logging.basicConfig(filename=ABSOLUTE_LOOP_DIR /
                         f"Data/logging/{args.name}.log", level=logging.INFO, force=True)
 
-with open(f"{os.path.abspath(os.path.dirname(__file__))}/Data/us_stocks.txt", 'r') as fin:
-    symbol_list = list(map(remove_bs, fin.readlines()))
+with open(ABSOLUTE_BT_DATA_DIR / "us_stocks.txt") as fin:
+    SYM_LIST = list(map(remove_bs, fin.readlines()))
+with open(ABSOLUTE_BT_DATA_DIR / "snp500.txt") as fin:
+    SYM_LIST += list(map(remove_bs, fin.readlines()))
+symbol_list = list(set(SYM_LIST))
 
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
@@ -34,13 +38,18 @@ SG = "Singapore"
 bars = TDAData(event_queue, symbol_list, "2015-01-06", live=True)
 
 strategy = MultipleSendAllStrategy(bars, event_queue, [
-    # insert strategy here
+    profitable.comprehensive_longshort(bars, event_queue),
+    profitable.momentum_with_TACross(bars, event_queue),
+    profitable.another_TA(bars, event_queue)
 ])
 
 if args.name != "":
     with open(MODELINFO_DIR / f'{args.name}.json', 'w') as fout:
         fout.write(json.dumps(strategy.describe()))
-
+rebalance_strat = RebalanceLogicalAny(bars, event_queue, [
+    SellLosersHalfYearly(bars, event_queue),
+    RebalanceYearly(bars, event_queue)
+])
 port = PercentagePortFolio(
     bars,
     event_queue,
@@ -51,7 +60,7 @@ port = PercentagePortFolio(
     portfolio_name=(args.name if args.name != "" else "alpaca_loop"),
     order_type=OrderType.MARKET,
     portfolio_strategy=LongOnly,
-    rebalance=RebalanceYearly
+    rebalance=rebalance_strat
 )
 
 if args.live:
@@ -60,4 +69,4 @@ if args.live:
         bars, event_queue, order_queue,
         strategy, port, broker, loop_live=True)
     log_message("saving curr_holdings")
-    port.write_all_holdings(ABSOLUTE_BT_DATA_DIR/ f"portfolio/{port.name}.json")
+    port.write_curr_holdings()

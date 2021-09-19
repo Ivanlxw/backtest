@@ -1,3 +1,4 @@
+from backtest.strategy import profitable
 from Data.DataWriter import ABSOLUTE_BT_DATA_DIR
 from pathlib import Path
 import talib
@@ -11,23 +12,21 @@ from trading.utilities.enum import OrderPosition
 import pandas as pd
 import concurrent.futures as fut
 
-from backtest.utilities.utils import MODELINFO_DIR, generate_start_date, parse_args, remove_bs, load_credentials
+from backtest.utilities.utils import generate_start_date, parse_args, remove_bs, load_credentials
 from backtest.broker import SimulatedBroker
-from trading.portfolio.rebalance import RebalanceHalfYearly, RebalanceYearly
+from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, SellLosersHalfYearly, RebalanceWeekly
 from trading.portfolio.portfolio import PercentagePortFolio
-from trading.portfolio.strategy import LongOnly
+from trading.portfolio.strategy import LongOnly, ProgressiveOrder, SellLowestPerforming
 from backtest.utilities.backtest import backtest
 from trading.data.dataHandler import HistoricCSVDataHandler
-from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
-from trading.strategy import ta, broad, statistics
-from trading.strategy.statmodels import features, models, targets
-from sklearn.linear_model import Lasso, Ridge
+from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy, MultipleSendAllStrategy
+from trading.strategy import ta, statistics, fundamental
 
-with open(f"{os.path.abspath(os.path.dirname(__file__))}/Data/us_stocks.txt", 'r') as fin:
-    stock_list = fin.readlines()
-stock_list = list(map(remove_bs, stock_list))
-symbol_list = stock_list
-
+# with open(ABSOLUTE_BT_DATA_DIR / "us_stocks.txt") as fin:
+#     SYM_LIST = list(map(remove_bs, fin.readlines()))
+SYM_LIST = []
+with open(ABSOLUTE_BT_DATA_DIR / "snp500.txt") as fin:
+    SYM_LIST += list(set(map(remove_bs, fin.readlines())))
 
 def main():
     event_queue = queue.LifoQueue()
@@ -37,97 +36,67 @@ def main():
     while pd.Timestamp(start_date).dayofweek > 4:
         start_date = generate_start_date()
     print(start_date)
-    end_date = "2020-01-30"
-
     bars = HistoricCSVDataHandler(event_queue,
-                                  random.sample(symbol_list, 250),
-                                  start_date=start_date,
-                                  end_date=end_date
+                                  random.sample(SYM_LIST, 150),
+                                #   start_date=start_date,
+                                    frequency_type=args.frequency
                                   )
 
-    strat_momentum = MultipleAnyStrategy(bars, event_queue, [  # any of buy and sell
-        MultipleAllStrategy(bars, event_queue, [   # buy
-            ta.TALessThan(bars, event_queue, ta.rsi,
-                            14, 45, OrderPosition.BUY),
-            broad.above_sma(bars, event_queue, 'SPY',
-                            25, OrderPosition.BUY),
-            ta.TALessThan(bars, event_queue, ta.cci,
-                        20, -70, OrderPosition.BUY),
-            ta.TAMax(bars, event_queue, ta.rsi, 14, 5, OrderPosition.BUY)
-        ]),
-        MultipleAllStrategy(bars, event_queue, [   # sell
-            # RelativeExtrema(bars, event_queue, 20, strat_contrarian=False),
-            ta.TAMoreThan(bars, event_queue, ta.rsi,
-                            14, 50, OrderPosition.SELL),
-            ta.TAMoreThan(bars, event_queue, ta.cci,
-                            14, 70, OrderPosition.SELL),
-            ta.TAMin(bars, event_queue, ta.rsi, 14, 5, OrderPosition.SELL),
-            broad.below_sma(bars, event_queue, 'SPY',
-                            20, OrderPosition.SELL),
-        ])
-    ])
-
-    strategy = MultipleAllStrategy(bars, event_queue, [
-        statistics.ExtremaBounce(bars, event_queue, 7, 100, percentile=20),
-        ta.MeanReversionTA(bars, event_queue, 20, talib.SMA, exit=True),
-    ])
-
-    strategy = MultipleAnyStrategy(bars, event_queue, [
-        strat_momentum, strategy
-    ])
-    feat = [
-        features.RSI(14),
-        features.RelativePercentile(50),
-        features.QuarterlyFundamental(bars, 'roe'),
-        features.QuarterlyFundamental(bars, 'pbRatio'),
-        features.QuarterlyFundamental(bars, 'grossProfitGrowth')
-    ]
-    target = targets.EMAClosePctChange(30)
-
-    strategy = models.SkLearnRegModelNormalized(
-        bars, event_queue, Ridge, feat, target, RebalanceHalfYearly,
-        order_val=0.08,
-        n_history=60,
-        params={
-            "fit_intercept": False,
-            "alpha": 0.5,
-        },
-        live=args.live
-    )
-    strategy = MultipleAllStrategy(bars, event_queue, [
-        strategy,
+    strat_value = MultipleAllStrategy(bars, event_queue, [
+        statistics.ExtremaBounce(
+            bars, event_queue, short_period=5, long_period=80, percentile=10),
+        # RelativeExtrema(bars, event_queue, long_time=50, percentile=10, strat_contrarian=True),
+        ta.VolAboveSMA(bars, event_queue, 10, OrderPosition.BUY),
+        ta.TAMax(bars, event_queue, ta.rsi, 14, 7, OrderPosition.BUY),
         MultipleAnyStrategy(bars, event_queue, [
-            MultipleAllStrategy(bars, event_queue, [
-                ta.TALessThan(bars, event_queue, ta.rsi,
-                            14, 40, OrderPosition.BUY),
-                # ta.TAMax(bars, event_queue, ta.rsi, 14, 5, OrderPosition.BUY),
-            ]),
-            MultipleAllStrategy(bars, event_queue, [
-                ta.TAMoreThan(bars, event_queue, ta.rsi,
-                            14, 60, OrderPosition.SELL),
-                # ta.TAMin(bars, event_queue, ta.rsi, 14, 6, OrderPosition.SELL),
-            ]),
+            fundamental.FundAtLeast(
+                bars, event_queue, 'revenueGrowth', 0.03, order_position=OrderPosition.BUY),
+            fundamental.FundAtLeast(
+                bars, event_queue, 'netIncomeGrowth', 0.05, order_position=OrderPosition.BUY),
+            fundamental.FundAtLeast(bars, event_queue, 'roe',
+                                    0, order_position=OrderPosition.BUY)
+        ]),
+    ])  # InformValueWithTA
+    strategy = MultipleAnyStrategy(bars, event_queue, [
+        statistics.ExtremaBounce(bars, event_queue, 6, 80, 15),
+        ta.MeanReversionTA(bars, event_queue, 20, ta.rsi, sd=2),
+        # fundamental.FundAtLeast(bars, event_queue, 'roe', 0.03, OrderPosition.BUY)
+    ])
+
+    strategy = MultipleAllStrategy(bars, event_queue, [
+        MultipleAnyStrategy(bars, event_queue, [
+            fundamental.FundAtLeast(bars, event_queue, 'roe', 0.03, OrderPosition.BUY),
+            fundamental.FundAtMost(bars, event_queue, 'roe', 0.05, OrderPosition.SELL),
+        ]),
+        MultipleAnyStrategy(bars, event_queue, [
+            statistics.ExtremaBounce(bars, event_queue, 6, 80, 15),
+            ta.MeanReversionTA(bars, event_queue, 20, ta.rsi, sd=2),
         ])
     ])
 
-    if args.name != "":
-        with open(MODELINFO_DIR / f'{args.name}.json', 'w') as fout:
-            fout.write(json.dumps(strategy.describe()))
+    
+    strategy = MultipleSendAllStrategy(bars, event_queue, [
+        # profitable.another_TA(bars, event_queue),
+        strat_value
+    ])
 
+    rebalance_strat = RebalanceLogicalAny(bars, event_queue, [
+        SellLosersHalfYearly(bars, event_queue),
+        RebalanceWeekly(bars, event_queue)
+    ])
     port = PercentagePortFolio(bars, event_queue, order_queue,
-                               percentage=0.10,
+                               percentage=0.05,
                                portfolio_name=(
                                    args.name if args.name != "" else "loop"),
                                mode='asset',
                                expires=7,
-                               rebalance=RebalanceYearly,
+                               rebalance=rebalance_strat,
                                portfolio_strategy=LongOnly,
                                )
     broker = SimulatedBroker(bars, port, event_queue, order_queue)
     backtest(bars, event_queue, order_queue,
              strategy, port, broker, start_date=start_date, show_plot=args.num_runs == 1)
-    curr_holdings_fp = ABSOLUTE_BT_DATA_DIR / f"portfolio/{port.name}.json"
-    port.write_all_holdings(curr_holdings_fp)
+
 
 if __name__ == "__main__":
     args = parse_args()
