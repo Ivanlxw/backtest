@@ -1,7 +1,7 @@
 """
 Actual file to run for backtesting
 """
-from Data.DataWriter import ABSOLUTE_BT_DATA_DIR
+from Data.DataWriters.Prices import ABSOLUTE_BT_DATA_DIR
 import os, json, queue, logging
 from pathlib import Path
 from trading.strategy.multiple import MultipleSendAllStrategy
@@ -67,6 +67,6 @@ if args.live:
     broker = AlpacaBroker(event_queue)
     backtest(
         bars, event_queue, order_queue,
-        strategy, port, broker, loop_live=True)
+        strategy, port, broker, loop_live=True, sleep_duration=args.sleep_time)
     log_message("saving curr_holdings")
     port.write_curr_holdings()

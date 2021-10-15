@@ -1,13 +1,9 @@
-from Data.DataWriter import ABSOLUTE_BT_DATA_DIR
-from backtest.strategy import profitable
-import json
+import datetime
 import logging
 import os
 import queue
 import time
-import json
 import random
-from trading.strategy.basic import OneSidedOrderOnly
 from trading.utilities.enum import OrderPosition
 from trading.portfolio.rebalance import RebalanceHalfYearly
 import pandas as pd
@@ -21,6 +17,8 @@ from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy, 
 from trading.strategy import ta, broad, fundamental, statistics
 from trading.strategy.statmodels import features, targets, models
 from backtest.utilities.utils import load_credentials, log_message, parse_args, generate_start_date, remove_bs
+from Data.DataWriters.Prices import ABSOLUTE_BT_DATA_DIR
+from backtest.strategy import profitable
 
 args = parse_args()
 load_credentials(args.credentials)
@@ -44,7 +42,7 @@ if not args.live:
                    frequency_type=args.frequency
                    )
 else:
-    bars = TDAData(event_queue, SYM_LIST, start_date, live=True)
+    bars = TDAData(event_queue, SYM_LIST, start_date, frequency_type=args.frequency, live=True)
 
 strat_pre_momentum = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
     statistics.ExtremaBounce(
@@ -128,26 +126,30 @@ strategy = MultipleAllStrategy(bars, event_queue, [
 ])
 
 strategy = MultipleSendAllStrategy(bars, event_queue, [
-    strategy, 
+    # strategy, 
     strat_value,
     profitable.momentum_with_TACross(bars, event_queue),
-    profitable.value_extremaTA(bars, event_queue),
     # profitable.another_TA(bars, event_queue), # may not work well
     profitable.comprehensive_with_spy(bars, event_queue),
+    profitable.bounce_ta(bars, event_queue),
     profitable.momentum_with_spy(bars, event_queue),    # buy only
     profitable.momentum_vol_with_spy(bars, event_queue),    # buy only
-    profitable.bounce_ta(bars, event_queue)
+    profitable.value_extremaTA(bars, event_queue),
 ])
 
 signals = queue.Queue()
 start = time.time()
 while True:
     now = pd.Timestamp.now(tz=NY)
-    if args.live and not (now.hour == 9 and now.minute > 45):
+    if now.dayofweek >= 4 and now.hour > 17:
+        break
+    time_since_midnight = now - now.normalize()
+    if args.live and (time_since_midnight < datetime.timedelta(hours=9, minutes=45) or time_since_midnight > datetime.timedelta(hours=17, minutes=45)):
+        time.sleep(60)
         continue
     if bars.continue_backtest == True:
         logging.info(msg=f"{pd.Timestamp.now(tz=NY)}: update_bars")
-        bars.update_bars()  # will take about 550s
+        bars.update_bars()
         # look at latest data just to see
         logging.info(f"{bars.get_latest_bars(bars.symbol_list[-1], N=20)}")
     else:
@@ -166,12 +168,10 @@ while True:
             # TODO: send to phone via tele
             signal_event = signals.get(block=False)
             logging.info(signal_event.details())
-            res = telegram_bot_sendtext(f"{args.name:}\n"+signal_event.details(),
+            res = telegram_bot_sendtext(f"[{args.frequency}]\n{args.name:}\n"+signal_event.details(),
                                         os.environ["TELEGRAM_APIKEY"], os.environ["TELEGRAM_CHATID"])
-        if now.dayofweek >= 4:
-            break
         log_message("sleeping")
-        time.sleep(16 * 3600)
+        time.sleep(args.sleep_time)
         log_message("sleep over")
 
 

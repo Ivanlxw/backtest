@@ -57,11 +57,6 @@ def main():
                                     0, order_position=OrderPosition.BUY)
         ]),
     ])  # InformValueWithTA
-    strategy = MultipleAnyStrategy(bars, event_queue, [
-        statistics.ExtremaBounce(bars, event_queue, 6, 80, 15),
-        ta.MeanReversionTA(bars, event_queue, 20, ta.rsi, sd=2),
-        # fundamental.FundAtLeast(bars, event_queue, 'roe', 0.03, OrderPosition.BUY)
-    ])
 
     strategy = MultipleAllStrategy(bars, event_queue, [
         MultipleAnyStrategy(bars, event_queue, [
@@ -77,7 +72,10 @@ def main():
     
     strategy = MultipleSendAllStrategy(bars, event_queue, [
         # profitable.another_TA(bars, event_queue),
-        strat_value
+        strategy,
+        strat_value,
+        profitable.momentum_with_spy(bars, event_queue),    # buy only
+        profitable.momentum_vol_with_spy(bars, event_queue),    # buy only
     ])
 
     rebalance_strat = RebalanceLogicalAny(bars, event_queue, [

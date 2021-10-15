@@ -1,4 +1,4 @@
-from trading.data.dataHandler import DataHandler, HistoricCSVDataHandler
+import datetime
 import queue
 import copy
 import matplotlib.pyplot as plt
@@ -7,6 +7,7 @@ from backtest.broker import SimulatedBroker
 from trading.portfolio.portfolio import PercentagePortFolio
 from trading.strategy.naive import BuyAndHoldStrategy
 from backtest.utilities.utils import _backtest_loop, _life_loop
+from trading.data.dataHandler import DataHandler, HistoricCSVDataHandler
 from trading.utilities.enum import OrderType
 from trading.utilities.constants import benchmark_ticker
 
@@ -15,12 +16,13 @@ def backtest(bars: DataHandler, event_queue, order_queue,
              strategy, port, broker,
              start_date=None,
              loop_live: bool = False,
-             show_plot: bool=True):
+             show_plot: bool=True,
+             sleep_duration: int = 86400):
     if not loop_live and start_date is None:
         raise Exception("If backtesting, start_date is required.")
 
     if loop_live:
-        _life_loop(bars, event_queue, order_queue, strategy, port, broker)
+        _life_loop(bars, event_queue, order_queue, strategy, port, broker, datetime.timedelta(seconds=sleep_duration))
     else:
         benchmark_strat_bars = copy.copy(bars)
         _backtest_loop(bars, event_queue, order_queue, strategy, port, broker)

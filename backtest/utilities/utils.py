@@ -1,4 +1,5 @@
 import json
+import datetime
 import argparse
 from pathlib import Path
 import time
@@ -27,6 +28,7 @@ def parse_args():
                         help='inform life?')
     parser.add_argument("--num-runs", type=int, default=1, help="Run backtest x times, get more aggregated performance details from log")
     parser.add_argument("--frequency", type=str, default="daily", help="Frequency of data. Searches a dir with same name")
+    parser.add_argument("--sleep-time", type=int, default=43200, help="Sleep time in seconds")
     return parser.parse_args()
 
 
@@ -97,11 +99,13 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker) -> Pl
     return plotter
 
 
-def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
+def _life_loop(bars, event_queue, order_queue, strategy, port, broker, sleep_duration: datetime.timedelta) -> Plot:
     while True:
         # Update the bars (specific backtest code, as opposed to live trading)
         now = pd.Timestamp.now(tz=NY)
-        if not (now.hour == 9 and now.minute >= 40):  # only run @ 0935 NY timing
+        if now.dayofweek >= 4 and now.hour > 17:
+            break
+        if not ((now.hour >= 9 and now.minute > 45) and now.hour < 18):  # only run during trading hours -> 0945 - 1805
             continue
         log_message("update_bars()")
         bars.update_bars()
@@ -131,8 +135,6 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
 
                     elif event.type == 'FILL':
                         port.update_fill(event)
-        if now.dayofweek >= 4:
-            break
         log_message("sleeping")
-        time.sleep(18 * 60 * 60)  # 18 hrs
+        time.sleep(sleep_duration.total_seconds())  # 18 hrs
         log_message("sleep over")
