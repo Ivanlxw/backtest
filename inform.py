@@ -128,7 +128,7 @@ strategy = MultipleAllStrategy(bars, event_queue, [
 strategy = MultipleSendAllStrategy(bars, event_queue, [
     # strategy, 
     strat_value,
-    profitable.momentum_with_TACross(bars, event_queue),
+    # profitable.momentum_with_TACross(bars, event_queue),
     # profitable.another_TA(bars, event_queue), # may not work well
     profitable.comprehensive_with_spy(bars, event_queue),
     profitable.bounce_ta(bars, event_queue),
@@ -151,7 +151,7 @@ while True:
         logging.info(msg=f"{pd.Timestamp.now(tz=NY)}: update_bars")
         bars.update_bars()
         # look at latest data just to see
-        logging.info(f"{bars.get_latest_bars(bars.symbol_list[-1], N=20)}")
+        logging.info(f"{bars.get_latest_bars('DOW', N=20)}")
     else:
         break
 
@@ -167,7 +167,6 @@ while True:
         while not signals.empty():
             # TODO: send to phone via tele
             signal_event = signals.get(block=False)
-            logging.info(signal_event.details())
             res = telegram_bot_sendtext(f"[{args.frequency}]\n{args.name:}\n"+signal_event.details(),
                                         os.environ["TELEGRAM_APIKEY"], os.environ["TELEGRAM_CHATID"])
         log_message("sleeping")

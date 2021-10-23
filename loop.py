@@ -1,8 +1,6 @@
 from backtest.strategy import profitable
-from Data.DataWriter import ABSOLUTE_BT_DATA_DIR
+from Data.DataWriters.Prices import ABSOLUTE_BT_DATA_DIR
 from pathlib import Path
-import talib
-import json
 import queue
 import os
 import random
@@ -80,7 +78,8 @@ def main():
 
     rebalance_strat = RebalanceLogicalAny(bars, event_queue, [
         SellLosersHalfYearly(bars, event_queue),
-        RebalanceWeekly(bars, event_queue)
+        # RebalanceWeekly(bars, event_queue),
+        RebalanceYearly(bars, event_queue)
     ])
     port = PercentagePortFolio(bars, event_queue, order_queue,
                                percentage=0.05,

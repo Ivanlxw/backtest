@@ -40,7 +40,7 @@ bars = TDAData(event_queue, symbol_list, "2015-01-06", live=True)
 strategy = MultipleSendAllStrategy(bars, event_queue, [
     profitable.comprehensive_longshort(bars, event_queue),
     profitable.momentum_with_TACross(bars, event_queue),
-    profitable.another_TA(bars, event_queue)
+    # profitable.another_TA(bars, event_queue)
 ])
 
 if args.name != "":
@@ -58,7 +58,7 @@ port = PercentagePortFolio(
     mode="asset",
     expires=3,
     portfolio_name=(args.name if args.name != "" else "alpaca_loop"),
-    order_type=OrderType.MARKET,
+    order_type=OrderType.LIMIT,
     portfolio_strategy=LongOnly,
     rebalance=rebalance_strat
 )
