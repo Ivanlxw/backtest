@@ -2,22 +2,20 @@ import datetime
 import logging
 import os
 import queue
-import time
 import random
-from trading.utilities.enum import OrderPosition
-from trading.portfolio.rebalance import RebalanceHalfYearly
+import time
 import pandas as pd
 from pathlib import Path
-from sklearn.linear_model import Ridge, Lasso
 
 from Inform.telegram import telegram_bot_sendtext
 from trading.plots.plot import PlotIndividual
-from trading.data.dataHandler import HistoricCSVDataHandler, NY, TDAData
+from trading.data.dataHandler import HistoricCSVDataHandler, NY, DataFromDisk
 from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy, MultipleSendAllStrategy
 from trading.strategy import ta, broad, fundamental, statistics
-from trading.strategy.statmodels import features, targets, models
+from trading.strategy.complex.complex_high_beta import ComplexHighBeta
+from trading.utilities.enum import OrderPosition
 from backtest.utilities.utils import load_credentials, log_message, parse_args, generate_start_date, remove_bs
-from Data.DataWriters.Prices import ABSOLUTE_BT_DATA_DIR
+from Data.DataWriters.Prices import ABSOLUTE_BT_DATA_DIR, SYM_LIST
 from backtest.strategy import profitable
 
 args = parse_args()
@@ -25,8 +23,7 @@ load_credentials(args.credentials)
 if args.name != "":
     logging.basicConfig(filename=Path(os.environ["WORKSPACE_ROOT"]) /
                         f"Data/logging/{args.name}.log", level=logging.INFO, force=True)
-with open(ABSOLUTE_BT_DATA_DIR / "snp500.txt") as fin:
-    SYM_LIST = list(map(remove_bs, fin.readlines()))
+ETF_LIST =["SPY"]
 
 event_queue = queue.LifoQueue()
 start_date = generate_start_date()
@@ -34,15 +31,13 @@ while pd.Timestamp(start_date).dayofweek > 4:
     start_date = generate_start_date()
 print(start_date)
 if not args.live:
-    start_date = "2021-01-05"
     bars = HistoricCSVDataHandler(event_queue,
-                   random.sample(SYM_LIST, 50),
-                    # ["PYPL", "JPM", "ALLY", "BA", "DOW", "GM", "FB", "MA"],
-                   start_date=None, # start_date,
+                   random.sample(SYM_LIST, 50) + ["SPY", "XLK"],
+                   start_date=start_date,
                    frequency_type=args.frequency
                    )
 else:
-    bars = TDAData(event_queue, SYM_LIST, start_date, frequency_type=args.frequency, live=True)
+    bars = DataFromDisk(event_queue, SYM_LIST + ETF_LIST, start_date, frequency_type=args.frequency, live=True)
 
 strat_pre_momentum = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
     statistics.ExtremaBounce(
@@ -74,77 +69,91 @@ strat_pre_momentum = MultipleAllStrategy(bars, event_queue, [  # any of buy and 
 
 strat_value = MultipleAllStrategy(bars, event_queue, [
     statistics.ExtremaBounce(
-        bars, event_queue, short_period=5, long_period=80, percentile=10),
-    ta.VolAboveSMA(bars, event_queue, 10, OrderPosition.BUY),
-    ta.TAMax(bars, event_queue, ta.rsi, 14, 7, OrderPosition.BUY),
+        bars, event_queue, short_period=7, long_period=100, percentile=10),
+    statistics.EitherSide(bars, event_queue, 100, 20),
     MultipleAnyStrategy(bars, event_queue, [
-        fundamental.FundAtLeast(
-            bars, event_queue, 'revenueGrowth', 0.03, order_position=OrderPosition.BUY),
-        fundamental.FundAtLeast(
-            bars, event_queue, 'netIncomeGrowth', 0.05, order_position=OrderPosition.BUY),
-        fundamental.FundAtLeast(bars, event_queue, 'roe',
-                                0, order_position=OrderPosition.BUY)
+        MultipleAllStrategy(bars, event_queue, [
+            fundamental.FundAtLeast(
+                bars, event_queue, 'threeYRevenueGrowthPerShare', 0.5, order_position=OrderPosition.BUY),
+            fundamental.FundAtLeast(
+                bars, event_queue, 'operatingIncomeGrowth', 0.1, order_position=OrderPosition.BUY),
+            fundamental.FundAtLeast(bars, event_queue, 'roe',
+                                    0, order_position=OrderPosition.BUY),
+            ta.VolAboveSMA(bars, event_queue, 10, OrderPosition.BUY),
+            ta.TAMax(bars, event_queue, ta.rsi, 14, 7, OrderPosition.BUY),
+        ]),  # buy
+        MultipleAllStrategy(bars, event_queue, [
+            ta.TAMin(bars, event_queue, ta.rsi, 14, 7, OrderPosition.SELL),   
+            ta.TAMin(bars, event_queue, ta.cci, 20, 7, OrderPosition.SELL),   
+        ])  # sell
     ]),
-])  # InformValueWithTA
+], "StratValue")
 
-feat = [
-    features.RSI(14),
-    features.RelativePercentile(50),
-    features.DiffFromEMA(30),
-    features.QuarterlyFundamental(bars, 'roe'),
-    features.QuarterlyFundamental(bars, 'pbRatio'),
-    # features.QuarterlyFundamental(bars, 'grossProfitGrowth')
-]
-target = targets.EMAClosePctChange(30)
-
-strategy = models.SkLearnRegModelNormalized(
-    bars, event_queue, Ridge, feat, target, RebalanceHalfYearly(bars, event_queue),
-    order_val=0.08,
-    n_history=60,
-    params={
-        "fit_intercept": False,
-        "alpha": 0.5,
-        # "max_depth": 4
-    },
-    live=args.live
-)
-
-strategy = MultipleAllStrategy(bars, event_queue, [
-    strategy,
+dcf_value_growth = MultipleAllStrategy(bars, event_queue, [
+    fundamental.DCFSignal(bars, event_queue, 1.0, 3.0),
+    statistics.EitherSide(bars, event_queue, 100, 15),
     MultipleAnyStrategy(bars, event_queue, [
         MultipleAllStrategy(bars, event_queue, [
-            ta.TALessThan(bars, event_queue, ta.rsi,
-                            14, 40, OrderPosition.BUY),
-            ta.TAMax(bars, event_queue, ta.rsi, 14, 4, OrderPosition.BUY),
+            fundamental.FundAtLeast(
+                bars, event_queue, 'threeYRevenueGrowthPerShare', 0.5, order_position=OrderPosition.BUY),
+            fundamental.FundAtLeast(
+                bars, event_queue, 'operatingIncomeGrowth', 0.1, order_position=OrderPosition.BUY),
+            ta.TAMax(bars, event_queue, ta.rsi, 14, 7, OrderPosition.BUY),
         ]),
-        MultipleAllStrategy(bars, event_queue, [
-            ta.TAMoreThan(bars, event_queue, ta.rsi,
-                            14, 60, OrderPosition.SELL),
-            ta.TAMin(bars, event_queue, ta.rsi, 14, 4, OrderPosition.SELL),
-        ]),
-    ])
-])
+        ta.TAMin(bars, event_queue, ta.rsi, 14, 7, OrderPosition.SELL),
+    ]),
+    statistics.ExtremaBounce(
+        bars, event_queue, short_period=5, long_period=60, percentile=25),
+], "DcfValueGrowth")
 
-strategy = MultipleSendAllStrategy(bars, event_queue, [
-    # strategy, 
-    strat_value,
-    # profitable.momentum_with_TACross(bars, event_queue),
-    # profitable.another_TA(bars, event_queue), # may not work well
-    profitable.comprehensive_with_spy(bars, event_queue),
-    profitable.bounce_ta(bars, event_queue),
-    profitable.momentum_with_spy(bars, event_queue),    # buy only
-    profitable.momentum_vol_with_spy(bars, event_queue),    # buy only
-    profitable.value_extremaTA(bars, event_queue),
-])
+strategy = ComplexHighBeta(bars, event_queue, ETF_LIST,
+    index_strategy=MultipleAllStrategy(bars, event_queue, [
+        statistics.ExtremaBounce(
+            bars, event_queue, short_period=5, long_period=80, percentile=20),
+        MultipleAnyStrategy(bars, event_queue, [
+            ta.TAMax(bars, event_queue, ta.rsi, 14, 7, OrderPosition.BUY),
+            ta.TAMin(bars, event_queue, ta.rsi, 14, 7, OrderPosition.SELL),
+        ])
+    ]), corr_days=60, corr_min=0.85, description="HighBetaValue")
+
+if args.frequency == "daily": 
+    strategy = MultipleSendAllStrategy(bars, event_queue, [
+        strategy,
+        strat_value, 
+        dcf_value_growth,
+        profitable.momentum_with_spy(bars, event_queue)
+        # profitable.comprehensive_with_spy(bars, event_queue),
+        # profitable.momentum_with_spy(bars, event_queue),    # buy only
+        # profitable.momentum_vol_with_spy(bars, event_queue),    # buy only
+        # profitable.momentum_with_TACross(bars, event_queue),
+        # profitable.another_TA(bars, event_queue), # may not work well
+        # profitable.bounce_ta(bars, event_queue),
+        # profitable.value_extremaTA(bars, event_queue),
+    ])
+else:   # intraday
+    strategy = MultipleSendAllStrategy(bars, event_queue, [
+        strategy,
+        profitable.momentum_with_spy(bars, event_queue),    # buy only
+        profitable.momentum_vol_with_spy(bars, event_queue),    # buy only
+        # profitable.momentum_with_TACross(bars, event_queue),
+        # profitable.another_TA(bars, event_queue), # may not work well
+        profitable.bounce_ta(bars, event_queue),
+        profitable.value_extremaTA(bars, event_queue),
+    ])
+
+# strategy = MultipleSendAllStrategy(bars, event_queue, [
+#     profitable.bounce_ta(bars, event_queue),
+#     profitable.value_extremaTA(bars, event_queue),
+# ])
 
 signals = queue.Queue()
 start = time.time()
 while True:
     now = pd.Timestamp.now(tz=NY)
-    if now.dayofweek >= 4 and now.hour > 17:
-        break
     time_since_midnight = now - now.normalize()
     if args.live and (time_since_midnight < datetime.timedelta(hours=9, minutes=45) or time_since_midnight > datetime.timedelta(hours=17, minutes=45)):
+        if now.dayofweek > 4:
+            break
         time.sleep(60)
         continue
     if bars.continue_backtest == True:

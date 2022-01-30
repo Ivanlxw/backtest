@@ -1,13 +1,16 @@
 import datetime
+import logging
 import time
 import queue
 import copy
+from typing import List
 
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from backtest.broker import SimulatedBroker
-from trading.portfolio.portfolio import PercentagePortFolio
+from trading.broker.broker import Broker, SimulatedBroker
+from trading.event import SignalEvent
+from trading.portfolio.portfolio import PercentagePortFolio, Portfolio
 from trading.strategy.base import BuyAndHoldStrategy
 from backtest.utilities.utils import log_message
 from trading.data.dataHandler import DataHandler, HistoricCSVDataHandler
@@ -36,15 +39,14 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker) -> Pl
                 if event is not None:
                     if event.type == 'MARKET':
                         port.update_timeindex()
-                        signal_list = strategy.calculate_signals(event)
+                        signal_list : List[SignalEvent] = strategy.calculate_signals(event)
                         for signal in signal_list:
-                            if signal is not None:
-                                event_queue.put(signal)
+                            event_queue.put(signal)
                         while not order_queue.empty():
                             event_queue.put(order_queue.get())
 
                     elif event.type == 'SIGNAL':
-                        port.update_signal(event)
+                        port.update_signal(event)   # sends OrderEvent
 
                     elif event.type == 'ORDER':
                         if broker.execute_order(event):
@@ -61,7 +63,7 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker) -> Pl
     return plotter
 
 
-def _life_loop(bars, event_queue, order_queue, strategy, port, broker, sleep_duration: datetime.timedelta) -> Plot:
+def _life_loop(bars, event_queue, order_queue, strategy, port: Portfolio, broker: Broker, sleep_duration: datetime.timedelta) -> Plot:
     while True:
         # Update the bars (specific backtest code, as opposed to live trading)
         now = pd.Timestamp.now(tz=NY)
@@ -83,10 +85,10 @@ def _life_loop(bars, event_queue, order_queue, strategy, port, broker, sleep_dur
                     if event.type == 'MARKET':
                         log_message("MarketEvent")
                         port.update_timeindex()
+                        broker.update_portfolio_positions(port)
                         signal_list = strategy.calculate_signals(event)
                         for signal in signal_list:
-                            if signal is not None:
-                                event_queue.put(signal)
+                            event_queue.put(signal)
                         while not order_queue.empty():
                             event_queue.put(order_queue.get())
 
