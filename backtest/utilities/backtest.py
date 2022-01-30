@@ -101,6 +101,7 @@ def _life_loop(bars, event_queue, order_queue, strategy, port: Portfolio, broker
 
                     elif event.type == 'FILL':
                         port.update_fill(event)
+                        port.write_curr_holdings()
         log_message("sleeping")
         time.sleep(sleep_duration.total_seconds())  # 18 hrs
         log_message("sleep over")

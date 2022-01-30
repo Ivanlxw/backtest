@@ -69,4 +69,5 @@ if args.live:
         bars, event_queue, order_queue,
         strategy, port, broker, loop_live=True, sleep_duration=args.sleep_time)
     log_message("saving curr_holdings")
+    port.write_curr_holdings()
     port.write_all_holdings()

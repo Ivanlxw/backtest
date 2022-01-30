@@ -90,20 +90,21 @@ strat_value = MultipleAllStrategy(bars, event_queue, [
 ], "StratValue")
 
 dcf_value_growth = MultipleAllStrategy(bars, event_queue, [
-    fundamental.DCFSignal(bars, event_queue, 1.0, 3.0),
-    statistics.EitherSide(bars, event_queue, 100, 15),
+    fundamental.DCFSignal(bars, event_queue, 1.0, 5.0),
+    statistics.EitherSide(bars, event_queue, 100, 25),
     MultipleAnyStrategy(bars, event_queue, [
         MultipleAllStrategy(bars, event_queue, [
-            fundamental.FundAtLeast(
-                bars, event_queue, 'threeYRevenueGrowthPerShare', 0.5, order_position=OrderPosition.BUY),
-            fundamental.FundAtLeast(
-                bars, event_queue, 'operatingIncomeGrowth', 0.1, order_position=OrderPosition.BUY),
+            MultipleAnyStrategy(bars, event_queue, [
+                fundamental.FundAtLeast(bars, event_queue, 'revenueGrowth', 0.05, order_position=OrderPosition.BUY),
+                fundamental.FundAtLeast(
+                    bars, event_queue, 'operatingIncomeGrowth', 0.1, order_position=OrderPosition.BUY),
+            ]),
+            fundamental.FundAtLeast(bars, event_queue, 'roe',
+                        0.03, order_position=OrderPosition.BUY),
             ta.TAMax(bars, event_queue, ta.rsi, 14, 7, OrderPosition.BUY),
         ]),
         ta.TAMin(bars, event_queue, ta.rsi, 14, 7, OrderPosition.SELL),
     ]),
-    statistics.ExtremaBounce(
-        bars, event_queue, short_period=5, long_period=60, percentile=25),
 ], "DcfValueGrowth")
 
 strategy = ComplexHighBeta(bars, event_queue, ETF_LIST,
@@ -114,14 +115,14 @@ strategy = ComplexHighBeta(bars, event_queue, ETF_LIST,
             ta.TAMax(bars, event_queue, ta.rsi, 14, 7, OrderPosition.BUY),
             ta.TAMin(bars, event_queue, ta.rsi, 14, 7, OrderPosition.SELL),
         ])
-    ]), corr_days=60, corr_min=0.85, description="HighBetaValue")
+    ]), corr_days=80, corr_min=0.85, description="HighBetaValue")
 
 if args.frequency == "daily": 
     strategy = MultipleSendAllStrategy(bars, event_queue, [
         strategy,
         strat_value, 
         dcf_value_growth,
-        profitable.momentum_with_spy(bars, event_queue)
+        # profitable.momentum_with_spy(bars, event_queue)
         # profitable.comprehensive_with_spy(bars, event_queue),
         # profitable.momentum_with_spy(bars, event_queue),    # buy only
         # profitable.momentum_vol_with_spy(bars, event_queue),    # buy only
@@ -140,11 +141,6 @@ else:   # intraday
         profitable.bounce_ta(bars, event_queue),
         profitable.value_extremaTA(bars, event_queue),
     ])
-
-# strategy = MultipleSendAllStrategy(bars, event_queue, [
-#     profitable.bounce_ta(bars, event_queue),
-#     profitable.value_extremaTA(bars, event_queue),
-# ])
 
 signals = queue.Queue()
 start = time.time()

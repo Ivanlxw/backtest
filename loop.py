@@ -3,6 +3,7 @@ import os
 import random
 import logging
 import os
+from tracemalloc import start
 import pandas as pd
 import concurrent.futures as fut
 from pathlib import Path
@@ -10,8 +11,8 @@ from pathlib import Path
 from backtest.strategy import profitable
 from backtest.utilities.utils import generate_start_date, parse_args, remove_bs, load_credentials
 from trading.broker.broker import SimulatedBroker
-from trading.broker.gatekeepers import EnoughCash, NoShort
-from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, SellLosersHalfYearly, StopLossThreshold
+from trading.broker.gatekeepers import EnoughCash, MaxPortfolioPosition, NoShort, PremiumLimit
+from trading.portfolio.rebalance import RebalanceHalfYearly, RebalanceLogicalAny, RebalanceYearly, SellLosersHalfYearly, SellWinnersQuarterly, StopLossThreshold
 from trading.portfolio.portfolio import PercentagePortFolio
 from backtest.utilities.backtest import backtest
 from trading.data.dataHandler import HistoricCSVDataHandler
@@ -28,7 +29,6 @@ for file in sym_filenames:
     with open(ABSOLUTE_BT_DATA_DIR / file) as fin:
         SYM_LIST += list(map(remove_bs, fin.readlines()))
 SYM_LIST = list(set(SYM_LIST))
-
 ETF_LIST = ["SPY", "XLK"]
 
 
@@ -52,12 +52,12 @@ def main():
         statistics.EitherSide(bars, event_queue, 100, 20),
         MultipleAnyStrategy(bars, event_queue, [
             MultipleAllStrategy(bars, event_queue, [
-                fundamental.FundAtLeast(
-                    bars, event_queue, 'threeYRevenueGrowthPerShare', 0.5, order_position=OrderPosition.BUY),
+                fundamental.FundAtLeast(bars, event_queue, 'roic',
+                    0, order_position=OrderPosition.BUY),
                 fundamental.FundAtLeast(
                     bars, event_queue, 'operatingIncomeGrowth', 0.1, order_position=OrderPosition.BUY),
-                fundamental.FundAtLeast(bars, event_queue, 'roe',
-                                        0, order_position=OrderPosition.BUY),
+                fundamental.FundAtLeast(bars, event_queue, 'returnOnEquity',
+                                        0.03, order_position=OrderPosition.BUY),
                 ta.VolAboveSMA(bars, event_queue, 10, OrderPosition.BUY),
                 ta.TAMax(bars, event_queue, ta.rsi, 14, 7, OrderPosition.BUY),
             ]),  # buy
@@ -69,14 +69,19 @@ def main():
     ], "StratValue")
 
     dcf_value_growth = MultipleAllStrategy(bars, event_queue, [
-        fundamental.DCFSignal(bars, event_queue, 1.0, 3.0),
-        statistics.EitherSide(bars, event_queue, 100, 15),
+        fundamental.DCFSignal(bars, event_queue, 1.0, 5.0),
+        statistics.EitherSide(bars, event_queue, 100, 25),
         MultipleAnyStrategy(bars, event_queue, [
             MultipleAllStrategy(bars, event_queue, [
-                fundamental.FundAtLeast(
-                    bars, event_queue, 'threeYRevenueGrowthPerShare', 0.5, order_position=OrderPosition.BUY),
-                fundamental.FundAtLeast(
-                    bars, event_queue, 'operatingIncomeGrowth', 0.1, order_position=OrderPosition.BUY),
+                MultipleAnyStrategy(bars, event_queue, [
+                    fundamental.FundAtLeast(bars, event_queue, 'revenueGrowth', 0.05, order_position=OrderPosition.BUY),
+                    fundamental.FundAtLeast(
+                        bars, event_queue, 'operatingIncomeGrowth', 0.1, order_position=OrderPosition.BUY),
+                ]),
+                fundamental.FundAtLeast(bars, event_queue, 'returnOnEquity',
+                            0.03, order_position=OrderPosition.BUY),
+                # fundamental.FundAtLeast(bars, event_queue, 'roic',
+                #     0, order_position=OrderPosition.BUY),
                 ta.TAMax(bars, event_queue, ta.rsi, 14, 7, OrderPosition.BUY),
             ]),
             ta.TAMin(bars, event_queue, ta.rsi, 14, 7, OrderPosition.SELL),
@@ -102,19 +107,20 @@ def main():
         ]), corr_days=60, corr_min=0.85, description="HighBetaValue")
 
     strategy = MultipleSendAllStrategy(bars, event_queue, [
-        profitable.bounce_ta(bars, event_queue),
-        profitable.value_extremaTA(bars, event_queue),
+        # profitable.bounce_ta(bars, event_queue),
+        # profitable.value_extremaTA(bars, event_queue),
         MultipleAllStrategy(bars, event_queue, [
             OneSidedOrderOnly(bars, event_queue, OrderPosition.SELL),
             profitable.momentum_with_TACross(bars, event_queue)
         ]),
-        high_beta_strat
+        dcf_value_growth,
+        high_beta_strat,
     ])  # , dcf_value_growth, strat_value
 
     rebalance_strat = RebalanceLogicalAny(bars, event_queue, [
-        SellLosersHalfYearly(bars, event_queue),
-        # RebalanceWeekly(bars, event_queue),
+        # SellLosersHalfYearly(bars, event_queue),
         RebalanceYearly(bars, event_queue),
+        SellWinnersQuarterly(bars, event_queue)
     ])
     port = PercentagePortFolio(bars, event_queue, order_queue,
                                percentage=0.05,
@@ -125,7 +131,7 @@ def main():
                                rebalance=rebalance_strat,
                                )
     broker = SimulatedBroker(bars, port, event_queue, order_queue, gatekeepers=[
-        EnoughCash(bars), NoShort(bars)
+        NoShort(bars), EnoughCash(bars), PremiumLimit(bars, 100.0)
     ])
     backtest(bars, event_queue, order_queue,
              strategy, port, broker, start_date=start_date, show_plot=args.num_runs == 1)
