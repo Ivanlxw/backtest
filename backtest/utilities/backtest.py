@@ -20,6 +20,7 @@ from trading.plots.plot import Plot
 
 NY = "America/New_York"
 
+
 def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
     start = time.time()
     while True:
@@ -39,7 +40,8 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker) -> Pl
                 if event is not None:
                     if event.type == 'MARKET':
                         port.update_timeindex()
-                        signal_list : List[SignalEvent] = strategy.calculate_signals(event)
+                        signal_list: List[SignalEvent] = strategy.calculate_signals(
+                            event)
                         for signal in signal_list:
                             event_queue.put(signal)
                         while not order_queue.empty():
@@ -112,7 +114,7 @@ def backtest(bars: DataHandler, event_queue, order_queue,
              start_date=None,
              loop_live: bool = False,
              show_plot: bool = True,
-             sleep_duration: int = 86400):
+             sleep_duration: int = 86400, initial_capital=100000):
     if not loop_live and start_date is None:
         raise Exception("If backtesting, start_date is required.")
 
@@ -123,15 +125,15 @@ def backtest(bars: DataHandler, event_queue, order_queue,
         benchmark_strat_bars = copy.copy(bars)
         _backtest_loop(bars, event_queue, order_queue, strategy, port, broker)
         plot_benchmark(symbol_list=bars.symbol_list,
-                       portfolio_name="benchmark_strat", benchmark_bars=benchmark_strat_bars)
+                       portfolio_name="benchmark_strat", benchmark_bars=benchmark_strat_bars, initial_capital=initial_capital)
         plot_benchmark(symbol_list=[benchmark_ticker],
-                       portfolio_name="benchmark_index", benchmark_bars=None, start_date=start_date)
+                       portfolio_name="benchmark_index", benchmark_bars=None, start_date=start_date, initial_capital=initial_capital)
         if show_plot:
             plt.legend()
             plt.show()
 
 
-def plot_benchmark(symbol_list, portfolio_name, benchmark_bars=None, freq="daily", start_date=None):
+def plot_benchmark(symbol_list, portfolio_name, benchmark_bars=None, freq="daily", start_date=None, initial_capital=100000):
     event_queue = queue.LifoQueue()
     order_queue = queue.Queue()
     if benchmark_bars is None and start_date is None:
@@ -145,7 +147,7 @@ def plot_benchmark(symbol_list, portfolio_name, benchmark_bars=None, freq="daily
     benchmark_bars.events = event_queue
     # Declare the components with relsspective parameters
     strategy = BuyAndHoldStrategy(benchmark_bars, event_queue)
-    port = PercentagePortFolio(benchmark_bars, event_queue, order_queue,
+    port = PercentagePortFolio(benchmark_bars, event_queue, order_queue, initial_capital=initial_capital,
                                percentage=1/len(symbol_list), portfolio_name=portfolio_name,
                                mode='asset', order_type=OrderType.MARKET)
     broker = SimulatedBroker(benchmark_bars, port, event_queue, order_queue)
