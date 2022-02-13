@@ -44,6 +44,12 @@ def generate_start_date():
         random.randint(1, 28)
     )
 
+def generate_start_date_after_2015():
+    return "{}-{:02d}-{:02d}".format(
+        random.randint(2015, 2019),
+        random.randint(1, 12),
+        random.randint(1, 28)
+    )
 
 def log_message(message: str):
     logging.info(f"{pd.Timestamp.now()}: {message}")

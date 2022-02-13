@@ -103,6 +103,7 @@ def _life_loop(bars, event_queue, order_queue, strategy, port: Portfolio, broker
 
                     elif event.type == 'FILL':
                         port.update_fill(event)
+                        broker.update_portfolio_positions(port)
                         port.write_curr_holdings()
         log_message("sleeping")
         time.sleep(sleep_duration.total_seconds())  # 18 hrs
@@ -124,7 +125,7 @@ def backtest(bars: DataHandler, event_queue, order_queue,
     else:
         benchmark_strat_bars = copy.copy(bars)
         _backtest_loop(bars, event_queue, order_queue, strategy, port, broker)
-        plot_benchmark(symbol_list=bars.symbol_list,
+        plot_benchmark(symbol_list=bars.symbol_data.keys(),
                        portfolio_name="benchmark_strat", benchmark_bars=benchmark_strat_bars, initial_capital=initial_capital)
         plot_benchmark(symbol_list=[benchmark_ticker],
                        portfolio_name="benchmark_index", benchmark_bars=None, start_date=start_date, initial_capital=initial_capital)

@@ -13,6 +13,7 @@ from trading.data.dataHandler import DataFromDisk
 from trading.portfolio.portfolio import NaivePortfolio
 from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, SellLosersHalfYearly
 from trading.strategy.basic import OneSidedOrderOnly
+from trading.strategy.multiple import MultipleSendAllStrategy
 from trading.utilities.enum import OrderPosition, OrderType
 from trading.utilities.utils import ETF_LIST
 
@@ -25,6 +26,10 @@ event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
 bars = DataFromDisk(event_queue, ETF_LIST[:3], "2021-01-05", live=True)
 strategy = profitable.comprehensive_longshort(bars, event_queue)
+strategy = MultipleSendAllStrategy(bars, event_queue, [
+    profitable.trending_ma(bars, event_queue),
+    profitable.high_beta_momentum(bars, event_queue)
+])
 rebalance_strat = RebalanceLogicalAny(bars, event_queue, [
     SellLosersHalfYearly(bars, event_queue),
     RebalanceYearly(bars, event_queue)

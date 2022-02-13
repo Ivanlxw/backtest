@@ -10,14 +10,13 @@ from pathlib import Path
 from backtest.strategy import profitable
 from backtest.utilities.backtest import backtest
 from backtest.utilities.utils import MODELINFO_DIR, load_credentials, log_message, parse_args
-from trading.broker.gatekeepers import NoShort, EnoughCash
-from trading.strategy.basic import OneSidedOrderOnly
+from trading.broker.gatekeepers import MaxPortfolioValuePerInst, NoShort, EnoughCash
 from trading.strategy.multiple import MultipleSendAllStrategy
 from trading.broker.broker import AlpacaBroker
 from trading.portfolio.portfolio import PercentagePortFolio
-from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, SellLosersHalfYearly
+from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, SellLosersHalfYearly, SellWinnersQuarterly
 from trading.data.dataHandler import DataFromDisk
-from trading.utilities.enum import OrderPosition, OrderType
+from trading.utilities.enum import OrderType
 from trading.utilities.utils import DOW_LIST, SNP_LIST, NASDAQ_LIST, ETF_LIST
 
 args = parse_args()
@@ -32,20 +31,23 @@ order_queue = queue.Queue()
 NY = "America/New_York"
 SG = "Singapore"
 
-bars = DataFromDisk(event_queue, DOW_LIST + SNP_LIST + NASDAQ_LIST + ETF_LIST, "2021-01-05", live=True)
+bars = DataFromDisk(event_queue, DOW_LIST + SNP_LIST +
+                    NASDAQ_LIST + ETF_LIST, "2021-01-05", live=True)
 
 strategy = MultipleSendAllStrategy(bars, event_queue, [
     # profitable.comprehensive_longshort(bars, event_queue),
-    # profitable.high_beta_with_spy(bars, event_queue, ETF_LIST),   // need to fix
+    profitable.high_beta_momentum(bars, event_queue),
     profitable.dcf_value_growth(bars, event_queue),
-    profitable.momentum_with_TACross(bars, event_queue)
+    profitable.momentum_with_TACross(bars, event_queue),
+    profitable.strict_comprehensive_momentum(bars, event_queue)
 ])
 
 if args.name != "":
     with open(MODELINFO_DIR / f'{args.name}.json', 'w') as fout:
         fout.write(json.dumps(strategy.describe()))
 rebalance_strat = RebalanceLogicalAny(bars, event_queue, [
-    SellLosersHalfYearly(bars, event_queue),
+    SellWinnersQuarterly(bars, event_queue),
+    SellLosersHalfYearly(bars, event_queue, 0.15),
     RebalanceYearly(bars, event_queue)
 ])
 port = PercentagePortFolio(
@@ -62,7 +64,7 @@ port = PercentagePortFolio(
 
 if args.live:
     broker = AlpacaBroker(port, event_queue, gatekeepers=[
-        EnoughCash(bars), NoShort(bars)
+        EnoughCash(bars), NoShort(bars), MaxPortfolioValuePerInst(bars, 0.10)
     ])
     backtest(
         bars, event_queue, order_queue,
