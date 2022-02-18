@@ -17,7 +17,7 @@ from trading.portfolio.portfolio import PercentagePortFolio
 from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, SellLosersHalfYearly, SellWinnersQuarterly
 from trading.data.dataHandler import DataFromDisk
 from trading.utilities.enum import OrderType
-from trading.utilities.utils import DOW_LIST, SNP_LIST, NASDAQ_LIST, ETF_LIST
+from trading.utilities.utils import DOW_LIST, SNP500_LIST, NASDAQ_LIST, ETF_LIST
 
 args = parse_args()
 load_credentials(args.credentials)
@@ -31,11 +31,11 @@ order_queue = queue.Queue()
 NY = "America/New_York"
 SG = "Singapore"
 
-bars = DataFromDisk(event_queue, DOW_LIST + SNP_LIST +
+bars = DataFromDisk(event_queue, DOW_LIST + SNP500_LIST +
                     NASDAQ_LIST + ETF_LIST, "2021-01-05", live=True)
 
 strategy = MultipleSendAllStrategy(bars, event_queue, [
-    # profitable.comprehensive_longshort(bars, event_queue),
+    profitable.strict_comprehensive_longshort(bars, event_queue),
     profitable.high_beta_momentum(bars, event_queue),
     profitable.dcf_value_growth(bars, event_queue),
     profitable.momentum_with_TACross(bars, event_queue),

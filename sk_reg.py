@@ -57,10 +57,10 @@ def main():
     target = targets.EMAClosePctChange(30)
 
     strategy = models.SkLearnRegModelNormalized(
-        bars, event_queue, Ridge, feat, target, RebalanceHalfYearly, 
-        order_val= 0.05,
+        bars, event_queue, Ridge, feat, target, RebalanceHalfYearly,
+        order_val=0.05,
         n_history=60,
-        params = {
+        params={
             "fit_intercept": False,
             "alpha": 0.5,
         }

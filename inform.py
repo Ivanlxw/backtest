@@ -9,20 +9,19 @@ import pandas as pd
 from pathlib import Path
 
 from Inform.telegram import telegram_bot_sendtext
+from backtest.utilities.utils import generate_start_date_after_2015, load_credentials, log_message, parse_args
+from backtest.strategy import profitable
 from trading.event import SignalEvent
 from trading.plots.plot import PlotIndividual
 from trading.data.dataHandler import HistoricCSVDataHandler, NY, DataFromDisk
 from trading.strategy.basic import OneSidedOrderOnly
 from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy, MultipleSendAllStrategy
 from trading.strategy import ta, broad, fundamental, statistics
-from trading.strategy.complex.complex_high_beta import ComplexHighBeta
 from trading.utilities.enum import OrderPosition
-from backtest.utilities.utils import generate_start_date_after_2015, load_credentials, log_message, parse_args
-from Data.DataWriters.Prices import DOW_LIST, SNP_LIST, NASDAQ_LIST, ETF_LIST
-from backtest.strategy import profitable
+from trading.utilities.utils import NASDAQ_LIST, SNP100_LIST, DOW_LIST, ETF_LIST
 
 
-SYM_LIST = DOW_LIST + SNP_LIST + NASDAQ_LIST
+SYM_LIST = DOW_LIST + SNP100_LIST + NASDAQ_LIST
 args = parse_args()
 load_credentials(args.credentials)
 if args.name != "":
@@ -36,7 +35,8 @@ while pd.Timestamp(start_date).dayofweek > 4:
 print(start_date)
 if not args.live:
     bars = HistoricCSVDataHandler(event_queue,
-                                  DOW_LIST + ETF_LIST, # + random.sample(SNP_LIST, 30),
+                                  # + random.sample(SNP_LIST, 30),
+                                  DOW_LIST + ETF_LIST,
                                   start_date=start_date,
                                   frequency_type=args.frequency
                                   )
@@ -102,19 +102,15 @@ rsi_cci_strat = MultipleAllStrategy(bars, event_queue, [
     # ta.TALessThan(bars, event_queue, ta.cci, -50, 0, OrderPosition.BUY),
     ta.TALessThan(bars, event_queue, ta.rsi, 45, 0, OrderPosition.BUY)], "RSICCIStratNotREady")   # not ready
 
-"""
-strat_value,
-ta.MeanReversionTA(bars, event_queue, 25, ta.ema, 2, "EMAMeanReversion"),
-profitable.comprehensive_with_spy(bars, event_queue),
-profitable.strict_comprehensive_longshort(bars, event_queue),
-profitable.high_beta_momentum(bars, event_queue)
-"""
 if args.frequency == "daily":
     strategy = MultipleSendAllStrategy(bars, event_queue, [
+        strat_value,
         MultipleAllStrategy(bars, event_queue, [
             profitable.momentum_with_TACross(bars, event_queue), OneSidedOrderOnly(bars, event_queue, OrderPosition.SELL)]),
-        profitable.momentum_with_TACross(bars, event_queue),
-        profitable.comprehensive_with_spy(bars, event_queue)
+        profitable.strict_comprehensive_longshort(bars, event_queue),
+        profitable.stricter_momentum_with_TACross(bars, event_queue),
+        profitable.comprehensive_with_spy(bars, event_queue),
+        profitable.high_beta_momentum(bars, event_queue)
         # rsi_cci_strat,
     ])
 else:   # intraday

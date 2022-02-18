@@ -25,8 +25,8 @@ if args.name != "":
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
 bars = DataFromDisk(event_queue, ETF_LIST[:3], "2021-01-05", live=True)
-strategy = profitable.comprehensive_longshort(bars, event_queue)
 strategy = MultipleSendAllStrategy(bars, event_queue, [
+    profitable.comprehensive_longshort(bars, event_queue),
     profitable.trending_ma(bars, event_queue),
     profitable.high_beta_momentum(bars, event_queue)
 ])
@@ -45,6 +45,7 @@ port = NaivePortfolio(
 )
 broker = TDABroker(event_queue, gatekeepers=[EnoughCash(bars), NoShort(
     bars), MaxPortfolioPosition(bars, 10), PremiumLimit(bars, 150.0)])
+
 
 def test_tda_stuff():
     strategy = OneSidedOrderOnly(bars, event_queue, OrderPosition.BUY)

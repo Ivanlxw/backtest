@@ -20,21 +20,21 @@ from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy, 
 from trading.strategy import ta, statistics, fundamental
 from trading.strategy.complex.complex_high_beta import ComplexHighBeta
 from trading.utilities.enum import OrderPosition
-from trading.utilities.utils import DOW_LIST, SNP_LIST, NASDAQ_LIST, ETF_LIST
+from trading.utilities.utils import DOW_LIST, SNP100_LIST, NASDAQ_LIST, ETF_LIST
 
 
 def main():
     event_queue = queue.LifoQueue()
     order_queue = queue.Queue()
     # YYYY-MM-DD
-    start_date = generate_start_date()
+    start_date = generate_start_date_after_2015()
     while pd.Timestamp(start_date).dayofweek > 4:
         start_date = generate_start_date_after_2015()
     print(start_date)
     bars = HistoricCSVDataHandler(event_queue,
                                   #   DOW_LIST + ETF_LIST,
                                   random.sample(
-                                      DOW_LIST + SNP_LIST + NASDAQ_LIST, 70) + ETF_LIST,
+                                      DOW_LIST + SNP100_LIST + NASDAQ_LIST, 70) + ETF_LIST,
                                   start_date=start_date,
                                   frequency_type=args.frequency
                                   )
@@ -124,12 +124,10 @@ def main():
     strategy = MultipleSendAllStrategy(bars, event_queue, [
         MultipleAllStrategy(bars, event_queue, [
             profitable.momentum_with_TACross(bars, event_queue), OneSidedOrderOnly(bars, event_queue, OrderPosition.SELL)]),
-        # profitable.trending_ma(bars, event_queue, trending_score=0.25),
-        profitable.momentum_with_TACross(bars, event_queue),
-        profitable.comprehensive_with_spy(bars, event_queue)
-        # profitable.strict_momentum_with_TACross(bars, event_queue),
-        # profitable.strict_comprehensive_longshort(
-        #     bars, event_queue, trending_score=0.2),
+        profitable.stricter_momentum_with_TACross(bars, event_queue),
+        # profitable.comprehensive_with_spy(bars, event_queue)
+        profitable.strict_comprehensive_longshort(
+            bars, event_queue, trending_score=0.2),
         # profitable.strict_comprehensive_longshort(
         #     bars, event_queue, 60, trending_score=0.2),
         # strat_value,
@@ -162,7 +160,7 @@ def main():
 
 
 if __name__ == "__main__":
-    INITIAL_CAPITAL = 3000
+    INITIAL_CAPITAL = 5000
     args = parse_args()
     load_credentials(args.credentials)
 

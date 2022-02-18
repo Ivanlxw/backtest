@@ -18,10 +18,14 @@ def parse_args():
                         type=str, help="credentials filepath")
     parser.add_argument('-n', '--name', required=False, default="",
                         type=str, help="name of backtest/live strat run")
-    parser.add_argument('-l', '--live', action='store_true', help='inform life?')
-    parser.add_argument("--num-runs", type=int, default=1, help="Run backtest x times, get more aggregated performance details from log")
-    parser.add_argument("--frequency", type=str, default="daily", help="Frequency of data. Searches a dir with same name")
-    parser.add_argument("--sleep-time", type=int, default=43200, help="Sleep time in seconds. Defaults to sleep time in live loop")
+    parser.add_argument('-l', '--live', action='store_true',
+                        help='inform life?')
+    parser.add_argument("--num-runs", type=int, default=1,
+                        help="Run backtest x times, get more aggregated performance details from log")
+    parser.add_argument("--frequency", type=str, default="daily",
+                        help="Frequency of data. Searches a dir with same name")
+    parser.add_argument("--sleep-time", type=int, default=43200,
+                        help="Sleep time in seconds. Defaults to sleep time in live loop")
     return parser.parse_args()
 
 
@@ -44,12 +48,14 @@ def generate_start_date():
         random.randint(1, 28)
     )
 
+
 def generate_start_date_after_2015():
     return "{}-{:02d}-{:02d}".format(
         random.randint(2015, 2019),
         random.randint(1, 12),
         random.randint(1, 28)
     )
+
 
 def log_message(message: str):
     logging.info(f"{pd.Timestamp.now()}: {message}")
