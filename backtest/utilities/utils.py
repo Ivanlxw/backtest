@@ -8,6 +8,7 @@ import pandas as pd
 
 UTILS_ABS_FP = Path(os.path.dirname(os.path.abspath(__file__)))
 MODELINFO_DIR = UTILS_ABS_FP / "../../Data/strategies"
+FORMAT_YYYYMMDD = '%Y-%m-%d'
 if not os.path.exists(MODELINFO_DIR):
     os.makedirs(MODELINFO_DIR, exist_ok=True)
 
@@ -24,6 +25,7 @@ def parse_args():
                         help="Run backtest x times, get more aggregated performance details from log")
     parser.add_argument("--frequency", type=str, default="daily",
                         help="Frequency of data. Searches a dir with same name")
+    parser.add_argument("--universe", type=Path, required=True, help="File path to trading universe", nargs='+')
     parser.add_argument("--sleep-time", type=int, default=43200,
                         help="Sleep time in seconds. Defaults to sleep time in live loop")
     return parser.parse_args()
@@ -35,10 +37,13 @@ def remove_bs(s: str):
 
 
 def load_credentials(credentials_fp):
+        # for k, v in credentials.items():
+        #     os.environ[k] = v
+    credentials = {}
     with open(credentials_fp, 'r') as f:
         credentials = json.load(f)
-        for k, v in credentials.items():
-            os.environ[k] = v
+    assert credentials, "credentials is an empty dictionary"
+    return credentials
 
 
 def generate_start_date():

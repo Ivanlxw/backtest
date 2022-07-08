@@ -15,7 +15,7 @@ from trading.strategy.base import BuyAndHoldStrategy
 from backtest.utilities.utils import log_message
 from trading.data.dataHandler import DataHandler, HistoricCSVDataHandler
 from trading.utilities.enum import OrderType
-from trading.utilities.constants import benchmark_ticker
+from trading.utilities.constants import BENCHMARK_TICKER
 from trading.plots.plot import Plot
 
 NY = "America/New_York"
@@ -75,7 +75,6 @@ def _life_loop(bars, event_queue, order_queue, strategy, port: Portfolio, broker
         # only run during trading hours -> 0945 - 1745
         if (time_since_midnight < datetime.timedelta(hours=9, minutes=45) or time_since_midnight > datetime.timedelta(hours=17, minutes=45)):
             continue
-        log_message("update_bars()")
         bars.update_bars()
         while True:
             try:
@@ -105,12 +104,14 @@ def _life_loop(bars, event_queue, order_queue, strategy, port: Portfolio, broker
                         port.update_fill(event)
                         broker.update_portfolio_positions(port)
                         port.write_curr_holdings()
+        # end of cycle
+        port.write_curr_holdings()
         log_message("sleeping")
-        time.sleep(sleep_duration.total_seconds())  # 18 hrs
+        time.sleep(sleep_duration.total_seconds())
         log_message("sleep over")
 
 
-def backtest(bars: DataHandler, event_queue, order_queue,
+def backtest(bars: DataHandler, creds: dict, event_queue, order_queue,
              strategy, port, broker,
              start_date=None,
              loop_live: bool = False,
@@ -118,23 +119,21 @@ def backtest(bars: DataHandler, event_queue, order_queue,
              sleep_duration: int = 86400, initial_capital=100000):
     if not loop_live and start_date is None:
         raise Exception("If backtesting, start_date is required.")
-
     if loop_live:
         _life_loop(bars, event_queue, order_queue, strategy, port,
                    broker, datetime.timedelta(seconds=sleep_duration))
     else:
-        benchmark_strat_bars = copy.copy(bars)
         _backtest_loop(bars, event_queue, order_queue, strategy, port, broker)
-        plot_benchmark(symbol_list=bars.symbol_data.keys(),
-                       portfolio_name="benchmark_strat", benchmark_bars=benchmark_strat_bars, initial_capital=initial_capital)
-        plot_benchmark(symbol_list=[benchmark_ticker],
-                       portfolio_name="benchmark_index", benchmark_bars=None, start_date=start_date, initial_capital=initial_capital)
+        plot_benchmark(creds, symbol_list=bars.symbol_data.keys(),
+                       portfolio_name="benchmark_strat", benchmark_bars=copy.copy(bars), initial_capital=initial_capital)
+        plot_benchmark(creds, symbol_list=[BENCHMARK_TICKER],
+                       portfolio_name="benchmark_index", start_date=start_date, initial_capital=initial_capital)
         if show_plot:
             plt.legend()
             plt.show()
 
 
-def plot_benchmark(symbol_list, portfolio_name, benchmark_bars=None, freq="daily", start_date=None, initial_capital=100000):
+def plot_benchmark(creds, symbol_list, portfolio_name, benchmark_bars=None, freq="daily", start_date=None, initial_capital=100000):
     event_queue = queue.LifoQueue()
     order_queue = queue.Queue()
     if benchmark_bars is None and start_date is None:
@@ -143,6 +142,7 @@ def plot_benchmark(symbol_list, portfolio_name, benchmark_bars=None, freq="daily
         # create new benchmark_bars with index only
         benchmark_bars = HistoricCSVDataHandler(event_queue,
                                                 symbol_list=symbol_list,
+                                                creds=creds,
                                                 start_date=start_date,
                                                 )
     benchmark_bars.events = event_queue
