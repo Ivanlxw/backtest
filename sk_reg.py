@@ -83,7 +83,7 @@ def main():
                                )
     broker = SimulatedBroker(bars, port, event_queue, order_queue)
     backtest(bars, event_queue, order_queue,
-             strategy, port, broker, start_date=start_date, show_plot=args.num_runs == 1)
+             strategy, port, broker, show_plot=args.num_runs == 1)
 
 
 if __name__ == "__main__":

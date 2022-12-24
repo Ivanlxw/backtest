@@ -7,6 +7,12 @@ data/*.json
 *.__init__.py
 *profitable.py
 
+## cmake related
+*.cmake
+*.tcl
+Makefile
+cmake-*/
+
 ## directories
 Data/*
 backtest.egg-info/
@@ -15,3 +21,4 @@ results/
 scrap/
 strategies/
 __pycache__/
+bin/

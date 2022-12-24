@@ -10,3 +10,4 @@ TA-Lib
 selenium
 pathos
 numba
+Deprecated

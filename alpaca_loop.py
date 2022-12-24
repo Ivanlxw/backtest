@@ -9,7 +9,7 @@ from pathlib import Path
 
 from backtest.strategy import profitable
 from backtest.utilities.backtest import backtest
-from backtest.utilities.utils import MODELINFO_DIR, load_credentials, log_message, parse_args
+from backtest.utilities.utils import MODELINFO_DIR, generate_start_date_in_ms, get_sleep_time, load_credentials, log_message, parse_args, get_trading_universe
 from trading.broker.gatekeepers import MaxPortfolioPercPerInst, NoShort, EnoughCash
 from trading.strategy.multiple import MultipleAnyStrategy, MultipleAllStrategy
 from trading.broker.broker import AlpacaBroker
@@ -18,7 +18,6 @@ from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, Se
 from trading.data.dataHandler import DataFromDisk
 from trading.strategy import ta, broad, fundamental, statistics
 from trading.utilities.enum import OrderPosition, OrderType
-from trading.utilities.utils import get_trading_universe
 
 args = parse_args()
 creds = load_credentials(args.credentials)
@@ -32,7 +31,7 @@ order_queue = queue.Queue()
 NY = "America/New_York"
 SG = "Singapore"
 
-bars = DataFromDisk(event_queue, get_trading_universe(args.universe), creds, "2021-01-05", live=True)
+bars = DataFromDisk(event_queue, get_trading_universe(args.universe), creds, generate_start_date_in_ms(2021, 2021), live=True)
 
 if any("etf" in univ.name for univ in args.universe):
     strategy = profitable.strict_comprehensive_longshort(bars, event_queue, ma_value=22, trending_score=-0.05)
@@ -94,7 +93,7 @@ if args.live:
     ])
     backtest(
         bars, creds, event_queue, order_queue,
-        strategy, port, broker, loop_live=True, sleep_duration=args.sleep_time)
+        strategy, port, broker, loop_live=True, sleep_duration=get_sleep_time(args.frequency))
     log_message("saving curr_holdings")
     port.write_curr_holdings()
     port.write_all_holdings()
