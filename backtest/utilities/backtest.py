@@ -12,13 +12,12 @@ from trading.broker.broker import Broker, SimulatedBroker
 from trading.event import SignalEvent
 from trading.portfolio.portfolio import PercentagePortFolio, Portfolio
 from trading.strategy.base import BuyAndHoldStrategy
-from backtest.utilities.utils import log_message
+from backtest.utilities.utils import NY_TIMEZONE, log_message
 from trading.data.dataHandler import DataHandler, HistoricCSVDataHandler
 from trading.utilities.enum import OrderType
-from trading.utilities.constants import BENCHMARK_TICKER
 from trading.plots.plot import Plot
 
-NY = "America/New_York"
+BENCHMARK_TICKER = "SPY"
 
 
 def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker) -> Plot:
@@ -68,7 +67,7 @@ def _backtest_loop(bars, event_queue, order_queue, strategy, port, broker) -> Pl
 def _life_loop(bars, event_queue, order_queue, strategy, port: Portfolio, broker: Broker, sleep_duration: datetime.timedelta) -> Plot:
     while True:
         # Update the bars (specific backtest code, as opposed to live trading)
-        now = pd.Timestamp.now(tz=NY)
+        now = pd.Timestamp.now(tz=NY_TIMEZONE)
         if now.dayofweek >= 4 and now.hour > 17:
             break
         time_since_midnight = now - now.normalize()
@@ -86,7 +85,7 @@ def _life_loop(bars, event_queue, order_queue, strategy, port: Portfolio, broker
                     if event.type == 'MARKET':
                         log_message("MarketEvent")
                         port.update_timeindex()
-                        broker.update_portfolio_positions(port)
+                        broker.update_portfolio_positions()
                         signal_list = strategy.calculate_signals(event)
                         for signal in signal_list:
                             event_queue.put(signal)
@@ -102,7 +101,7 @@ def _life_loop(bars, event_queue, order_queue, strategy, port: Portfolio, broker
 
                     elif event.type == 'FILL':
                         port.update_fill(event)
-                        broker.update_portfolio_positions(port)
+                        broker.update_portfolio_positions()
                         port.write_curr_holdings()
         # end of cycle
         port.write_curr_holdings()
@@ -112,38 +111,37 @@ def _life_loop(bars, event_queue, order_queue, strategy, port: Portfolio, broker
 
 
 def backtest(bars: DataHandler, creds: dict, event_queue, order_queue,
-             strategy, port, broker,
-             start_date=None,
+             strategy, port, broker, frequency,
              loop_live: bool = False,
              show_plot: bool = True,
              sleep_duration: int = 86400, initial_capital=100000):
-    if not loop_live and start_date is None:
-        raise Exception("If backtesting, start_date is required.")
     if loop_live:
         _life_loop(bars, event_queue, order_queue, strategy, port,
                    broker, datetime.timedelta(seconds=sleep_duration))
     else:
         _backtest_loop(bars, event_queue, order_queue, strategy, port, broker)
-        plot_benchmark(creds, symbol_list=bars.symbol_data.keys(),
-                       portfolio_name="benchmark_strat", benchmark_bars=copy.copy(bars), initial_capital=initial_capital)
-        plot_benchmark(creds, symbol_list=[BENCHMARK_TICKER],
-                       portfolio_name="benchmark_index", start_date=start_date, initial_capital=initial_capital)
+        plot_benchmark(creds, symbol_list=bars.symbol_data.keys(), portfolio_name="benchmark_BuyAndHold", freq=frequency,
+                       benchmark_bars=copy.copy(bars), initial_capital=initial_capital)
+        plot_benchmark(creds, symbol_list=[BENCHMARK_TICKER], portfolio_name="benchmark_index",
+                       freq=frequency, start_ms=bars.start_ms, end_ms=bars.end_ms, initial_capital=initial_capital)
         if show_plot:
             plt.legend()
             plt.show()
 
 
-def plot_benchmark(creds, symbol_list, portfolio_name, benchmark_bars=None, freq="daily", start_date=None, initial_capital=100000):
+def plot_benchmark(creds, symbol_list, portfolio_name, freq: str, benchmark_bars=None, start_ms: int = None,  end_ms: int = None, initial_capital=100000):
     event_queue = queue.LifoQueue()
     order_queue = queue.Queue()
-    if benchmark_bars is None and start_date is None:
-        raise Exception("If benchmark_bars is None, start_date cannot be None")
-    elif benchmark_bars is None and start_date is not None:
+    if benchmark_bars is None and start_ms is None:
+        raise Exception("If benchmark_bars is None, start_ms cannot be None")
+    elif benchmark_bars is None and start_ms is not None:
         # create new benchmark_bars with index only
         benchmark_bars = HistoricCSVDataHandler(event_queue,
                                                 symbol_list=symbol_list,
                                                 creds=creds,
-                                                start_date=start_date,
+                                                start_ms=start_ms,
+                                                end_ms=end_ms,
+                                                frequency_type=freq
                                                 )
     benchmark_bars.events = event_queue
     # Declare the components with relsspective parameters

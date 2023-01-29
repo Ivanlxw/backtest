@@ -4,7 +4,7 @@ import requests
 def telegram_bot_sendtext(bot_message, bot_apikey, bot_chatid):
     send_text = 'https://api.telegram.org/bot' + bot_apikey + \
         '/sendMessage?chat_id=' + bot_chatid + \
-        '&text=' + bot_message
+        '&parse_mode=Markdown&text=' + bot_message
     response = requests.get(send_text)
     return response.json()
 
