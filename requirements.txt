@@ -11,3 +11,4 @@ selenium
 pathos
 numba
 Deprecated
+scipy

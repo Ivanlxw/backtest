@@ -6,17 +6,17 @@ import os
 import concurrent.futures as fut
 from pathlib import Path
 
-from backtest.strategy import profitable
-from backtest.utilities.utils import generate_start_date_in_ms, parse_args, load_credentials, get_trading_universe
+from backtest.utilities.utils import generate_start_date_in_ms, parse_args, load_credentials, read_universe_list
 from trading.broker.broker import SimulatedBroker
-from trading.broker.gatekeepers import EnoughCash, MaxPortfolioPercPerInst, NoShort, PremiumLimit, MaxPortfolioPosition, MaxInstPosition
-from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, SellLosersQuarterly, SellWinnersQuarterly
+from trading.broker.gatekeepers import EnoughCash, MaxPortfolioPercPerInst, NoShort
+from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, SellLosersMonthly, SellLosersQuarterly, SellWinnersQuarterly
 from trading.portfolio.portfolio import FixedTradeValuePortfolio
 from backtest.utilities.backtest import backtest
 from trading.data.dataHandler import HistoricCSVDataHandler
 from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
 from trading.strategy import ta, broad, fundamental, statistics
 from trading.utilities.enum import OrderPosition
+# from trading.strategy.personal import profitable
 
 ''' tRial strategies
 def extrema_bounce_ta(bars, event_queue, extrema_period=80, ta_func: Callable = ta.sma, ta_period=20, exit: bool = True):
@@ -39,13 +39,13 @@ def main():
     # YYYY-MM-DD
     if args.start_ms is not None:
         start_ms = args.start_ms
-    elif args.frequency == "daily":
-        start_ms = generate_start_date_in_ms(2015, 2021)
+    elif args.frequency == "day":
+        start_ms = generate_start_date_in_ms(2019, 2021)
     else:
         start_ms = generate_start_date_in_ms(2021, 2022)
-    print(start_ms)
-    end_ms = int(start_ms + random.randint(200, 800) * 8.64e7) # end anytime between 200 - 800 days later
-    universe_list = get_trading_universe(args.universe)
+    end_ms = int(start_ms + random.randint(250, 700) * 8.64e7)  # end anytime between 200 - 800 days later
+    print(start_ms, end_ms)
+    universe_list = read_universe_list(args.universe)
     symbol_list = set(random.sample(universe_list, min(
         80, len(universe_list))))
     bars = HistoricCSVDataHandler(event_queue, symbol_list, creds,
@@ -54,55 +54,50 @@ def main():
                                   frequency_type=args.frequency
                                   )
 
-    if args.frequency == "daily":
-        strat_pre_momentum = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
+    if args.frequency == "day":
+        strategy = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
             statistics.ExtremaBounce(
-                bars, event_queue, short_period=8, long_period=80, percentile=40),
+                bars, event_queue, short_period=8, long_period=65, percentile=40),
             MultipleAnyStrategy(bars, event_queue, [
                 MultipleAllStrategy(bars, event_queue, [   # buy
-                    MultipleAnyStrategy(bars, event_queue, [
-                        fundamental.FundAtLeast(bars, event_queue,
-                                                'revenueGrowth', 0.1, order_position=OrderPosition.BUY),
-                        fundamental.FundAtLeast(bars, event_queue, 'roe',
-                                                0, order_position=OrderPosition.BUY),
-                    ]),
                     ta.TALessThan(bars, event_queue, ta.cci,
                                   20, 0, OrderPosition.BUY),
+                    # broad.above_functor(bars, event_queue, 'SPY',
+                    #     20, args.frequency, OrderPosition.BUY),
                 ]),
                 MultipleAnyStrategy(bars, event_queue, [   # sell
                     # RelativeExtrema(bars, event_queue, 20, strat_contrarian=False),
                     ta.TAMoreThan(bars, event_queue, ta.rsi,
-                                  14, 50, OrderPosition.SELL),
+                                  14, 45, OrderPosition.SELL),
                     ta.TAMoreThan(bars, event_queue, ta.cci,
                                   14, 20, OrderPosition.SELL),
                     ta.TAMin(bars, event_queue, ta.rsi,
                              14, 5, OrderPosition.SELL),
                     broad.below_functor(bars, event_queue, 'SPY',
-                                        20, OrderPosition.SELL),
+                                        20, args.frequency, OrderPosition.SELL),
                 ], min_matches=2)
             ])
         ])  # StratPreMomentum
         strategy = MultipleAnyStrategy(bars, event_queue, [
-            profitable.strict_comprehensive_longshort(
-                bars, event_queue, ma_value=22, trending_score=-0.05),
-            strat_pre_momentum
+            statistics.RelativeExtrema(bars, event_queue, 35, strat_contrarian=True, percentile=15), # will keep buying down
+            strategy,
         ])
     else:
         strat_momentum = MultipleAllStrategy(bars, event_queue, [
             statistics.ExtremaBounce(bars, event_queue, short_period=6,
-                        long_period=50, percentile=25),
+                                     long_period=50, percentile=25),
             MultipleAnyStrategy(bars, event_queue, [  # any of buy and sell
                 MultipleAllStrategy(bars, event_queue, [   # buy
                     ta.TALessThan(bars, event_queue, ta.rsi,
                                 14, 50, OrderPosition.BUY),
                     broad.above_functor(bars, event_queue, 'SPY',
-                                        25, OrderPosition.BUY),
+                                        25, args.frequency, OrderPosition.BUY),
                 ]),
                 MultipleAllStrategy(bars, event_queue, [   # sell
                     ta.TAMoreThan(bars, event_queue, ta.rsi,
-                                14, 50, OrderPosition.SELL),
+                                  14, 50, OrderPosition.SELL),
                     broad.below_functor(bars, event_queue, 'SPY',
-                                        25, OrderPosition.SELL),
+                                        25, args.frequency, OrderPosition.SELL),
                 ])
             ])
         ])
@@ -117,9 +112,9 @@ def main():
         ], description="IntradayComprehensiveLongShort")
     rebalance_strat = RebalanceLogicalAny(bars, event_queue, [
         RebalanceYearly(bars, event_queue),
-        SellWinnersQuarterly(bars, event_queue, 0.35),
-        SellLosersQuarterly(bars, event_queue, 0.1)
-        # SellLosersMonthly(bars, event_queue, 0.1)
+        SellWinnersQuarterly(bars, event_queue, 0.40),
+        SellLosersQuarterly(bars, event_queue, 0.14),
+        SellLosersMonthly(bars, event_queue, 0.075),
     ])
     port = FixedTradeValuePortfolio(bars, event_queue, order_queue,
                                     trade_value=700,
@@ -133,20 +128,20 @@ def main():
     broker = SimulatedBroker(bars, port, event_queue, order_queue, gatekeepers=[
         NoShort(), EnoughCash(),
         # PremiumLimit(150), MaxInstPosition(3), MaxPortfolioPosition(24) # test real scenario since I'm poor
-        MaxPortfolioPercPerInst(bars, 0.4)
+        MaxPortfolioPercPerInst(bars, 0.2)
     ])
     backtest(bars, creds, event_queue, order_queue,
-             strategy, port, broker, show_plot=args.num_runs == 1, initial_capital=INITIAL_CAPITAL)
+             strategy, port, broker, args.frequency, show_plot=args.num_runs == 1, initial_capital=INITIAL_CAPITAL)
 
 
 if __name__ == "__main__":
-    INITIAL_CAPITAL = 5000
+    INITIAL_CAPITAL = 10000
     args = parse_args()
     creds = load_credentials(args.credentials)
 
     if args.name != "":
         logging.basicConfig(filename=Path(os.environ["WORKSPACE_ROOT"]) /
-                            f"Data/logging/{args.name}.log", level=logging.INFO, force=True)
+                            f"Data/data/logging/{args.name}.log", level=logging.INFO, force=True)
     processes = []
     with fut.ProcessPoolExecutor(4) as e:
         for i in range(args.num_runs):

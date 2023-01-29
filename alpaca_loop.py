@@ -7,23 +7,23 @@ import queue
 import logging
 from pathlib import Path
 
-from backtest.strategy import profitable
+# from backtest.strategy import profitable
 from backtest.utilities.backtest import backtest
-from backtest.utilities.utils import MODELINFO_DIR, generate_start_date_in_ms, get_sleep_time, load_credentials, log_message, parse_args, get_trading_universe
+from backtest.utilities.utils import MODELINFO_DIR, generate_start_date_in_ms, get_sleep_time, load_credentials, log_message, parse_args, read_universe_list
 from trading.broker.gatekeepers import MaxPortfolioPercPerInst, NoShort, EnoughCash
 from trading.strategy.multiple import MultipleAnyStrategy, MultipleAllStrategy
 from trading.broker.broker import AlpacaBroker
 from trading.portfolio.portfolio import PercentagePortFolio
 from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, SellLosersMonthly
 from trading.data.dataHandler import DataFromDisk
-from trading.strategy import ta, broad, fundamental, statistics
+from trading.strategy import ta, broad, statistics
 from trading.utilities.enum import OrderPosition, OrderType
 
 args = parse_args()
 creds = load_credentials(args.credentials)
 if args.name != "":
     logging.basicConfig(filename=Path(os.environ['WORKSPACE_ROOT']) /
-                        f"Data/logging/{args.name}.log", level=logging.INFO, force=True)
+                        f"Data/data/logging/{args.name}.log", level=logging.INFO, force=True)
 
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
@@ -31,41 +31,42 @@ order_queue = queue.Queue()
 NY = "America/New_York"
 SG = "Singapore"
 
-bars = DataFromDisk(event_queue, get_trading_universe(args.universe), creds, generate_start_date_in_ms(2021, 2021), live=True)
+bars = DataFromDisk(event_queue, read_universe_list(args.universe), creds,
+                    generate_start_date_in_ms(2021, 2021), live=True)
 
-if any("etf" in univ.name for univ in args.universe):
-    strategy = profitable.strict_comprehensive_longshort(bars, event_queue, ma_value=22, trending_score=-0.05)
-else:
-    strat_pre_momentum = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
-        statistics.ExtremaBounce(
-            bars, event_queue, short_period=8, long_period=80, percentile=40),
-        MultipleAnyStrategy(bars, event_queue, [
-            MultipleAllStrategy(bars, event_queue, [   # buy
-                MultipleAnyStrategy(bars, event_queue, [
-                    fundamental.FundAtLeast(bars, event_queue,
-                                            'revenueGrowth', 0.1, order_position=OrderPosition.BUY),
-                    fundamental.FundAtLeast(bars, event_queue, 'roe',
-                                            0, order_position=OrderPosition.BUY),
-                ]),
-                ta.TALessThan(bars, event_queue, ta.cci,
-                              20, 0, OrderPosition.BUY),
-            ]),
-            MultipleAnyStrategy(bars, event_queue, [   # sell
-                # RelativeExtrema(bars, event_queue, 20, strat_contrarian=False),
-                ta.TAMoreThan(bars, event_queue, ta.rsi,
-                              14, 50, OrderPosition.SELL),
-                ta.TAMoreThan(bars, event_queue, ta.cci,
-                              14, 20, OrderPosition.SELL),
-                ta.TAMin(bars, event_queue, ta.rsi, 14, 5, OrderPosition.SELL),
-                broad.below_functor(bars, event_queue, 'SPY',
-                                    20, OrderPosition.SELL),
-            ], min_matches=2)
-        ])
-    ])  # StratPreMomentum
-    strategy = MultipleAnyStrategy(bars, event_queue, [
-            strat_pre_momentum,
-            profitable.comprehensive_with_value_bounce(bars, event_queue)
-        ])
+# if any("etf" in univ.name for univ in args.universe):
+#     strategy = profitable.strict_comprehensive_longshort(bars, event_queue, ma_value=22, trending_score=-0.05)
+# else:
+strategy = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
+    statistics.ExtremaBounce(
+        bars, event_queue, short_period=8, long_period=80, percentile=40),
+    MultipleAnyStrategy(bars, event_queue, [
+        MultipleAllStrategy(bars, event_queue, [   # buy
+            # MultipleAnyStrategy(bars, event_queue, [
+            #     fundamental.FundAtLeast(bars, event_queue,
+            #                             'revenueGrowth', 0.1, order_position=OrderPosition.BUY),
+            #     fundamental.FundAtLeast(bars, event_queue, 'roe',
+            #                             0, order_position=OrderPosition.BUY),
+            # ]),
+            ta.TALessThan(bars, event_queue, ta.cci,
+                            20, 0, OrderPosition.BUY),
+        ]),
+        MultipleAnyStrategy(bars, event_queue, [   # sell
+            # RelativeExtrema(bars, event_queue, 20, strat_contrarian=False),
+            ta.TAMoreThan(bars, event_queue, ta.rsi,
+                            14, 50, OrderPosition.SELL),
+            ta.TAMoreThan(bars, event_queue, ta.cci,
+                          14, 20, OrderPosition.SELL),
+            ta.TAMin(bars, event_queue, ta.rsi, 14, 5, OrderPosition.SELL),
+            broad.below_functor(bars, event_queue, 'SPY',
+                                20, args.frequency, OrderPosition.SELL),
+        ], min_matches=2)
+    ])
+])  # StratPreMomentum
+# strategy = MultipleAnyStrategy(bars, event_queue, [
+#         strat_pre_momentum,
+#         profitable.comprehensive_with_value_bounce(bars, event_queue)
+#     ])
 
 if args.name != "":
     with open(MODELINFO_DIR / f'{args.name}.json', 'w') as fout:
@@ -92,8 +93,7 @@ if args.live:
         EnoughCash(), NoShort(), MaxPortfolioPercPerInst(bars, 0.25)
     ])
     backtest(
-        bars, creds, event_queue, order_queue,
-        strategy, port, broker, loop_live=True, sleep_duration=get_sleep_time(args.frequency))
+        bars, creds, event_queue, order_queue, strategy, port, broker, args.frequency, loop_live=True, sleep_duration=get_sleep_time(args.frequency))
     log_message("saving curr_holdings")
     port.write_curr_holdings()
     port.write_all_holdings()

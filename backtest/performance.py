@@ -21,8 +21,8 @@ def create_drawdowns(equity_curve):
     """
     hwm = [0]
     eq_idx = equity_curve.index
-    drawdown = pd.Series(index=eq_idx)
-    duration = pd.Series(index=eq_idx)
+    drawdown = pd.Series(index=eq_idx, dtype='float64')
+    duration = pd.Series(index=eq_idx, dtype='float64')
 
     for t in range(1, len(eq_idx)):
         cur_hwm = max(hwm[t-1], equity_curve[t])
