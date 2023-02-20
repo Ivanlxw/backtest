@@ -104,5 +104,6 @@ def get_sleep_time(frequency: str):
         "5minute": 310,    # 5m10s
         "15minute": 480,   # 16m
         "30minute": 1900,  # 31m40s
+        "60minute": 3000    # 50mins
     }
     return sleep_time_map[frequency]

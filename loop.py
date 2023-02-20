@@ -13,10 +13,12 @@ from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, Se
 from trading.portfolio.portfolio import FixedTradeValuePortfolio
 from backtest.utilities.backtest import backtest
 from trading.data.dataHandler import HistoricCSVDataHandler
+from trading.strategy.fairprice import FairPriceStrategy, fair_price_ema, minmax_ema 
+from trading.strategy.fpmargins import perc_margins
 from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
-from trading.strategy import ta, broad, fundamental, statistics
+from trading.strategy import ta, broad, statistics
 from trading.utilities.enum import OrderPosition
-# from trading.strategy.personal import profitable
+from trading.strategy.personal import profitable
 
 ''' tRial strategies
 def extrema_bounce_ta(bars, event_queue, extrema_period=80, ta_func: Callable = ta.sma, ta_period=20, exit: bool = True):
@@ -53,6 +55,7 @@ def main():
                                   end_ms=end_ms,
                                   frequency_type=args.frequency
                                   )
+    period = 20
 
     if args.frequency == "day":
         strategy = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
@@ -79,37 +82,43 @@ def main():
             ])
         ])  # StratPreMomentum
         strategy = MultipleAnyStrategy(bars, event_queue, [
-            statistics.RelativeExtrema(bars, event_queue, 35, strat_contrarian=True, percentile=15), # will keep buying down
+            statistics.RelativeExtrema(bars, event_queue, 35, strat_contrarian=True,
+                                       percentile=15),  # will keep buying down
             strategy,
         ])
     else:
-        strat_momentum = MultipleAllStrategy(bars, event_queue, [
-            statistics.ExtremaBounce(bars, event_queue, short_period=6,
-                                     long_period=50, percentile=25),
-            MultipleAnyStrategy(bars, event_queue, [  # any of buy and sell
-                MultipleAllStrategy(bars, event_queue, [   # buy
-                    ta.TALessThan(bars, event_queue, ta.rsi,
-                                14, 50, OrderPosition.BUY),
-                    broad.above_functor(bars, event_queue, 'SPY',
-                                        25, args.frequency, OrderPosition.BUY),
-                ]),
-                MultipleAllStrategy(bars, event_queue, [   # sell
-                    ta.TAMoreThan(bars, event_queue, ta.rsi,
-                                  14, 50, OrderPosition.SELL),
-                    broad.below_functor(bars, event_queue, 'SPY',
-                                        25, args.frequency, OrderPosition.SELL),
-                ])
-            ])
-        ])
+        strategy = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
+            statistics.ExtremaBounce(
+                bars, event_queue, short_period=8, long_period=65, percentile=40),
+            MultipleAnyStrategy(bars, event_queue, [
+                                MultipleAnyStrategy(bars, event_queue, [   # buy
+                                    # MultipleAnyStrategy(bars, event_queue, [
+                                    #     fundamental.FundAtLeast(bars, event_queue,
+                                    #                             'revenueGrowth', 0.1, order_position=OrderPosition.BUY),
+                                    #     fundamental.FundAtLeast(bars, event_queue, 'roe',
+                                    #                             0, order_position=OrderPosition.BUY),
+                                    # ]),
+                                    ta.TALessThan(bars, event_queue, ta.rsi,
+                                                  14, 50, OrderPosition.BUY),
+                                    ta.TALessThan(bars, event_queue, ta.cci,
+                                                  20, 0, OrderPosition.BUY),
+                                    broad.above_functor(bars, event_queue, 'SPY', 20, args.frequency, OrderPosition.BUY),
+                                ], min_matches=2),
+                                MultipleAnyStrategy(bars, event_queue, [   # sell
+                                    # RelativeExtrema(bars, event_queue, 20, strat_contrarian=False),
+                                    ta.TAMoreThan(bars, event_queue, ta.rsi,
+                                                  14, 50, OrderPosition.SELL),
+                                    ta.TAMoreThan(bars, event_queue, ta.cci,
+                                                  14, 20, OrderPosition.SELL),
+                                    ta.TAMin(bars, event_queue, ta.rsi, 14, 5, OrderPosition.SELL),
+                                    broad.below_functor(bars, event_queue, 'SPY', 20, args.frequency, OrderPosition.SELL),
+                                ], min_matches=2)
+                                ])
+        ])  # StratPreMomentum
 
-        strategy = MultipleAnyStrategy(bars, event_queue, [
-            MultipleAllStrategy(bars, event_queue, [
-                strat_momentum,
-                fundamental.FundAtLeast(bars, event_queue, 'roe',
-                                        0.0, order_position=OrderPosition.BUY),
-            ]),
-            ta.SimpleTACross(bars, event_queue, 22, ta.ema, "EMACross")
-        ], description="IntradayComprehensiveLongShort")
+        strategy = profitable.trading_idea_two(bars, event_queue)
+        strategy = FairPriceStrategy(bars, event_queue, minmax_ema(period), perc_margins(0.02), int(period * 1.5)) 
+
     rebalance_strat = RebalanceLogicalAny(bars, event_queue, [
         RebalanceYearly(bars, event_queue),
         SellWinnersQuarterly(bars, event_queue, 0.40),
