@@ -13,8 +13,18 @@ from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, Se
 from trading.portfolio.portfolio import FixedTradeValuePortfolio
 from backtest.utilities.backtest import backtest
 from trading.data.dataHandler import HistoricCSVDataHandler
-from trading.strategy.fairprice import FairPriceStrategy, fair_price_ema, minmax_ema 
-from trading.strategy.fpmargins import perc_margins
+from trading.strategy.fairprice.strategy import FairPriceStrategy
+from trading.strategy.fairprice.feature import FeatureSMA
+from trading.strategy.fairprice.margin import PercentageMargin
+from trading.strategy.fairprice.strategy import FairPriceStrategy
+from trading.strategy.fairprice.feature import FeatureSMA
+from trading.strategy.fairprice.margin import PercentageMargin
+from trading.strategy.fairprice.strategy import FairPriceStrategy
+from trading.strategy.fairprice.feature import FeatureSMA
+from trading.strategy.fairprice.margin import PercentageMargin
+from trading.strategy.fairprice.strategy import FairPriceStrategy
+from trading.strategy.fairprice.feature import FeatureSMA
+from trading.strategy.fairprice.margin import PercentageMargin
 from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
 from trading.strategy import ta, broad, statistics
 from trading.utilities.enum import OrderPosition
@@ -89,7 +99,7 @@ def main():
     else:
         strategy = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
             statistics.ExtremaBounce(
-                bars, event_queue, short_period=8, long_period=65, percentile=40),
+                bars, event_queue, short_period=8, long_period=45, percentile=40),
             MultipleAnyStrategy(bars, event_queue, [
                                 MultipleAnyStrategy(bars, event_queue, [   # buy
                                     # MultipleAnyStrategy(bars, event_queue, [
@@ -102,7 +112,8 @@ def main():
                                                   14, 50, OrderPosition.BUY),
                                     ta.TALessThan(bars, event_queue, ta.cci,
                                                   20, 0, OrderPosition.BUY),
-                                    broad.above_functor(bars, event_queue, 'SPY', 20, args.frequency, OrderPosition.BUY),
+                                    broad.above_functor(bars, event_queue, 'SPY', 20,
+                                                        args.frequency, OrderPosition.BUY),
                                 ], min_matches=2),
                                 MultipleAnyStrategy(bars, event_queue, [   # sell
                                     # RelativeExtrema(bars, event_queue, 20, strat_contrarian=False),
@@ -111,13 +122,14 @@ def main():
                                     ta.TAMoreThan(bars, event_queue, ta.cci,
                                                   14, 20, OrderPosition.SELL),
                                     ta.TAMin(bars, event_queue, ta.rsi, 14, 5, OrderPosition.SELL),
-                                    broad.below_functor(bars, event_queue, 'SPY', 20, args.frequency, OrderPosition.SELL),
+                                    broad.below_functor(bars, event_queue, 'SPY', 20,
+                                                        args.frequency, OrderPosition.SELL),
                                 ], min_matches=2)
                                 ])
         ])  # StratPreMomentum
 
         strategy = profitable.trading_idea_two(bars, event_queue)
-        strategy = FairPriceStrategy(bars, event_queue, minmax_ema(period), perc_margins(0.02), int(period * 1.5)) 
+        strategy = FairPriceStrategy(bars, event_queue, FeatureSMA(period), PercentageMargin(0.02), int(period * 1.5))
 
     rebalance_strat = RebalanceLogicalAny(bars, event_queue, [
         RebalanceYearly(bars, event_queue),
@@ -149,8 +161,16 @@ if __name__ == "__main__":
     creds = load_credentials(args.credentials)
 
     if args.name != "":
+        logging.basicConfig(filename=Path(os.environ["DATA_DIR"]) /
+                            f"logging/{args.name}.log", level=logging.INFO, force=True)
+        logging.basicConfig(filename=Path(os.environ["DATA_DIR"]) /
+                            f"logging/{args.name}.log", level=logging.INFO, force=True)
         logging.basicConfig(filename=Path(os.environ["WORKSPACE_ROOT"]) /
                             f"Data/data/logging/{args.name}.log", level=logging.INFO, force=True)
+        logging.basicConfig(filename=Path(os.environ["DATA_DIR"]) /
+                            f"logging/{args.name}.log", level=logging.INFO, force=True)
+        logging.basicConfig(filename=Path(os.environ["DATA_DIR"]) /
+                            f"logging/{args.name}.log", level=logging.INFO, force=True)
     processes = []
     with fut.ProcessPoolExecutor(4) as e:
         for i in range(args.num_runs):

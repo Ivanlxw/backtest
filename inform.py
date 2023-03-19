@@ -14,8 +14,9 @@ from backtest.utilities.utils import generate_start_date_in_ms, get_sleep_time, 
 from trading.event import SignalEvent
 from trading.plots.plot import PlotIndividual
 from trading.data.dataHandler import HistoricCSVDataHandler, NY, DataFromDisk
-from trading.strategy.fairprice import FairPriceStrategy, minmax_ema
-from trading.strategy.fpmargins import perc_margins
+from trading.strategy.fairprice.strategy import FairPriceStrategy
+from trading.strategy.fairprice.feature import FeatureSMA
+from trading.strategy.fairprice.margin import PercentageMargin
 from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
 from trading.strategy import ta, broad, statistics
 from trading.utilities.enum import OrderPosition
@@ -23,9 +24,9 @@ from trading.utilities.enum import OrderPosition
 if __name__ == "__main__":
     args = parse_args()
     creds = load_credentials(args.credentials)
-    workspace_dir = Path(os.environ["WORKSPACE_ROOT"])
+    data_dir = Path(os.environ["DATA_DIR"])
     if args.name != "":
-        logging.basicConfig(filename=workspace_dir / f"Data/data/logging/{args.name}.log", level=logging.INFO, force=True)
+        logging.basicConfig(filename=data_dir / f"logging/{args.name}.log", level=logging.INFO, force=True)
 
     event_queue = queue.LifoQueue()
     if args.start_ms is not None:
@@ -37,7 +38,7 @@ if __name__ == "__main__":
     # end anytime between 50 - 400 days later
     end_ms = int(start_ms + random.randint(50, 400) * 8.64e7)
     universe_list = read_universe_list(args.universe)
-    etf_list = read_universe_list([workspace_dir / "Data/data/universe/etf.txt"])
+    etf_list = read_universe_list([data_dir / "universe/etf.txt"])
     symbol_list = random.sample(universe_list, min(len(universe_list), 50))
     if not args.live:
         bars = HistoricCSVDataHandler(event_queue, symbol_list,
@@ -100,7 +101,7 @@ if __name__ == "__main__":
     #         ta.SimpleTACross(bars, event_queue, 20, ta.ema)
     #     ], min_matches=2)
     # ])
-    strategy = FairPriceStrategy(bars, event_queue, minmax_ema(period), perc_margins(0.02), period + 3) 
+    strategy = FairPriceStrategy(bars, event_queue, FeatureSMA(period), PercentageMargin(0.02), period + 3) 
 
     signals = queue.Queue()
     start = time.time()
@@ -109,7 +110,7 @@ if __name__ == "__main__":
         time_since_midnight = now - now.normalize()
         if args.live and now.dayofweek >= 4 and now.hour > 17:
             break
-        elif args.live and (time_since_midnight < datetime.timedelta(hours=7, minutes=45) or time_since_midnight > datetime.timedelta(hours=17, minutes=45)):
+        elif args.live and (time_since_midnight < datetime.timedelta(hours=9, minutes=45) or time_since_midnight > datetime.timedelta(hours=17, minutes=45)):
             time.sleep(60)
             continue
         if bars.continue_backtest == True:

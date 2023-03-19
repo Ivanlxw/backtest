@@ -26,7 +26,7 @@ def log_message(message: str):
 def parse_args():
     parser = argparse.ArgumentParser(description='Configs for running main.')
     parser.add_argument('-c', '--credentials', required=True,
-                        type=str, help="credentials filepath")
+                        type=Path, help="credentials filepath")
     parser.add_argument('-n', '--name', required=False, default="",
                         type=str, help="name of backtest/live strat run")
     parser.add_argument('-l', '--live', action='store_true',

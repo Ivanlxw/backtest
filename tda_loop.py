@@ -3,10 +3,9 @@ import os
 import queue
 from pathlib import Path
 
-from Data.DataWriters.Prices import ABSOLUTE_BT_DATA_DIR
 from backtest.strategy import profitable
 from backtest.utilities.backtest import backtest
-from backtest.utilities.utils import load_credentials, parse_args, remove_bs
+from backtest.utilities.utils import load_credentials, parse_args
 from trading.broker.broker import TDABroker
 from trading.broker.gatekeepers import EnoughCash, MaxPortfolioPosition, NoShort, PremiumLimit
 from trading.data.dataHandler import DataFromDisk
@@ -20,8 +19,8 @@ from trading.utilities.utils import ETF_LIST
 args = parse_args()
 load_credentials(args.credentials)
 if args.name != "":
-    logging.basicConfig(filename=Path(os.environ['WORKSPACE_ROOT']) /
-                        f"Data/logging/{args.name}.log", level=logging.INFO, force=True)
+    logging.basicConfig(filename=Path(os.environ['DATA_DIR']) /
+                        f"logging/{args.name}.log", level=logging.INFO, force=True)
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
 bars = DataFromDisk(event_queue, ETF_LIST[:3], "2021-01-05", live=True)

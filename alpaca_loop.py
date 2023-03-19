@@ -11,6 +11,9 @@ from pathlib import Path
 from backtest.utilities.backtest import backtest
 from backtest.utilities.utils import MODELINFO_DIR, generate_start_date_in_ms, get_sleep_time, load_credentials, log_message, parse_args, read_universe_list
 from trading.broker.gatekeepers import MaxPortfolioPercPerInst, NoShort, EnoughCash
+from trading.strategy.fairprice.strategy import FairPriceStrategy
+from trading.strategy.fairprice.feature import FeatureSMA
+from trading.strategy.fairprice.margin import PercentageMargin
 from trading.strategy.multiple import MultipleAnyStrategy, MultipleAllStrategy
 from trading.broker.broker import AlpacaBroker
 from trading.portfolio.portfolio import PercentagePortFolio
@@ -22,8 +25,8 @@ from trading.utilities.enum import OrderPosition, OrderType
 args = parse_args()
 creds = load_credentials(args.credentials)
 if args.name != "":
-    logging.basicConfig(filename=Path(os.environ['WORKSPACE_ROOT']) /
-                        f"Data/data/logging/{args.name}.log", level=logging.INFO, force=True)
+    logging.basicConfig(filename=Path(os.environ['DATA_DIR']) /
+                        f"logging/{args.name}.log", level=logging.INFO, force=True)
 
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
@@ -34,9 +37,7 @@ SG = "Singapore"
 bars = DataFromDisk(event_queue, read_universe_list(args.universe), creds,
                     generate_start_date_in_ms(2021, 2021), live=True)
 
-# if any("etf" in univ.name for univ in args.universe):
-#     strategy = profitable.strict_comprehensive_longshort(bars, event_queue, ma_value=22, trending_score=-0.05)
-# else:
+'''
 strategy = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
     statistics.ExtremaBounce(
         bars, event_queue, short_period=8, long_period=80, percentile=40),
@@ -63,10 +64,27 @@ strategy = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
         ], min_matches=2)
     ])
 ])  # StratPreMomentum
+'''
+
+
 # strategy = MultipleAnyStrategy(bars, event_queue, [
 #         strat_pre_momentum,
 #         profitable.comprehensive_with_value_bounce(bars, event_queue)
 #     ])
+ 
+period = 20
+strategy = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
+    statistics.ExtremaBounce(
+        bars, event_queue, short_period=8, long_period=65, percentile=35),
+    MultipleAnyStrategy(bars, event_queue, [
+        broad.above_functor(bars, event_queue, 'SPY', 20, bars.frequency_type, OrderPosition.BUY),
+        broad.below_functor(bars, event_queue, 'SPY', 20, bars.frequency_type, OrderPosition.SELL),
+        ta.SimpleTACross(bars, event_queue, 20, ta.ema)
+    ], min_matches=2)
+])
+
+if "etf" in args.credentials.name:
+    strategy = FairPriceStrategy(bars, event_queue, FeatureSMA(period), PercentageMargin(0.02), int(period * 1.5))  
 
 if args.name != "":
     with open(MODELINFO_DIR / f'{args.name}.json', 'w') as fout:
