@@ -14,6 +14,9 @@ from backtest.utilities.utils import generate_start_date_in_ms, get_sleep_time, 
 from trading.event import SignalEvent
 from trading.plots.plot import PlotIndividual
 from trading.data.dataHandler import HistoricCSVDataHandler, NY, DataFromDisk
+from trading.strategy.fairprice.strategy import FairPriceStrategy
+from trading.strategy.fairprice.feature import FeatureSMA
+from trading.strategy.fairprice.margin import PercentageMargin
 from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
 from trading.strategy import ta, broad, statistics
 from trading.utilities.enum import OrderPosition
@@ -21,9 +24,9 @@ from trading.utilities.enum import OrderPosition
 if __name__ == "__main__":
     args = parse_args()
     creds = load_credentials(args.credentials)
-    workspace_dir = Path(os.environ["WORKSPACE_ROOT"])
+    data_dir = Path(os.environ["DATA_DIR"])
     if args.name != "":
-        logging.basicConfig(filename=workspace_dir / f"Data/logging/{args.name}.log", level=logging.INFO, force=True)
+        logging.basicConfig(filename=data_dir / f"logging/{args.name}.log", level=logging.INFO, force=True)
 
     event_queue = queue.LifoQueue()
     if args.start_ms is not None:
@@ -35,7 +38,7 @@ if __name__ == "__main__":
     # end anytime between 50 - 400 days later
     end_ms = int(start_ms + random.randint(50, 400) * 8.64e7)
     universe_list = read_universe_list(args.universe)
-    etf_list = read_universe_list([workspace_dir / "Data/data/universe/etf.txt"])
+    etf_list = read_universe_list([data_dir / "universe/etf.txt"])
     symbol_list = random.sample(universe_list, min(len(universe_list), 50))
     if not args.live:
         bars = HistoricCSVDataHandler(event_queue, symbol_list,
@@ -48,6 +51,7 @@ if __name__ == "__main__":
         bars = DataFromDisk(event_queue, read_universe_list(args.universe), creds,
                             start_ms, frequency_type=args.frequency, live=True)
 
+    '''
     strategy = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
         statistics.ExtremaBounce(
             bars, event_queue, short_period=8, long_period=65, percentile=40),
@@ -76,7 +80,7 @@ if __name__ == "__main__":
                             ], min_matches=2)
                             ])
     ])  # StratPreMomentum
-    strategy = MultipleAnyStrategy(bars, event_queue, [
+    strategy = MultipleAllStrategy(bars, event_queue, [
         strategy,
         statistics.RelativeExtrema(bars, event_queue, 35, strat_contrarian=True, percentile=10)
     ])
@@ -84,15 +88,29 @@ if __name__ == "__main__":
     #     profitable.strict_comprehensive_longshort(
     #         bars, event_queue, ma_value=22, trending_score=-0.05),
     #     strat_pre_momentum])
+    '''
+
+    period = 20
+    # strategy = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
+    #     statistics.ExtremaBounce(
+    #         bars, event_queue, short_period=8, long_period=65, percentile=35),
+    #     MultipleAnyStrategy(bars, event_queue, [
+    #         broad.above_functor(bars, event_queue, 'SPY', 20, bars.frequency_type, OrderPosition.BUY),
+    #         broad.below_functor(bars, event_queue, 'SPY', 20, bars.frequency_type, OrderPosition.SELL),
+    #         # ta.MABounce(bars, event_queue, ta.sma, 20),
+    #         ta.SimpleTACross(bars, event_queue, 20, ta.ema)
+    #     ], min_matches=2)
+    # ])
+    strategy = FairPriceStrategy(bars, event_queue, FeatureSMA(period), PercentageMargin(0.02), period + 3) 
 
     signals = queue.Queue()
     start = time.time()
     while True:
         now = pd.Timestamp.now(tz=NY)
         time_since_midnight = now - now.normalize()
-        if args.live and (time_since_midnight < datetime.timedelta(hours=9, minutes=45) or time_since_midnight > datetime.timedelta(hours=17, minutes=45)):
-            if now.dayofweek > 4:
-                break
+        if args.live and now.dayofweek >= 4 and now.hour > 17:
+            break
+        elif args.live and (time_since_midnight < datetime.timedelta(hours=9, minutes=45) or time_since_midnight > datetime.timedelta(hours=17, minutes=45)):
             time.sleep(60)
             continue
         if bars.continue_backtest == True:
@@ -112,12 +130,13 @@ if __name__ == "__main__":
         if args.live:
             while not signals.empty():
                 signal_event: SignalEvent = signals.get(block=False)
+                log_message(signal_event.details())
                 if signal_event.symbol in etf_list:
-                    res = telegram_bot_sendtext(f"[{args.frequency}]\n{args.name:}\n"+signal_event.details(),
+                    res = telegram_bot_sendtext(f"{args.frequency}\n{signal_event.details()}",
                                                 creds["TELEGRAM_APIKEY_ETF"], creds["TELEGRAM_CHATID"])
                 else:
-                    res = telegram_bot_sendtext(f"[{args.frequency}]\n{args.name:}\n"+signal_event.details(),
-                                                creds["TELEGRAM_APIKEY"], creds["TELEGRAM_CHATID"])
+                    res = telegram_bot_sendtext(f"{args.frequency}\n{signal_event.details()}", 
+                                                bot_apikey=creds["TELEGRAM_APIKEY"], bot_chatid=creds["TELEGRAM_CHATID"])
             log_message("sleeping")
             time.sleep(get_sleep_time(args.frequency))
             log_message("sleep over")

@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 from trading.broker.broker import Broker, SimulatedBroker
 from trading.event import SignalEvent
 from trading.portfolio.portfolio import PercentagePortFolio, Portfolio
-from trading.strategy.base import BuyAndHoldStrategy
 from backtest.utilities.utils import NY_TIMEZONE, log_message
+from trading.strategy.basic import BuyAndHoldStrategy
 from trading.data.dataHandler import DataHandler, HistoricCSVDataHandler
 from trading.utilities.enum import OrderType
 from trading.plots.plot import Plot

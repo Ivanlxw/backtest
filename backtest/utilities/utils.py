@@ -26,7 +26,7 @@ def log_message(message: str):
 def parse_args():
     parser = argparse.ArgumentParser(description='Configs for running main.')
     parser.add_argument('-c', '--credentials', required=True,
-                        type=str, help="credentials filepath")
+                        type=Path, help="credentials filepath")
     parser.add_argument('-n', '--name', required=False, default="",
                         type=str, help="name of backtest/live strat run")
     parser.add_argument('-l', '--live', action='store_true',
@@ -104,5 +104,6 @@ def get_sleep_time(frequency: str):
         "5minute": 310,    # 5m10s
         "15minute": 480,   # 16m
         "30minute": 1900,  # 31m40s
+        "60minute": 3000    # 50mins
     }
     return sleep_time_map[frequency]
