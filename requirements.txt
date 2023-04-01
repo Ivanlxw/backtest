@@ -12,3 +12,4 @@ pathos
 numba
 Deprecated
 scipy
+numba

@@ -29,7 +29,7 @@ def parse_args():
                         type=Path, help="credentials filepath")
     parser.add_argument('-n', '--name', required=False, default="",
                         type=str, help="name of backtest/live strat run")
-    parser.add_argument('-l', '--live', action='store_true',
+    parser.add_argument('-l', '--live', action='store_true', default=False,
                         help='inform life?')
     parser.add_argument("--num-runs", type=int, default=1,
                         help="Run backtest x times, get more aggregated performance details from log")

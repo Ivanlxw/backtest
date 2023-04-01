@@ -68,7 +68,7 @@ def _life_loop(bars, event_queue, order_queue, strategy, port: Portfolio, broker
     while True:
         # Update the bars (specific backtest code, as opposed to live trading)
         now = pd.Timestamp.now(tz=NY_TIMEZONE)
-        if now.dayofweek >= 4 and now.hour > 17:
+        if (now.dayofweek == 4 and now.hour > 17) or now.dayofweek > 4:
             break
         time_since_midnight = now - now.normalize()
         # only run during trading hours -> 0945 - 1745
