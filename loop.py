@@ -9,22 +9,13 @@ from pathlib import Path
 from backtest.utilities.utils import generate_start_date_in_ms, parse_args, load_credentials, read_universe_list
 from trading.broker.broker import SimulatedBroker
 from trading.broker.gatekeepers import EnoughCash, MaxPortfolioPercPerInst, NoShort
-from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, SellLosersMonthly, SellLosersQuarterly, SellWinnersQuarterly
+from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, SellLosersMonthly, SellLosersQuarterly, SellWinnersMonthly, SellWinnersQuarterly
 from trading.portfolio.portfolio import FixedTradeValuePortfolio
 from backtest.utilities.backtest import backtest
 from trading.data.dataHandler import HistoricCSVDataHandler
-from trading.strategy.fairprice.strategy import FairPriceStrategy
-from trading.strategy.fairprice.feature import FeatureSMA
+from trading.strategy.fairprice.feature import FeatureEMA, RSIFromBaseLine, RelativeRSI
 from trading.strategy.fairprice.margin import PercentageMargin
 from trading.strategy.fairprice.strategy import FairPriceStrategy
-from trading.strategy.fairprice.feature import FeatureSMA
-from trading.strategy.fairprice.margin import PercentageMargin
-from trading.strategy.fairprice.strategy import FairPriceStrategy
-from trading.strategy.fairprice.feature import FeatureSMA
-from trading.strategy.fairprice.margin import PercentageMargin
-from trading.strategy.fairprice.strategy import FairPriceStrategy
-from trading.strategy.fairprice.feature import FeatureSMA
-from trading.strategy.fairprice.margin import PercentageMargin
 from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
 from trading.strategy import ta, broad, statistics
 from trading.utilities.enum import OrderPosition
@@ -51,11 +42,9 @@ def main():
     # YYYY-MM-DD
     if args.start_ms is not None:
         start_ms = args.start_ms
-    elif args.frequency == "day":
-        start_ms = generate_start_date_in_ms(2019, 2021)
     else:
-        start_ms = generate_start_date_in_ms(2021, 2022)
-    end_ms = int(start_ms + random.randint(250, 700) * 8.64e7)  # end anytime between 200 - 800 days later
+        start_ms = generate_start_date_in_ms(2019, 2022)
+    end_ms = int(start_ms + random.randint(250, 700) * 8.64e7 * (1.0 if args.frequency == "day" else 0.25))  # end anytime between 200 - 800 days later
     print(start_ms, end_ms)
     universe_list = read_universe_list(args.universe)
     symbol_list = set(random.sample(universe_list, min(
@@ -65,8 +54,6 @@ def main():
                                   end_ms=end_ms,
                                   frequency_type=args.frequency
                                   )
-    period = 20
-
     if args.frequency == "day":
         strategy = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
             statistics.ExtremaBounce(
@@ -128,14 +115,15 @@ def main():
                                 ])
         ])  # StratPreMomentum
 
-        strategy = profitable.trading_idea_two(bars, event_queue)
-        strategy = FairPriceStrategy(bars, event_queue, FeatureSMA(period), PercentageMargin(0.02), int(period * 1.5))
-
+        # strategy = profitable.trading_idea_two(bars, event_queue)
+        period = 20
+        feature = FeatureEMA(period) + RSIFromBaseLine(period, 47) + RelativeRSI(period, 7)  #need at least period + 7
+        margin = PercentageMargin(0.03 if args.frequency == "day" else 0.012)
+        strategy = FairPriceStrategy(bars, event_queue, feature, margin, period + 8)
     rebalance_strat = RebalanceLogicalAny(bars, event_queue, [
         RebalanceYearly(bars, event_queue),
-        SellWinnersQuarterly(bars, event_queue, 0.40),
-        SellLosersQuarterly(bars, event_queue, 0.14),
-        SellLosersMonthly(bars, event_queue, 0.075),
+        SellWinnersQuarterly(bars, event_queue, 0.40) if args.frequency == "day" else SellWinnersMonthly(bars, event_queue, 0.125),
+        SellLosersQuarterly(bars, event_queue, 0.14) if args.frequency == "day" else SellLosersMonthly(bars, event_queue, 0.075), 
     ])
     port = FixedTradeValuePortfolio(bars, event_queue, order_queue,
                                     trade_value=700,

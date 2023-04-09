@@ -31,12 +31,10 @@ if __name__ == "__main__":
     event_queue = queue.LifoQueue()
     if args.start_ms is not None:
         start_ms = args.start_ms
-    elif args.frequency == "daily":
-        start_ms = generate_start_date_in_ms(2015, 2021)
     else:
         start_ms = generate_start_date_in_ms(2021, 2022)
     # end anytime between 50 - 400 days later
-    end_ms = int(start_ms + random.randint(50, 400) * 8.64e7)
+    end_ms = int(start_ms + random.randint(250, 700) * 8.64e7 * (1.0 if args.frequency == "day" else 0.2))  # end anytime between 200 - 800 days later
     universe_list = read_universe_list(args.universe)
     etf_list = read_universe_list([data_dir / "universe/etf.txt"])
     symbol_list = random.sample(universe_list, min(len(universe_list), 25))
@@ -102,7 +100,7 @@ if __name__ == "__main__":
     # ])
     period = 15
     feature = FeatureSMA(period) + RSIFromBaseLine(period, 47) + RelativeRSI(period, 7)  #need at least period + 7
-    margin = PercentageMargin(0.02)
+    margin = PercentageMargin(0.012)
     strategy = FairPriceStrategy(bars, event_queue, feature, margin, period + 8)
 
     signals = queue.Queue()
@@ -137,7 +135,7 @@ if __name__ == "__main__":
                 signal_event: SignalEvent = signals.get(block=False)
                 log_message(signal_event.details())
                 res = telegram_bot_sendtext(f"{args.frequency}\n{signal_event.details()}",
-                            creds["TELEGRAM_APIKEY_ETF"], creds["TELEGRAM_CHATID"])
+                            creds["TELEGRAM_APIKEY"], creds["TELEGRAM_CHATID"])
                 # if signal_event.symbol in etf_list:
                 #     telegram_bot_sendtext(f"{args.frequency}\n{signal_event.details()}",
                 #             creds["TELEGRAM_APIKEY_ETF"], creds["TELEGRAM_CHATID"])
