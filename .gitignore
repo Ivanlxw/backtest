@@ -14,7 +14,8 @@ Makefile
 cmake-*/
 
 ## directories
-Data/*
+Data/strategies
+Data/data
 backtest.egg-info/
 .vscode/
 results/
