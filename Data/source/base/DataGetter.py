@@ -23,7 +23,7 @@ class DataGetter(abc.ABC):
     def get_ohlc(self, symbol, multiplier, freq, from_ms, to_ms):
         return
 
-    def write_ohlc(self, symbol, multiplier, freq, from_ms, to_ms, compression="csv"):
+    def write_ohlc(self, symbol: str, multiplier, freq, from_ms, to_ms, compression="csv"):
         assert compression in self._data_getter_options, f"compression has to be one of {self._data_getter_options}"
 
         df = self.get_ohlc(symbol, multiplier, freq, from_ms, to_ms)

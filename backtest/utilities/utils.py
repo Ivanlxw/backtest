@@ -15,8 +15,10 @@ MODELINFO_DIR = UTILS_ABS_FP / "../../Data/strategies"
 FORMAT_YYYY_MM_DD = '%y-%m-%d'
 FORMAT_YYYYMMDD = '%Y%m%d'
 NY_TIMEZONE = "America/New_York"
-if not os.path.exists(MODELINFO_DIR):
-    os.makedirs(MODELINFO_DIR, exist_ok=True)
+OPTION_METADATA_PATH = Path(f"{os.environ['DATA_DIR']}/options/metadata.h5")
+DATA_GETTER_INST_TYPES = ['equity', 'options']
+# if not os.path.exists(MODELINFO_DIR):
+#     os.makedirs(MODELINFO_DIR, exist_ok=True)
 
 
 def log_message(message: str):
@@ -31,6 +33,8 @@ def parse_args():
                         type=str, help="name of backtest/live strat run")
     parser.add_argument('-l', '--live', action='store_true', default=False,
                         help='inform life?')
+    parser.add_argument("--inst-type", type=str, required=False,
+                        default='equity', choices=DATA_GETTER_INST_TYPES)
     parser.add_argument("--num-runs", type=int, default=1,
                         help="Run backtest x times, get more aggregated performance details from log")
     parser.add_argument("--frequency", type=str, default="day",
@@ -52,6 +56,7 @@ def read_universe(universe_fp):
         stock_list = fin.readlines()
     return list(map(remove_bs, stock_list))
 
+
 def read_universe_list(universe_filenames):
     universe_list = []
     for universe_path in universe_filenames:
@@ -67,7 +72,7 @@ def load_credentials(credentials_fp, into_env=False) -> dict:
         credentials = json.load(f)
     assert credentials, "credentials is an empty dictionary"
     if into_env:
-        for k,v in credentials.items():
+        for k, v in credentials.items():
             os.environ[k] = v
     return credentials
 
@@ -89,13 +94,16 @@ def get_ms_from_sdate(sdate: str) -> int:
     # sdate should be in format YYYYMMDD
     return timestamp_to_ms(pd.to_datetime(datetime.datetime.strptime(sdate, FORMAT_YYYYMMDD)))
 
+
 def get_ms_from_datetime(dt: datetime.datetime) -> int:
     # sdate should be in format YYYYMMDD
     return timestamp_to_ms(pd.to_datetime(dt))
 
+
 def get_datetime_from_ms(arr):
     ''' arr can be vector or scalar '''
     return pd.to_datetime(arr, unit='ms')
+
 
 def get_sleep_time(frequency: str):
     sleep_time_map = {

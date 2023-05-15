@@ -1,7 +1,7 @@
 import os
-import time
 from typing import List
 import requests
+from multiprocessing import Pool
 
 import pandas as pd
 
@@ -30,6 +30,15 @@ class Polygon(DataGetter):
             start_idx += self._sixty_days_in_ms
         tuple_ms.append((start_idx, to_ms))
         return tuple_ms
+    
+    def _chop_finer_dates(self, from_ms, to_ms) -> List[tuple]:
+        tuple_ms = []
+        start_idx = from_ms
+        while start_idx + self._sixty_days_in_ms / 2 < to_ms:
+            tuple_ms.append((start_idx, start_idx + self._sixty_days_in_ms / 2))
+            start_idx += self._sixty_days_in_ms / 2
+        tuple_ms.append((start_idx, to_ms))
+        return tuple_ms
 
     def get_ohlc_internal(self, symbol, multiplier, freq, from_ms, to_ms) -> list:
         """Reads using request and write raw data in provided compression"""
@@ -39,7 +48,7 @@ class Polygon(DataGetter):
             + f"?adjusted=true&sort=asc&limit={self._limit_count}"
         )
         url = self._add_api_to_url(url)
-        resp = requests.get(url, timeout=45)
+        resp = requests.get(url, timeout=30)
         resp_json = resp.json()
         if not resp.ok:
             raise Exception(
@@ -66,20 +75,17 @@ class Polygon(DataGetter):
             results.set_index("t", inplace=True)
         return results
 
-    def _get_option_info_internal(self, underlying_symbol, from_ms, to_ms):
-        dates_to_query = self._chop_dates(from_ms, to_ms)
+    def _get_option_info_internal(self, underlying_symbol, from_ms, to_ms, expired: bool):
+        dates_to_query = self._chop_finer_dates(from_ms, to_ms)
         results = []
-        idx = 0
-
         for start_ms, end_ms in dates_to_query:
-            if idx % 5 == 2:
-                time.sleep(60)
             start_ms_str = pd.Timestamp(
                 start_ms, unit="ms").strftime("%Y-%m-%d")
             end_ms_str = pd.Timestamp(end_ms, unit="ms").strftime("%Y-%m-%d")
             url = (
                 self.BASE_URL
-                + f"v3/reference/options/contracts?underlying_ticker={underlying_symbol}&limit=500&expired=true&expiration_date.gte={start_ms_str}&expiration_date.lt={end_ms_str}"
+                + f"v3/reference/options/contracts?underlying_ticker={underlying_symbol}&limit=700&expired={str(expired).lower()}"
+                f"&expiration_date.gte={start_ms_str}&expiration_date.lt={end_ms_str}"
             )
             url = self._add_api_to_url(url)
             resp = requests.get(url, timeout=45)
@@ -90,15 +96,12 @@ class Polygon(DataGetter):
             results.extend(resp_json["results"])
         return results
 
-    def get_option_info(self, from_ms, to_ms):
-        now_ms = time.time() * 1000
-        if to_ms > now_ms:
-            raise Exception(
-                "Polygon::get_option_info() currently does not support querying for future expiries")
-        res = [contract_info for underlying in self.universe_list for contract_info in self._get_option_info_internal(
-            underlying, from_ms, to_ms)]
+    def get_option_info(self, from_ms, to_ms, expired: bool = True):
+        with Pool(4) as p:
+            res = p.starmap(self._get_option_info_internal, [(underlying, from_ms, to_ms, expired) for underlying in self.universe_list])
+        res = [contract_info for contract_info_list in res for contract_info in contract_info_list]
         return res
 
 
-def get_source_instance(universe_fp, inst_type):
-    return Polygon(universe_fp, inst_type)
+def get_source_instance(universe_list, inst_type):
+    return Polygon(universe_list, inst_type)

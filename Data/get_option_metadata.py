@@ -20,8 +20,7 @@ def parse_args():
 def get_source_instance(source, universe_list):
     importlib.util.find_spec(f"Data.source.{source}")
     return importlib.import_module(f"Data.source.{source}").get_source_instance(
-        universe_list
-    )
+        universe_list, "options")
 
 DATA_FROM = datetime.datetime(2019, 10, 1)
 DATA_TO = datetime.datetime(2023, 4, 30)
@@ -33,19 +32,23 @@ if __name__ == "__main__":
     getter: Polygon = get_source_instance("polygon", universe_list)
 
     today = datetime.datetime.today()
-    history = today - datetime.timedelta(days=35)
-    from_ms = get_ms_from_datetime(history if args.live else DATA_FROM)
-    to_ms = get_ms_from_datetime(today if args.live else DATA_TO)
+    future = today + datetime.timedelta(days=10)
+    from_ms = get_ms_from_datetime(today if args.live else DATA_FROM)
+    to_ms = get_ms_from_datetime(future if args.live else DATA_TO)
     print(from_ms, to_ms)
-    res = getter.get_option_info(from_ms, to_ms)
+    res = getter.get_option_info(from_ms, to_ms, not args.live)
     res_df = pd.DataFrame(res)
-    with pd.HDFStore(OPTION_METADATA_PATH) as hdf:
-        for underlying in getter.universe_list:
-            underlying_info_df = res_df.query(f"underlying_ticker == '{underlying}'").drop('underlying_ticker', axis=1)
-            underlying_key = f"/{underlying}"
-            if underlying_key in hdf.keys():
-                stored_df = hdf[underlying_key]
-                underlying_info_df = underlying_info_df.merge(stored_df, how='outer').sort_values(['expiration_date', 'strike_price'])
-                hdf.put(underlying_key, underlying_info_df)
-            else:
-                hdf[underlying_key] = underlying_info_df
+    for underlying in getter.universe_list:
+        underlying_info_df = res_df.query(f"underlying_ticker == '{underlying}'").drop('underlying_ticker', axis=1)
+        if underlying_info_df.empty:
+            continue
+        underlying_key = f"/{underlying}"
+        try:
+            stored_df = pd.read_hdf(OPTION_METADATA_PATH, underlying_key)
+            underlying_info_df = underlying_info_df.drop("additional_underlyings", axis=1).merge(
+                stored_df.drop("additional_underlyings", axis=1), how='outer').sort_values(['expiration_date', 'strike_price'])
+            underlying_info_df.to_hdf(OPTION_METADATA_PATH, underlying_key)
+        except KeyError:
+            underlying_info_df.to_hdf(OPTION_METADATA_PATH, underlying_key)
+        except Exception as e:
+            raise Exception(f"Unexpected exception: {e}")
