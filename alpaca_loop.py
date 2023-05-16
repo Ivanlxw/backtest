@@ -8,19 +8,17 @@ import logging
 from pathlib import Path
 
 # from backtest.strategy import profitable
-from backtest.utilities.backtest import backtest
-from backtest.utilities.utils import MODELINFO_DIR, generate_start_date_in_ms, get_sleep_time, load_credentials, log_message, parse_args, read_universe_list
+from backtest.utilities.backtest import Backtest
+from backtest.utilities.utils import MODELINFO_DIR, generate_start_date_in_ms, load_credentials, log_message, parse_args, read_universe_list
 from trading.broker.gatekeepers import MaxPortfolioPercPerInst, NoShort, EnoughCash
 from trading.strategy.fairprice.strategy import FairPriceStrategy
-from trading.strategy.fairprice.feature import FeatureSMA
-from trading.strategy.fairprice.margin import PercentageMargin
-from trading.strategy.multiple import MultipleAnyStrategy, MultipleAllStrategy
+from trading.strategy.fairprice.feature import RelativeCCI, RelativeRSI, TradeImpulseBase, TrendAwareFeatureEMA
+from trading.strategy.fairprice.margin import AsymmetricPercentageMargin
 from trading.broker.broker import AlpacaBroker
 from trading.portfolio.portfolio import PercentagePortFolio
 from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, SellLosersMonthly
 from trading.data.dataHandler import DataFromDisk
-from trading.strategy import ta, broad, statistics
-from trading.utilities.enum import OrderPosition, OrderType
+from trading.utilities.enum import OrderType
 
 args = parse_args()
 creds = load_credentials(args.credentials)
@@ -34,84 +32,38 @@ order_queue = queue.Queue()
 NY = "America/New_York"
 SG = "Singapore"
 
-bars = DataFromDisk(event_queue, read_universe_list(args.universe), creds,
-                    generate_start_date_in_ms(2021, 2021), live=True)
+bars = DataFromDisk(read_universe_list(args.universe), creds,
+                    generate_start_date_in_ms(2021, 2021))
 
-'''
-strategy = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
-    statistics.ExtremaBounce(
-        bars, event_queue, short_period=8, long_period=80, percentile=40),
-    MultipleAnyStrategy(bars, event_queue, [
-        MultipleAllStrategy(bars, event_queue, [   # buy
-            # MultipleAnyStrategy(bars, event_queue, [
-            #     fundamental.FundAtLeast(bars, event_queue,
-            #                             'revenueGrowth', 0.1, order_position=OrderPosition.BUY),
-            #     fundamental.FundAtLeast(bars, event_queue, 'roe',
-            #                             0, order_position=OrderPosition.BUY),
-            # ]),
-            ta.TALessThan(bars, event_queue, ta.cci,
-                            20, 0, OrderPosition.BUY),
-        ]),
-        MultipleAnyStrategy(bars, event_queue, [   # sell
-            # RelativeExtrema(bars, event_queue, 20, strat_contrarian=False),
-            ta.TAMoreThan(bars, event_queue, ta.rsi,
-                            14, 50, OrderPosition.SELL),
-            ta.TAMoreThan(bars, event_queue, ta.cci,
-                          14, 20, OrderPosition.SELL),
-            ta.TAMin(bars, event_queue, ta.rsi, 14, 5, OrderPosition.SELL),
-            broad.below_functor(bars, event_queue, 'SPY',
-                                20, args.frequency, OrderPosition.SELL),
-        ], min_matches=2)
-    ])
-])  # StratPreMomentum
-'''
-
-
-# strategy = MultipleAnyStrategy(bars, event_queue, [
-#         strat_pre_momentum,
-#         profitable.comprehensive_with_value_bounce(bars, event_queue)
-#     ])
- 
-period = 20
-strategy = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
-    statistics.ExtremaBounce(
-        bars, event_queue, short_period=8, long_period=65, percentile=35),
-    MultipleAnyStrategy(bars, event_queue, [
-        broad.above_functor(bars, event_queue, 'SPY', 20, bars.frequency_type, OrderPosition.BUY),
-        broad.below_functor(bars, event_queue, 'SPY', 20, bars.frequency_type, OrderPosition.SELL),
-        ta.SimpleTACross(bars, event_queue, 20, ta.ema)
-    ], min_matches=2)
+period = 15     # period to calculate algo
+ta_period = 14  # period of calculated values seen 
+feature = TrendAwareFeatureEMA(period + ta_period // 2) + RelativeRSI(ta_period, 10) + RelativeCCI(ta_period, 12) #  + TradeImpulseBase(period // 2)
+margin = AsymmetricPercentageMargin((0.03, 0.03) if args.frequency == "day" else (0.016, 0.01))
+strategy = FairPriceStrategy(bars, feature, margin, period + ta_period)
+rebalance_strat = RebalanceLogicalAny(bars, [
+    # SellWinnersQuarterly(bars),
+    SellLosersMonthly(bars, 0.1), RebalanceYearly(bars)
 ])
-
-if "etf" in args.credentials.name:
-    strategy = FairPriceStrategy(bars, event_queue, FeatureSMA(period), PercentageMargin(0.02), int(period * 1.5))  
+port = PercentagePortFolio(
+    0.08,
+    rebalance=rebalance_strat,
+    mode="asset",
+    expires=2,
+    portfolio_name=(args.name if args.name != "" else "alpaca_loop"),
+    order_type=OrderType.LIMIT,
+)
 
 if args.name != "":
     with open(MODELINFO_DIR / f'{args.name}.json', 'w') as fout:
         fout.write(json.dumps(strategy.describe()))
-rebalance_strat = RebalanceLogicalAny(bars, event_queue, [
-    # SellWinnersQuarterly(bars, event_queue),
-    SellLosersMonthly(bars, event_queue, 0.1),
-    RebalanceYearly(bars, event_queue)
-])
-port = PercentagePortFolio(
-    bars,
-    event_queue,
-    order_queue,
-    percentage=0.08,
-    mode="asset",
-    expires=3,
-    portfolio_name=(args.name if args.name != "" else "alpaca_loop"),
-    order_type=OrderType.LIMIT,
-    rebalance=rebalance_strat
-)
+
 
 if args.live:
-    broker = AlpacaBroker(port, event_queue, creds, gatekeepers=[
+    broker = AlpacaBroker(port, creds, gatekeepers=[
         EnoughCash(), NoShort(), MaxPortfolioPercPerInst(bars, 0.25)
     ])
-    backtest(
-        bars, creds, event_queue, order_queue, strategy, port, broker, args.frequency, loop_live=True, sleep_duration=get_sleep_time(args.frequency))
+    bt = Backtest(bars, strategy, port, broker, args)
+    bt.run(live=True)
     log_message("saving curr_holdings")
     port.write_curr_holdings()
     port.write_all_holdings()

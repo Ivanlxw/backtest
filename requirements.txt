@@ -13,3 +13,4 @@ numba
 Deprecated
 scipy
 numba
+plotly

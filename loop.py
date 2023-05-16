@@ -1,4 +1,3 @@
-import queue
 import os
 import random
 import logging
@@ -6,39 +5,40 @@ import os
 import concurrent.futures as fut
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+
+from backtest.utilities.backtest import Backtest
 from backtest.utilities.utils import generate_start_date_in_ms, parse_args, load_credentials, read_universe_list
 from trading.broker.broker import SimulatedBroker
 from trading.broker.gatekeepers import EnoughCash, MaxPortfolioPercPerInst, NoShort
-from trading.portfolio.rebalance import RebalanceLogicalAny, RebalanceYearly, SellLosersMonthly, SellLosersQuarterly, SellWinnersMonthly, SellWinnersQuarterly
-from trading.portfolio.portfolio import FixedTradeValuePortfolio
-from backtest.utilities.backtest import backtest
+from trading.portfolio.rebalance import NoRebalance, RebalanceLogicalAny, RebalanceYearly, SellLosersMonthly, SellLosersQuarterly, SellWinnersMonthly, SellWinnersQuarterly
+from trading.portfolio.portfolio import FixedTradeValuePortfolio, PercentagePortFolio
 from trading.data.dataHandler import HistoricCSVDataHandler
-from trading.strategy.fairprice.feature import FeatureEMA, RSIFromBaseLine, RelativeRSI
-from trading.strategy.fairprice.margin import PercentageMargin
+from trading.strategy.basic import BuyAndHoldStrategy
+from trading.strategy.fairprice.feature import RelativeCCI, RelativeRSI, TradeImpulseBase, TradePressureEma, TrendAwareFeatureEMA
+from trading.strategy.fairprice.margin import AsymmetricPercentageMargin
 from trading.strategy.fairprice.strategy import FairPriceStrategy
-from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
-from trading.strategy import ta, broad, statistics
-from trading.utilities.enum import OrderPosition
 from trading.strategy.personal import profitable
-
-''' tRial strategies
-def extrema_bounce_ta(bars, event_queue, extrema_period=80, ta_func: Callable = ta.sma, ta_period=20, exit: bool = True):
-    return MultipleAllStrategy(bars, event_queue, [
-        statistics.ExtremaBounce(bars, event_queue, 6, extrema_period, 15),
-        ta.MeanReversionTA(bars, event_queue, ta_period,
-                           ta_func, sd=2, exit=exit),
-    ], "BounceTA: " + f"extrema_period={extrema_period}")
+from trading.utilities.enum import OrderType
 
 
-def extrema_bounce_rsi(bars, event_queue, extrema_period=80, ta_period=20, exit: bool = True):
-    return extrema_bounce_ta(bars, event_queue, extrema_period, ta.rsi, ta_period, exit)
+def plot_index_benchmark(args, symbol_list, portfolio_name):
+    bars = HistoricCSVDataHandler(symbol_list, creds,
+                                    start_ms=args.start_ms,
+                                    end_ms=args.end_ms,
+                                    frequency_type=args.frequency
+                                    )
+    rebalance=NoRebalance(bars)
+    port = PercentagePortFolio(1/len(symbol_list), rebalance, initial_capital=INITIAL_CAPITAL,
+                               portfolio_name=portfolio_name,
+                               mode='asset', order_type=OrderType.MARKET)
+    broker = SimulatedBroker(bars, port)
+    strategy = BuyAndHoldStrategy(bars)
+    bt = Backtest(bars, strategy, port, broker, args)
+    bt.run(live=False)
 
-'''
 
-
-def main():
-    event_queue = queue.LifoQueue()
-    order_queue = queue.Queue()
+def main(creds):
     # YYYY-MM-DD
     if args.start_ms is not None:
         start_ms = args.start_ms
@@ -49,84 +49,23 @@ def main():
     universe_list = read_universe_list(args.universe)
     symbol_list = set(random.sample(universe_list, min(
         80, len(universe_list))))
-    bars = HistoricCSVDataHandler(event_queue, symbol_list, creds,
+    bars = HistoricCSVDataHandler(symbol_list, creds,
                                   start_ms=start_ms,
                                   end_ms=end_ms,
                                   frequency_type=args.frequency
                                   )
-    if args.frequency == "day":
-        strategy = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
-            statistics.ExtremaBounce(
-                bars, event_queue, short_period=8, long_period=65, percentile=40),
-            MultipleAnyStrategy(bars, event_queue, [
-                MultipleAllStrategy(bars, event_queue, [   # buy
-                    ta.TALessThan(bars, event_queue, ta.cci,
-                                  20, 0, OrderPosition.BUY),
-                    # broad.above_functor(bars, event_queue, 'SPY',
-                    #     20, args.frequency, OrderPosition.BUY),
-                ]),
-                MultipleAnyStrategy(bars, event_queue, [   # sell
-                    # RelativeExtrema(bars, event_queue, 20, strat_contrarian=False),
-                    ta.TAMoreThan(bars, event_queue, ta.rsi,
-                                  14, 45, OrderPosition.SELL),
-                    ta.TAMoreThan(bars, event_queue, ta.cci,
-                                  14, 20, OrderPosition.SELL),
-                    ta.TAMin(bars, event_queue, ta.rsi,
-                             14, 5, OrderPosition.SELL),
-                    broad.below_functor(bars, event_queue, 'SPY',
-                                        20, args.frequency, OrderPosition.SELL),
-                ], min_matches=2)
-            ])
-        ])  # StratPreMomentum
-        strategy = MultipleAnyStrategy(bars, event_queue, [
-            statistics.RelativeExtrema(bars, event_queue, 35, strat_contrarian=True,
-                                       percentile=15),  # will keep buying down
-            strategy,
-        ])
-    else:
-        strategy = MultipleAllStrategy(bars, event_queue, [  # any of buy and sell
-            statistics.ExtremaBounce(
-                bars, event_queue, short_period=8, long_period=45, percentile=40),
-            MultipleAnyStrategy(bars, event_queue, [
-                                MultipleAnyStrategy(bars, event_queue, [   # buy
-                                    # MultipleAnyStrategy(bars, event_queue, [
-                                    #     fundamental.FundAtLeast(bars, event_queue,
-                                    #                             'revenueGrowth', 0.1, order_position=OrderPosition.BUY),
-                                    #     fundamental.FundAtLeast(bars, event_queue, 'roe',
-                                    #                             0, order_position=OrderPosition.BUY),
-                                    # ]),
-                                    ta.TALessThan(bars, event_queue, ta.rsi,
-                                                  14, 50, OrderPosition.BUY),
-                                    ta.TALessThan(bars, event_queue, ta.cci,
-                                                  20, 0, OrderPosition.BUY),
-                                    broad.above_functor(bars, event_queue, 'SPY', 20,
-                                                        args.frequency, OrderPosition.BUY),
-                                ], min_matches=2),
-                                MultipleAnyStrategy(bars, event_queue, [   # sell
-                                    # RelativeExtrema(bars, event_queue, 20, strat_contrarian=False),
-                                    ta.TAMoreThan(bars, event_queue, ta.rsi,
-                                                  14, 50, OrderPosition.SELL),
-                                    ta.TAMoreThan(bars, event_queue, ta.cci,
-                                                  14, 20, OrderPosition.SELL),
-                                    ta.TAMin(bars, event_queue, ta.rsi, 14, 5, OrderPosition.SELL),
-                                    broad.below_functor(bars, event_queue, 'SPY', 20,
-                                                        args.frequency, OrderPosition.SELL),
-                                ], min_matches=2)
-                                ])
-        ])  # StratPreMomentum
-
-        # strategy = profitable.trading_idea_two(bars, event_queue)
-        period = 20
-        feature = FeatureEMA(period) + RSIFromBaseLine(period, 47) + RelativeRSI(period, 7)  #need at least period + 7
-        margin = PercentageMargin(0.03 if args.frequency == "day" else 0.012)
-        strategy = FairPriceStrategy(bars, event_queue, feature, margin, period + 8)
-    rebalance_strat = RebalanceLogicalAny(bars, event_queue, [
-        RebalanceYearly(bars, event_queue),
-        SellWinnersQuarterly(bars, event_queue, 0.40) if args.frequency == "day" else SellWinnersMonthly(bars, event_queue, 0.125),
-        SellLosersQuarterly(bars, event_queue, 0.14) if args.frequency == "day" else SellLosersMonthly(bars, event_queue, 0.075), 
+    # strategy = profitable.trading_idea_two(bars, event_queue)
+    period = 15     # period to calculate algo
+    ta_period = 14  # period of calculated values seen 
+    feature = TrendAwareFeatureEMA(period + ta_period // 2) + RelativeRSI(ta_period, 10) + RelativeCCI(ta_period, 12) #  + TradeImpulseBase(period // 2)
+    margin = AsymmetricPercentageMargin((0.03, 0.03) if args.frequency == "day" else (0.016, 0.01))
+    strategy = FairPriceStrategy(bars, feature, margin, period + ta_period)
+    rebalance_strat = RebalanceLogicalAny(bars, [
+        RebalanceYearly(bars),
+        SellWinnersQuarterly(bars, 0.26) if args.frequency == "day" else SellWinnersMonthly(bars, 0.125),
+        SellLosersQuarterly(bars, 0.14) if args.frequency == "day" else SellLosersMonthly(bars, 0.075), 
     ])
-    port = FixedTradeValuePortfolio(bars, event_queue, order_queue,
-                                    trade_value=700,
+    port = FixedTradeValuePortfolio(trade_value=1200,
                                     max_qty=10,
                                     portfolio_name=(
                                         args.name if args.name != "" else "loop"),
@@ -134,13 +73,23 @@ def main():
                                     rebalance=rebalance_strat,
                                     initial_capital=INITIAL_CAPITAL
                                     )
-    broker = SimulatedBroker(bars, port, event_queue, order_queue, gatekeepers=[
+    broker = SimulatedBroker(bars, port, gatekeepers=[
         NoShort(), EnoughCash(),
         # PremiumLimit(150), MaxInstPosition(3), MaxPortfolioPosition(24) # test real scenario since I'm poor
         MaxPortfolioPercPerInst(bars, 0.2)
     ])
-    backtest(bars, creds, event_queue, order_queue,
-             strategy, port, broker, args.frequency, show_plot=args.num_runs == 1, initial_capital=INITIAL_CAPITAL)
+    bt = Backtest(bars, strategy, port, broker, args)
+    bt.run(live=False)
+
+    args.start_ms = start_ms
+    args.end_ms = end_ms
+    
+    plot_index_benchmark(args, ['SPY'], "BuyAndHoldIndex")
+    # plot_index_benchmark(args, symbol_list, "BuyAndHoldStrategy")
+
+    if bt.show_plot:
+        plt.legend()
+        plt.show()
 
 
 if __name__ == "__main__":
@@ -151,16 +100,8 @@ if __name__ == "__main__":
     if args.name != "":
         logging.basicConfig(filename=Path(os.environ["DATA_DIR"]) /
                             f"logging/{args.name}.log", level=logging.INFO, force=True)
-        logging.basicConfig(filename=Path(os.environ["DATA_DIR"]) /
-                            f"logging/{args.name}.log", level=logging.INFO, force=True)
-        logging.basicConfig(filename=Path(os.environ["WORKSPACE_ROOT"]) /
-                            f"Data/data/logging/{args.name}.log", level=logging.INFO, force=True)
-        logging.basicConfig(filename=Path(os.environ["DATA_DIR"]) /
-                            f"logging/{args.name}.log", level=logging.INFO, force=True)
-        logging.basicConfig(filename=Path(os.environ["DATA_DIR"]) /
-                            f"logging/{args.name}.log", level=logging.INFO, force=True)
     processes = []
     with fut.ProcessPoolExecutor(4) as e:
         for i in range(args.num_runs):
-            processes.append(e.submit(main))
+            processes.append(e.submit(main, creds))
     processes = [p.result() for p in processes]

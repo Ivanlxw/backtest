@@ -17,8 +17,6 @@ FORMAT_YYYYMMDD = '%Y%m%d'
 NY_TIMEZONE = "America/New_York"
 OPTION_METADATA_PATH = Path(f"{os.environ['DATA_DIR']}/options/metadata.h5")
 DATA_GETTER_INST_TYPES = ['equity', 'options']
-# if not os.path.exists(MODELINFO_DIR):
-#     os.makedirs(MODELINFO_DIR, exist_ok=True)
 
 
 def log_message(message: str):
