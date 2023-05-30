@@ -1,3 +1,4 @@
+import datetime
 import os
 from typing import List
 import requests
@@ -9,8 +10,8 @@ from Data.source.base.DataGetter import DataGetter
 
 
 class Polygon(DataGetter):
-    def __init__(self, universe_list, inst_type: str) -> None:
-        super().__init__(universe_list, inst_type)
+    def __init__(self, inst_type: str) -> None:
+        super().__init__(inst_type)
         self.BASE_URL = "https://api.polygon.io/"
         self._data_getter_options = ["csv", "gz", "proto"]
         self._api_key = os.environ["POLYGON_API" if inst_type  == "equity" else "POLYGON_OPTION_API"]
@@ -48,7 +49,7 @@ class Polygon(DataGetter):
             + f"?adjusted=true&sort=asc&limit={self._limit_count}"
         )
         url = self._add_api_to_url(url)
-        resp = requests.get(url, timeout=30)
+        resp = requests.get(url, timeout=45)
         resp_json = resp.json()
         if not resp.ok:
             raise Exception(
@@ -75,7 +76,7 @@ class Polygon(DataGetter):
             results.set_index("t", inplace=True)
         return results
 
-    def _get_option_info_internal(self, underlying_symbol, from_ms, to_ms, expired: bool):
+    def get_option_info(self, underlying_symbol, from_ms, to_ms, expired: bool = True):
         dates_to_query = self._chop_finer_dates(from_ms, to_ms)
         results = []
         for start_ms, end_ms in dates_to_query:
@@ -95,13 +96,11 @@ class Polygon(DataGetter):
             resp_json = resp.json()
             results.extend(resp_json["results"])
         return results
-
-    def get_option_info(self, from_ms, to_ms, expired: bool = True):
-        with Pool(4) as p:
-            res = p.starmap(self._get_option_info_internal, [(underlying, from_ms, to_ms, expired) for underlying in self.universe_list])
-        res = [contract_info for contract_info_list in res for contract_info in contract_info_list]
-        return res
+        # with Pool(4) as p:
+        #     res = p.starmap(self._get_option_info_internal, [(underlying, from_ms, to_ms, expired) for underlying])
+        # res = [contract_info for contract_info_list in res for contract_info in contract_info_list]
+        # return res
 
 
-def get_source_instance(universe_list, inst_type):
-    return Polygon(universe_list, inst_type)
+def get_source_instance(inst_type):
+    return Polygon(inst_type)
