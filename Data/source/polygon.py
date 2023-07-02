@@ -14,7 +14,7 @@ class Polygon(DataGetter):
         super().__init__(inst_type)
         self.BASE_URL = "https://api.polygon.io/"
         self._data_getter_options = ["csv", "gz", "proto"]
-        self._api_key = os.environ["POLYGON_API" if inst_type  == "equity" else "POLYGON_OPTION_API"]
+        self._api_key = os.environ["POLYGON_API" if inst_type == "equity" else "POLYGON_OPTION_API"]
         self._sixty_days_in_ms = 5184000000
         self._limit_count = 49500
 
@@ -23,7 +23,7 @@ class Polygon(DataGetter):
 
     def _chop_dates(self, from_ms, to_ms, freq) -> List[tuple]:
         if freq == "day":
-            return[(from_ms, to_ms)]
+            return [(from_ms, to_ms)]
         tuple_ms = []
         start_idx = from_ms
         while start_idx + self._sixty_days_in_ms < to_ms:
@@ -31,7 +31,7 @@ class Polygon(DataGetter):
             start_idx += self._sixty_days_in_ms
         tuple_ms.append((start_idx, to_ms))
         return tuple_ms
-    
+
     def _chop_finer_dates(self, from_ms, to_ms) -> List[tuple]:
         tuple_ms = []
         start_idx = from_ms
@@ -49,15 +49,11 @@ class Polygon(DataGetter):
             + f"?adjusted=true&sort=asc&limit={self._limit_count}"
         )
         url = self._add_api_to_url(url)
-        resp = requests.get(url, timeout=45)
+        resp = requests.get(url, timeout=60)
         resp_json = resp.json()
         if not resp.ok:
-            raise Exception(
-                f"Failed to query polygon ohlc. url={url},resp={resp}")
-        elif (
-            resp_json["queryCount"] == self._limit_count
-            or resp_json["resultsCount"] == self._limit_count
-        ):
+            raise Exception(f"Failed to query polygon ohlc. url={url},resp={resp}")
+        elif resp_json["queryCount"] == self._limit_count or resp_json["resultsCount"] == self._limit_count:
             raise Exception(
                 f"Need to chop dates into finer pieces: queryCount={resp_json['queryCount']},resultsCount={resp_json['resultsCount']}"
             )
@@ -69,8 +65,7 @@ class Polygon(DataGetter):
         dates_to_query = self._chop_dates(from_ms, to_ms, freq)
         results = []
         for start_ms, end_ms in dates_to_query:
-            results.extend(self.get_ohlc_internal(
-                symbol, multiplier, freq, start_ms, end_ms))
+            results.extend(self.get_ohlc_internal(symbol, multiplier, freq, start_ms, end_ms))
         results = pd.DataFrame(results)
         if not results.empty:
             results.set_index("t", inplace=True)
@@ -80,8 +75,7 @@ class Polygon(DataGetter):
         dates_to_query = self._chop_finer_dates(from_ms, to_ms)
         results = []
         for start_ms, end_ms in dates_to_query:
-            start_ms_str = pd.Timestamp(
-                start_ms, unit="ms").strftime("%Y-%m-%d")
+            start_ms_str = pd.Timestamp(start_ms, unit="ms").strftime("%Y-%m-%d")
             end_ms_str = pd.Timestamp(end_ms, unit="ms").strftime("%Y-%m-%d")
             url = (
                 self.BASE_URL
@@ -91,8 +85,7 @@ class Polygon(DataGetter):
             url = self._add_api_to_url(url)
             resp = requests.get(url, timeout=45)
             if not resp.ok:
-                raise Exception(
-                    f"Failed to query polygon option info. url={url},resp={resp.text}")
+                raise Exception(f"Failed to query polygon option info. url={url},resp={resp.text}")
             resp_json = resp.json()
             results.extend(resp_json["results"])
         return results
