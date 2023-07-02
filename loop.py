@@ -12,10 +12,11 @@ from backtest.utilities.utils import generate_start_date_in_ms, parse_args, load
 from trading.broker.broker import SimulatedBroker
 from trading.broker.gatekeepers import EnoughCash, MaxPortfolioPercPerInst, NoShort
 from trading.portfolio.rebalance import NoRebalance, RebalanceLogicalAny, RebalanceYearly, SellLosersMonthly, SellLosersQuarterly, SellWinnersMonthly, SellWinnersQuarterly
-from trading.portfolio.portfolio import FixedTradeValuePortfolio, PercentagePortFolio
-from trading.data.dataHandler import HistoricCSVDataHandler
+from trading.portfolio.portfolio import FixedTradeValuePortfolio, PercentagePortFolio, SignalDefinedPosPortfolio
+from trading.data.dataHandler import HistoricCSVDataHandler, OptionDataHandler
 from trading.strategy.basic import BuyAndHoldStrategy
-from trading.strategy.fairprice.feature import RelativeCCI, RelativeRSI, TradeImpulseBase, TradePressureEma, TrendAwareFeatureEMA
+from trading.strategy.complex.option_strategy import SellStrangle
+from trading.strategy.fairprice.feature import RelativeCCI, RelativeRSI, TradeImpulseBase, TrendAwareFeatureEMA
 from trading.strategy.fairprice.margin import AsymmetricPercentageMargin
 from trading.strategy.fairprice.strategy import FairPriceStrategy
 from trading.strategy.personal import profitable
@@ -43,41 +44,50 @@ def main(creds):
     if args.start_ms is not None:
         start_ms = args.start_ms
     else:
-        start_ms = generate_start_date_in_ms(2019, 2022)
+        start_ms = generate_start_date_in_ms(2019 if args.inst_type == "equity" else 2021, 2022)
     end_ms = int(start_ms + random.randint(250, 700) * 8.64e7 * (1.0 if args.frequency == "day" else 0.25))  # end anytime between 200 - 800 days later
+    end_ms = int(start_ms + random.randint(100, 250) * 8.64e7 * (1.0 if args.frequency == "day" else 0.25))
     print(start_ms, end_ms)
     universe_list = read_universe_list(args.universe)
-    symbol_list = set(random.sample(universe_list, min(
-        80, len(universe_list))))
-    bars = HistoricCSVDataHandler(symbol_list, creds,
-                                  start_ms=start_ms,
-                                  end_ms=end_ms,
-                                  frequency_type=args.frequency
-                                  )
-    # strategy = profitable.trading_idea_two(bars, event_queue)
-    period = 15     # period to calculate algo
-    ta_period = 14  # period of calculated values seen 
-    feature = TrendAwareFeatureEMA(period + ta_period // 2) + RelativeRSI(ta_period, 10) + RelativeCCI(ta_period, 12) #  + TradeImpulseBase(period // 2)
-    margin = AsymmetricPercentageMargin((0.03, 0.03) if args.frequency == "day" else (0.016, 0.01))
-    strategy = FairPriceStrategy(bars, feature, margin, period + ta_period)
-    rebalance_strat = RebalanceLogicalAny(bars, [
-        RebalanceYearly(bars),
-        SellWinnersQuarterly(bars, 0.26) if args.frequency == "day" else SellWinnersMonthly(bars, 0.125),
-        SellLosersQuarterly(bars, 0.14) if args.frequency == "day" else SellLosersMonthly(bars, 0.075), 
-    ])
-    port = FixedTradeValuePortfolio(trade_value=1200,
-                                    max_qty=10,
-                                    portfolio_name=(
-                                        args.name if args.name != "" else "loop"),
-                                    expires=1,
-                                    rebalance=rebalance_strat,
-                                    initial_capital=INITIAL_CAPITAL
+    symbol_list = random.sample(universe_list, min(80, len(universe_list)))
+    if args.inst_type == "options":
+        assert args.frequency != "day", "current option strategy does not support day"
+        bars = OptionDataHandler(symbol_list, creds, start_ms, end_ms, frequency_type=args.frequency)
+    else:
+        bars = HistoricCSVDataHandler(symbol_list, creds,
+                                    start_ms=start_ms,
+                                    end_ms=end_ms,
+                                    frequency_type=args.frequency
                                     )
+    if args.inst_type == "equity":
+        # strategy = profitable.trading_idea_two(bars, event_queue)
+        period = 15     # period to calculate algo
+        ta_period = 14  # period of calculated values seen 
+        feature = TrendAwareFeatureEMA(period + ta_period // 2) + RelativeRSI(ta_period, 10) + RelativeCCI(ta_period, 12) + TradeImpulseBase(period // 2)
+        margin = AsymmetricPercentageMargin((0.03, 0.03) if args.frequency == "day" else (0.016, 0.01))
+        strategy = FairPriceStrategy(bars, feature, margin, period + ta_period)
+        rebalance_strat = RebalanceLogicalAny(bars, [
+            RebalanceYearly(bars),
+            SellWinnersQuarterly(bars, 0.26) if args.frequency == "day" else SellWinnersMonthly(bars, 0.125),
+            SellLosersQuarterly(bars, 0.14) if args.frequency == "day" else SellLosersMonthly(bars, 0.075), 
+        ])
+    else:
+        strategy = SellStrangle(bars)
+        rebalance_strat = NoRebalance(bars)
+    port = FixedTradeValuePortfolio(trade_value=1200,
+                            max_qty=20 if args.inst_type == "equity" else 2,
+                            portfolio_name=(
+                                args.name if args.name != "" else "loop"),
+                            expires=1,
+                            rebalance=rebalance_strat,
+                            order_type=OrderType.LIMIT if args.inst_type == "equity" else OrderType.MARKET,
+                            initial_capital=INITIAL_CAPITAL
+                            )
+
     broker = SimulatedBroker(bars, port, gatekeepers=[
-        NoShort(), EnoughCash(),
+        EnoughCash(), MaxPortfolioPercPerInst(bars, 0.25)
         # PremiumLimit(150), MaxInstPosition(3), MaxPortfolioPosition(24) # test real scenario since I'm poor
-        MaxPortfolioPercPerInst(bars, 0.2)
-    ])
+    ] + [NoShort()] if args.inst_type == "equity" else [])
     bt = Backtest(bars, strategy, port, broker, args)
     bt.run(live=False)
 
@@ -85,7 +95,11 @@ def main(creds):
     args.end_ms = end_ms
     
     plot_index_benchmark(args, ['SPY'], "BuyAndHoldIndex")
-    # plot_index_benchmark(args, symbol_list, "BuyAndHoldStrategy")
+    plot_index_benchmark(args, symbol_list, "BuyAndHoldStrategy")
+
+    if args.name:
+        port.write_curr_holdings()
+        port.write_all_holdings()
 
     if bt.show_plot:
         plt.legend()
