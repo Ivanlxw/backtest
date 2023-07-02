@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 import random
+import resource
 from pathlib import Path
 
 import pandas as pd
@@ -15,8 +16,11 @@ MODELINFO_DIR = UTILS_ABS_FP / "../../Data/strategies"
 FORMAT_YYYY_MM_DD = '%y-%m-%d'
 FORMAT_YYYYMMDD = '%Y%m%d'
 NY_TIMEZONE = "America/New_York"
-OPTION_METADATA_PATH = Path(f"{os.environ['DATA_DIR']}/options/metadata.h5")
+_OPTION_METADATA_PATH = Path(f"{os.environ['DATA_DIR']}/options/metadata.h5")
+OPTION_METADATA_PATH = Path(f"{os.environ['DATA_DIR']}/options/metadata.csv.gz")
 DATA_GETTER_INST_TYPES = ['equity', 'options']
+DATA_GETTER_DEFAULT_START_DT = datetime.datetime(2019, 6, 1)
+
 
 
 def log_message(message: str):
@@ -113,3 +117,6 @@ def get_sleep_time(frequency: str):
         "60minute": 3000    # 50mins
     }
     return sleep_time_map[frequency]
+
+def read_option_metadata() -> pd.DataFrame:
+    return pd.read_csv(OPTION_METADATA_PATH, index_col=None)
