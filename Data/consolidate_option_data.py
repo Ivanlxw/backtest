@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from backtest.utilities.utils import OPTION_METADATA_PATH, parse_args, read_option_metadata, read_universe_list
+from backtest.utilities.utils import parse_args, read_option_metadata, read_universe_list
 
 
 def _get_eto_df_with_sym(eto_sym, freq):
