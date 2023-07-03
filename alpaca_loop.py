@@ -12,7 +12,7 @@ from backtest.utilities.backtest import Backtest
 from backtest.utilities.utils import MODELINFO_DIR, generate_start_date_in_ms, load_credentials, log_message, parse_args, read_universe_list
 from trading.broker.gatekeepers import MaxPortfolioPercPerInst, NoShort, EnoughCash
 from trading.strategy.fairprice.strategy import FairPriceStrategy
-from trading.strategy.fairprice.feature import RelativeCCI, RelativeRSI, TradeImpulseBase, TrendAwareFeatureEMA
+from trading.strategy.fairprice.feature import RelativeCCI, RelativeRSI, TrendAwareFeatureEMA
 from trading.strategy.fairprice.margin import AsymmetricPercentageMargin
 from trading.broker.broker import AlpacaBroker
 from trading.portfolio.portfolio import PercentagePortFolio
@@ -29,8 +29,6 @@ if args.name != "":
 event_queue = queue.LifoQueue()
 order_queue = queue.Queue()
 # Declare the components with respective parameters
-NY = "America/New_York"
-SG = "Singapore"
 
 bars = DataFromDisk(read_universe_list(args.universe), creds,
                     generate_start_date_in_ms(2021, 2021))

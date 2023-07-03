@@ -9,10 +9,10 @@ import pandas as pd
 from pathlib import Path
 
 from Inform.telegram import telegram_bot_sendtext
-from backtest.utilities.utils import generate_start_date_in_ms, get_sleep_time, load_credentials, log_message, parse_args, read_universe_list
+from backtest.utilities.utils import NY_TIMEZONE, generate_start_date_in_ms, get_sleep_time, load_credentials, log_message, parse_args, read_universe_list
 from trading.event import SignalEvent
 from trading.plots.plot import PlotIndividual
-from trading.data.dataHandler import HistoricCSVDataHandler, NY, DataFromDisk
+from trading.data.dataHandler import HistoricCSVDataHandler, DataFromDisk
 from trading.strategy.fairprice.strategy import FairPriceStrategy
 from trading.strategy.fairprice.feature import FeatureEMA, RelativeCCI, RelativeRSI, TradeImpulseBase, TradePressureEma, TrendAwareFeatureEMA
 from trading.strategy.fairprice.margin import AsymmetricPercentageMargin
@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
     period = 15     # period to calculate algo
     ta_period = 14  # period of calculated values seen 
-    feature = TrendAwareFeatureEMA(period + ta_period // 2) + RelativeRSI(ta_period, 10) + RelativeCCI(ta_period, 12) # + TradeImpulseBase(period // 2)
+    feature = TrendAwareFeatureEMA(period + ta_period // 2) + RelativeRSI(ta_period, 10) + TradeImpulseBase(period // 2) + RelativeCCI(ta_period, 12)
     margin = AsymmetricPercentageMargin((0.03, 0.03) if args.frequency == "day" else (0.016, 0.01))
     strategy = FairPriceStrategy(bars, feature, margin, period + ta_period)
 
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     is_fair_price_strategy = isinstance(strategy, FairPriceStrategy)
     historical_fair_prices = {sym: [] for sym in bars.symbol_data.keys()}
     while True:
-        now = pd.Timestamp.now(tz=NY)
+        now = pd.Timestamp.now(tz=NY_TIMEZONE)
         time_since_midnight = now - now.normalize()
         if args.live and ((now.dayofweek == 4 and now.hour > 17) or now.dayofweek > 4):
             break
@@ -65,7 +65,7 @@ if __name__ == "__main__":
             time.sleep(60)
             continue
         if bars.continue_backtest == True:
-            log_message(f"{pd.Timestamp.now(tz=NY)}: update_bars")
+            log_message(f"{pd.Timestamp.now(tz=NY_TIMEZONE)}: update_bars")
             bars.update_bars(event_queue)
         else:
             break
