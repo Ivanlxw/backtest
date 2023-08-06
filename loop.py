@@ -44,9 +44,10 @@ def main(creds):
     if args.start_ms is not None:
         start_ms = args.start_ms
     else:
-        start_ms = generate_start_date_in_ms(2019 if args.inst_type == "equity" else 2021, 2022)
-    end_ms = int(start_ms + random.randint(250, 700) * 8.64e7 * (1.0 if args.frequency == "day" else 0.25))  # end anytime between 200 - 800 days later
-    end_ms = int(start_ms + random.randint(100, 250) * 8.64e7 * (1.0 if args.frequency == "day" else 0.25))
+        start_ms = generate_start_date_in_ms(2019 if args.inst_type == "equity" else 2021, 2023)
+    inst_days = random.randint(250, 700) if args.inst_type == "equity" else random.randint(100, 250)
+    # end anytime between 250 - 700 days later
+    end_ms = int(start_ms + inst_days * 8.64e7 * (1.0 if args.frequency == "day" else 0.25))
     print(start_ms, end_ms)
     universe_list = read_universe_list(args.universe)
     symbol_list = random.sample(universe_list, min(80, len(universe_list)))
@@ -67,7 +68,6 @@ def main(creds):
         margin = AsymmetricPercentageMargin((0.03, 0.03) if args.frequency == "day" else (0.016, 0.01))
         strategy = FairPriceStrategy(bars, feature, margin, period + ta_period)
         rebalance_strat = RebalanceLogicalAny(bars, [
-            RebalanceYearly(bars),
             SellWinnersQuarterly(bars, 0.26) if args.frequency == "day" else SellWinnersMonthly(bars, 0.125),
             SellLosersQuarterly(bars, 0.14) if args.frequency == "day" else SellLosersMonthly(bars, 0.075), 
         ])
@@ -114,8 +114,8 @@ if __name__ == "__main__":
     if args.name != "":
         logging.basicConfig(filename=Path(os.environ["DATA_DIR"]) /
                             f"logging/{args.name}.log", level=logging.INFO, force=True)
-    processes = []
-    with fut.ProcessPoolExecutor(4) as e:
-        for i in range(args.num_runs):
-            processes.append(e.submit(main, creds))
-    processes = [p.result() for p in processes]
+        processes = []
+        with fut.ProcessPoolExecutor(4) as e:
+            for i in range(args.num_runs):
+                processes.append(e.submit(main, creds))
+        processes = [p.result() for p in processes]

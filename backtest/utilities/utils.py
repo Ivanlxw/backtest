@@ -4,10 +4,10 @@ import argparse
 import logging
 import os
 import random
-import resource
 from pathlib import Path
 
 import pandas as pd
+from sqlalchemy import create_engine
 
 from trading.utilities.utils import timestamp_to_ms
 
@@ -52,6 +52,8 @@ def remove_bs(s: str):
     # remove backslash at the end from reading from a stock_list.txt
     return s.replace("\n", "")
 
+def get_db_connection():
+    return create_engine(os.environ['DB_URL']).connect()
 
 def read_universe(universe_fp):
     with open(universe_fp, "r") as fin:
@@ -118,5 +120,9 @@ def get_sleep_time(frequency: str):
     }
     return sleep_time_map[frequency]
 
-def read_option_metadata() -> pd.DataFrame:
-    return pd.read_csv(OPTION_METADATA_PATH, index_col=None)
+
+def _set_ram_limits(memory_in_kb):
+    import resource
+    soft, _ = resource.getrlimit(resource.RLIMIT_AS)
+    # Convert KiB to bytes
+    resource.setrlimit(resource.RLIMIT_AS, (memory_in_kb * 1024, soft))

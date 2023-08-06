@@ -7,6 +7,13 @@ import pandas as pd
 
 from backtest.utilities.utils import DATA_GETTER_INST_TYPES
 
+OHLC_COLUMNS = ['open', 'high', 'low', 'close', 'volume', 'vwap', 'num_trades']
+
+def get_ohlc_fp(freq_prefix, freq, symbol, inst_type, compression="csv"):
+    assert compression in ["csv", "csv.gz"], "Only csv and csv.gz allowed"
+    inst_dir_name = inst_type + ("_raw" if inst_type == "options" else "")
+    freq_prefix = "" if freq == "day" else freq_prefix
+    return Path(os.getenv("DATA_DIR")) / f"{freq_prefix}{freq}" / inst_dir_name / f"{symbol}.{compression}"
 
 class DataGetter(abc.ABC):
     def __init__(self, inst_type) -> None:
@@ -21,10 +28,6 @@ class DataGetter(abc.ABC):
     def get_all_methods(self):
         return list(object.__dict__.keys())
 
-    def get_fp(self, freq_prefix, freq, symbol, compression="csv"):
-        assert compression in ["csv", "csv.gz"], "Only csv and csv.gz allowed"
-        inst_dir_name = self.inst_type + ("_raw" if self.inst_type == "options" else "")
-        return self.RAW_DATA_DIR / f"{freq_prefix}{freq}" / inst_dir_name / f"{symbol}.{compression}"
 
     @abc.abstractmethod
     def get_ohlc(self, symbol, multiplier, freq, from_ms, to_ms):
@@ -46,6 +49,6 @@ class DataGetter(abc.ABC):
                     df = pd.concat([pd.read_csv(fp, index_col=0).loc[:, self.write_cols], df])
                     df = df[~df.index.duplicated(keep="last")].sort_index()
                 except Exception as e:
-                    print(f"Exception for {multiplier}{freq}, {symbol}, fp={fp}: {e}")
+                    logging.error(f"Exception for {multiplier}{freq}, {symbol}, fp={fp}: {e}")
                     return
             df.to_csv(fp)

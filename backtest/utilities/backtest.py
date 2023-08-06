@@ -29,7 +29,7 @@ class Backtest:
         self.sleep_duration = get_sleep_time(args.frequency)
 
         self.portfolio.Initialize(
-            self.data_provider.symbol_data.keys(),
+            self.data_provider.symbol_list,
             self.data_provider.start_ms,
             self.data_provider.option_metadata_info,
         )
@@ -40,10 +40,6 @@ class Backtest:
             self._life_loop()
         else:
             plotter = self._backtest_loop()
-            # plot_benchmark(creds, symbol_list=bars.symbol_data.keys(), portfolio_name="benchmark_BuyAndHold", freq=frequency,
-            #     benchmark_bars=copy.copy(bars), initial_capital=initial_capital)
-            # plot_benchmark(creds, symbol_list=[BENCHMARK_TICKER], portfolio_name="benchmark_index",
-            #             freq=frequency, start_ms=bars.start_ms, end_ms=bars.end_ms, initial_capital=initial_capital)
 
     def _backtest_loop(self):
         start = time.time()
@@ -63,13 +59,10 @@ class Backtest:
                 else:
                     if event is not None:
                         if event.type == "MARKET":
-                            self.portfolio.update_option_datetime(self.data_provider, self.event_queue)
-                            self.portfolio.update_timeindex(
-                                self.data_provider, self.event_queue
-                            )
-                            signal_list: List[
-                                SignalEvent
-                            ] = self.strategy.calculate_signals(event, curr_holdings=self.portfolio.current_holdings)
+                            market_bar = self.data_provider.get_latest_bars(event.symbol, 2)
+                            self.portfolio.update_option_datetime(market_bar, self.event_queue)
+                            self.portfolio.update_timeindex(market_bar, self.event_queue)
+                            signal_list = self.strategy.calculate_signals(event, curr_holdings=self.portfolio.current_holdings)
                             for signal in signal_list:
                                 self.event_queue.appendleft(signal)
                             while not self.order_queue.empty():
@@ -118,10 +111,9 @@ class Backtest:
                     if event is not None:
                         if event.type == "MARKET":
                             log_message("MarketEvent")
-                            self.portfolio.update_option_datetime(self.data_provider, self.event_queue)
-                            self.portfolio.update_timeindex(
-                                self.data_provider, self.event_queue
-                            )
+                            market_bar = self.data_provider.get_latest_bars(event.symbol, 2)
+                            self.portfolio.update_option_datetime(market_bar, self.event_queue)
+                            self.portfolio.update_timeindex(market_bar, self.event_queue)
                             self.broker.update_portfolio_positions()
                             signal_list = self.strategy.calculate_signals(event)
                             for signal in signal_list:

@@ -6,12 +6,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from Data.get_data import _store_option_data_into_history
 
 from Data.source.polygon import Polygon
 from backtest.utilities.utils import (
     NY_TIMEZONE,
     OPTION_METADATA_PATH,
+    get_db_connection,
     get_ms_from_datetime,
     load_credentials,
     read_option_metadata,
@@ -38,8 +38,15 @@ def get_source_instance(source):
     importlib.util.find_spec(f"Data.source.{source}")
     return importlib.import_module(f"Data.source.{source}").get_source_instance("options")
 
+def update_db(option_metadata_df: pd.DataFrame):
+    conn = get_db_connection()
+    existing_option_info_df = pd.read_sql("SELECT * FROM backtest.option_metadata", con=conn)
+    option_metadata_df = option_metadata_df.astype(existing_option_info_df.dtypes)
+    df = pd.concat([existing_option_info_df, option_metadata_df]).drop_duplicates(keep=False)
+    df.to_sql(con=conn, name='option_metadata', if_exists='append', index=False)
 
-DATA_FROM = datetime.datetime(2021, 7, 15)
+
+DATA_FROM = datetime.datetime(2021, 8, 1)
 DATA_FROM = datetime.datetime(2023, 1, 1)
 DATA_TO = datetime.datetime.now()
 METADATA_COL_TYPE = {
@@ -69,40 +76,46 @@ if __name__ == "__main__":
         time_since_midnight = now - now.normalize()
         if args.live and now.dayofweek > 4:
             break
-        elif args.live and time_since_midnight > datetime.timedelta(hours=17):
-            time.sleep(1600)
-            continue
+        # elif args.live and time_since_midnight > datetime.timedelta(hours=17):
+        #     time.sleep(1600)
+        #     continue
 
-        option_info_df = read_option_metadata().loc[:, METADATA_COL_TYPE.keys()]
+        option_metadata_df = read_option_metadata().loc[:, METADATA_COL_TYPE.keys()]
         for underlying in universe_list:
-            stored_df = option_info_df.query("underlying_sym == @underlying")
+            # stored_df = pd.read_sql(f"SELECT * FROM backtest.option_metadata where underlying_sym='{underlying}'", con=get_db_connection())
+            stored_df = option_metadata_df.query("underlying_sym == @underlying").astype(METADATA_COL_TYPE)
             if "expiration_date" not in stored_df.columns:
                 print(f"expiration_date not in col and will cause error: {underlying}")
                 continue
-            from_ms = get_ms_from_datetime(datetime.datetime.now() if args.live else DATA_FROM)
+            from_ms = get_ms_from_datetime(datetime.datetime.now() - datetime.timedelta(days=1) if args.live else DATA_FROM)
 
             if from_ms > to_ms:
                 print(f"info is updated. from_ms={from_ms} and to_ms={to_ms}")
                 continue
             res = getter.get_option_info(underlying, from_ms, to_ms, not args.live)
             res_df = pd.DataFrame(res).drop(["underlying_ticker", "additional_underlyings"], axis=1, errors="ignore")
-            res_df["underlying_sym"] = underlying
-            if "correction" not in res_df:
-                res_df["correction"] = np.nan
             if res_df.empty:
                 print(f"No result for underlying={underlying}")
                 continue
+            res_df["underlying_sym"] = underlying
+            res_df['expiration_date'] = pd.to_datetime(res_df['expiration_date'])
+            if "correction" not in res_df:
+                res_df["correction"] = np.nan
             if not stored_df.empty:
+                stored_df = stored_df.replace('', np.nan).astype({'correction': 'float64'})
                 underlying_info_df = (
-                    res_df[METADATA_COL_TYPE.keys()]
+                    res_df[METADATA_COL_TYPE.keys()].astype(METADATA_COL_TYPE)
                     .merge(stored_df, how="left", indicator=True)
                     .query("_merge == 'left_only'")
+                    .drop("_merge", axis=1)
                 )
                 underlying_info_df = underlying_info_df.sort_values(["expiration_date", "strike_price"]).loc[
                     :, METADATA_COL_TYPE.keys()
                 ]
             else:
                 underlying_info_df = res_df[METADATA_COL_TYPE.keys()]
+
+            # update_db(underlying_info_df)
             try:
                 underlying_info_df.astype(METADATA_COL_TYPE).to_csv(
                     OPTION_METADATA_PATH, mode="a", header=False, index=False
@@ -110,8 +123,7 @@ if __name__ == "__main__":
             except KeyError:
                 print(f"KeyError when writing metadata for {underlying}")
                 continue
-            break
-        print("Done")
+        print(f"[{datetime.datetime.now()}] ", "done")
         if not args.live:
             break
         else:

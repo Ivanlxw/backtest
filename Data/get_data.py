@@ -1,7 +1,7 @@
 import argparse
+import concurrent.futures as fut
 import datetime
 import importlib
-from multiprocessing import Pool
 import os
 from pathlib import Path
 import subprocess
@@ -9,7 +9,7 @@ import time
 
 import pandas as pd
 
-from Data.source.base.DataGetter import DataGetter
+from Data.source.base.DataGetter import OHLC_COLUMNS, DataGetter, get_ohlc_fp
 from backtest.utilities.option_info import get_option_ticker_from_underlying
 from backtest.utilities.utils import (
     DATA_GETTER_INST_TYPES,
@@ -21,8 +21,8 @@ from backtest.utilities.utils import (
 )
 
 # change this from intended start date: datetime.datetime(2022, 9, 1)
-DATA_FROM = datetime.datetime(2021, 7, 1)
-DATA_TO = datetime.datetime(2023, 6, 10)
+DATA_FROM = datetime.datetime(2021, 8, 15)
+DATA_TO = datetime.datetime(2023, 8, 1)
 DERIVE_START_MS_FROM_FILE = False
 WRITE_NEW_SYMBOLS_ONLY = True
 
@@ -62,24 +62,37 @@ def get_and_write_stock_symbols(getter, exchange):
         f.write("\n".join(stockList))
 
 
-def write_ohlc(getter: DataGetter, symbol, multiplier, freq, from_ms, to_ms):
-    """min(len(universe_list), 25)
-    from_ms: None if want to infer from existing dataset
-    """
-    fp = getter.get_fp("" if freq == "day" else multiplier, freq, symbol)
-    if fp.exists() and from_ms is None:
-        existing_df = pd.read_csv(fp)
-        from_ms = existing_df.sort_values("t")["t"].iloc[-1]
-    if from_ms is None:
-        from_ms = get_ms_from_datetime(DATA_FROM)
-    getter.write_ohlc(symbol, multiplier, freq, from_ms, to_ms, fp)
+def _write_ohlc(symbol, multiplier, time_scale, inst_type, df):
+    ohlc_types = {
+        "timestamp": "int64",
+        "volume": "float64",
+        "vwap": "float64",
+        "open": "float64",
+        "close": "float64",
+        "high": "float64",
+        "low": "float64",
+        "num_trades": "float64",
+    }
+    if df.empty:
+        return
+    fp = get_ohlc_fp(multiplier, time_scale, symbol, inst_type)
+    if fp.exists():
+        try:
+            existing_df = pd.read_csv(fp).astype(ohlc_types)
+            df = df.astype(ohlc_types)
+        except Exception as e:
+            print(f"Could not write into {fp}:\n{e}")
+            return
+        df = pd.concat([existing_df, df]).drop_duplicates(keep="last")
+    df.set_index('timestamp', inplace=True, drop=True)
+    df.loc[:, OHLC_COLUMNS].to_csv(fp)
 
 
-def _store_option_data_into_history():
+def _store_option_data_into_history(freq: str):
     proj_root_dir = os.environ["WORKSPACE_ROOT"]
     cmd = (
         f"python {proj_root_dir}/Data/consolidate_option_data.py --credentials {proj_root_dir}/real_credentials.json "
-        f"--universe {' '.join([str(univ_path) for univ_path in args.universe])}"
+        f"--universe {' '.join([str(univ_path) for univ_path in args.universe])} --frequency {freq}"
     )
     subprocess.run(cmd, shell=True, check=True)
 
@@ -87,67 +100,88 @@ def _store_option_data_into_history():
 def get_data_for_equity(args, underlying_universe_list):
     getter: DataGetter = get_source_instance(args.source, "equity")
     now = datetime.datetime.now()
-    from_ms = get_ms_from_datetime(now - datetime.timedelta(days=15)) if args.live else get_ms_from_datetime(DATA_FROM)
+    from_ms = get_ms_from_datetime(now - datetime.timedelta(days=25)) if args.live else get_ms_from_datetime(DATA_FROM)
     to_ms = get_ms_from_datetime(now if args.live else DATA_TO)
     print(from_ms, to_ms)
     print("Num of sym to get: ", len(underlying_universe_list))
-    with Pool(6) as p:
-        for multiplier in [5, 15] + ([] if args.inst_type == "options" else [30]):  # 1, 5, 15,
-            p.starmap(
-                write_ohlc, [(getter, sym, multiplier, "minute", from_ms, to_ms) for sym in underlying_universe_list]
-            )
-            print(f"{multiplier}min done")
-        p.starmap(write_ohlc, [(getter, sym, 1, "day", from_ms, to_ms) for sym in universe_list])
-        print("day done")
+    to_iterate = ["5minute", "15minute", "30minute", "day"] if args.live else [args.frequency]
+    for freq in to_iterate:
+        sym_and_time_list = [
+            [(start_ms, end_ms, sym) for start_ms, end_ms in getter.equity_chop_dates(from_ms, to_ms, freq)]
+            if args.source == "polygon"
+            else [(from_ms, to_ms, sym)]
+            for sym in underlying_universe_list
+        ]
+        sym_and_time_list = [entry for combi in sym_and_time_list for entry in combi]
+        multiplier = int(freq.replace("minute", "")) if freq != "day" else 1
+        time_scale = "minute" if "minute" in freq else "day"
+        with fut.ThreadPoolExecutor(16) as p:
+            res_df = [
+                p.submit(getter.get_ohlc, sym, multiplier, time_scale, start_ms, end_ms)
+                for start_ms, end_ms, sym in sym_and_time_list
+            ]
+            res_df = [r.result() for r in res_df]
+        for (_, _, sym), df in zip(sym_and_time_list, res_df):
+            _write_ohlc(sym, multiplier, time_scale, "equity", df)
+        print(f"[{datetime.datetime.now()}] ", freq, "done")
 
 
 def get_data_for_options(args, underlying_universe_list):
     getter: DataGetter = get_source_instance(args.source, "options")
     now = datetime.datetime.now()
     if args.live:
-        ticker_expiry_map = get_option_ticker_from_underlying(
-            underlying_universe_list,
-            now - datetime.timedelta(days=1),
-            now + datetime.timedelta(weeks=3) if args.live else DATA_TO,
-            num_closest_strikes=6,
-        )
+        ticker_expiry_list = [
+            (sym, expiry_dt)
+            for sym, expiry_dt in get_option_ticker_from_underlying(
+                underlying_universe_list,
+                now - datetime.timedelta(days=3),
+                now + datetime.timedelta(days=10),
+                num_closest_strikes=6,
+            ).items()
+        ]
     else:
-        ticker_expiry_map = get_option_ticker_from_underlying(underlying_universe_list, DATA_FROM, DATA_TO)
-
+        ticker_expiry_list = [
+            (sym, expiry_dt)
+            for sym, expiry_dt in get_option_ticker_from_underlying(
+                underlying_universe_list, DATA_FROM, DATA_TO
+            ).items()
+        ]
         # TODO: get the symbol and expiring, compare against to_ms
         if WRITE_NEW_SYMBOLS_ONLY:
-            written_fp = (Path(os.environ["DATA_DIR"]) / f"{args.frequency}/options").glob("*_options.csv")
-            written_etos = set(pd.concat([pd.read_csv(fp, usecols=["symbol"]) for fp in written_fp]).symbol.unique())
-            ticker_expiry_map = dict((k, v) for k, v in ticker_expiry_map.items() if k not in written_etos)
-    print("Num of sym to get: ", len(ticker_expiry_map))
-    from_ms = get_ms_from_datetime(now - datetime.timedelta(days=15)) if args.live else get_ms_from_datetime(DATA_FROM)
-    to_ms = get_ms_from_datetime(now if args.live else DATA_TO)
-    two_day_td = pd.Timedelta(2, "d")
-    to_iterate = (
-        (["5minute", "15minute", "day"] + ([] if args.inst_type == "options" else ["30minute"]))
-        if args.live
-        else [args.frequency]
-    )
-    with Pool(6) as p:
-        for freq in to_iterate:
-            print("starting", freq)
-            p.starmap(
-                write_ohlc,
-                [
-                    (
-                        getter,
+            written_fp = list((Path(os.environ["DATA_DIR"]) / f"{args.frequency}/options").glob("*_options.csv"))
+            if len(written_fp) != 0:
+                written_etos = set(pd.concat([pd.read_csv(fp, usecols=["symbol"]) for fp in written_fp]).symbol.unique())
+                ticker_expiry_list = [(k, v) for k, v in ticker_expiry_list if k not in written_etos]
+    print("Num of sym to get: ", len(ticker_expiry_list))
+    to_iterate = ["5minute", "15minute", "day"] if args.live else [args.frequency]
+    chunk = 12000
+    ticker_expiry_chunks = [
+        ticker_expiry_list[i * chunk : (i + 1) * chunk] for i in range((len(ticker_expiry_list) + chunk - 1) // chunk)
+    ]
+    del ticker_expiry_list
+    for freq in to_iterate:
+        print("starting", freq)
+        multiplier = int(freq.replace("minute", "")) if freq != "day" else 1
+        time_scale = "minute" if "minute" in freq else "day"
+        for ticker_expiry_chunk in ticker_expiry_chunks:
+            with fut.ThreadPoolExecutor(32) as p:
+                res_df = [
+                    p.submit(
+                        getter.get_ohlc,
                         sym,
-                        int(freq.replace("minute", "")) if freq != "day" else 1,
-                        "minute" if "minute" in freq else "day",
-                        from_ms,
-                        to_ms if args.live else get_ms_from_datetime(expiry_dt + two_day_td),
+                        multiplier,
+                        time_scale,
+                        get_ms_from_datetime(expiry_dt - pd.Timedelta(100, "d")),
+                        get_ms_from_datetime(expiry_dt + pd.Timedelta(2, "d")),
                     )
-                    for sym, expiry_dt in ticker_expiry_map.items()
-                ],
-            )
-            print(f"[{datetime.datetime.now()}] ", freq, "done")
+                    for sym, expiry_dt in ticker_expiry_chunk
+                ]
+                res_df = [r.result() for r in res_df]
+            for (sym, _), df in zip(ticker_expiry_chunk, res_df):
+                _write_ohlc(sym, multiplier, time_scale, "options", df)
+        print(f"[{datetime.datetime.now()}] ", freq, "done")
     if not args.live:
-        _store_option_data_into_history()
+        _store_option_data_into_history(freq)
 
 
 if __name__ == "__main__":
@@ -162,16 +196,17 @@ if __name__ == "__main__":
         # Update the bars (specific backtest code, as opposed to live trading)
         now = pd.Timestamp.now(tz=NY_TIMEZONE)
         time_since_midnight = now - now.normalize()
-        if args.live and ((now.dayofweek == 4 and now.hour > 17) or now.dayofweek > 4):
+        if args.live and now.dayofweek > 4:
             if args.inst_type == "options":
-                _store_option_data_into_history()
+                for freq in ["5minute", "15minute", "day"]:
+                    _store_option_data_into_history(freq)
             break
-        elif args.live and (
-            time_since_midnight < datetime.timedelta(hours=8)
-            or time_since_midnight > datetime.timedelta(hours=17, minutes=45)
-        ):
-            time.sleep(get_sleep_time("60minute"))
-            continue
+        # elif args.live and (
+        #     time_since_midnight < datetime.timedelta(hours=8)
+        #     or time_since_midnight > datetime.timedelta(hours=17, minutes=45)
+        # ):
+        #     time.sleep(get_sleep_time("60minute"))
+        #     continue
         if args.inst_type == "equity":
             get_data_for_equity(args, universe_list)
         elif args.inst_type == "options":

@@ -14,3 +14,4 @@ Deprecated
 scipy
 numba
 plotly
+polygon-api-client

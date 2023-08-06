@@ -6,6 +6,7 @@ real_credentials*.json
 data/*.json
 *.__init__.py
 *profitable.py
+.envrc
 
 ## cmake related
 *.cmake
