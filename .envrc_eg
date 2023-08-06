@@ -1,0 +1,4 @@
+# remove comment and fill env variables accordingly. Change filename to .envrc as well
+export WORKSPACE_ROOT=$(pwd)
+export DATA_DIR=/some_filepath
+export DB_URL="mysql url for data connection"
