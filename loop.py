@@ -114,8 +114,6 @@ if __name__ == "__main__":
     if args.name != "":
         logging.basicConfig(filename=Path(os.environ["DATA_DIR"]) /
                             f"logging/{args.name}.log", level=logging.INFO, force=True)
-        processes = []
-        with fut.ProcessPoolExecutor(4) as e:
-            for i in range(args.num_runs):
-                processes.append(e.submit(main, creds))
+    with fut.ProcessPoolExecutor(4) as e:
+        processes = [e.submit(main, creds) for i in range(args.num_runs)]
         processes = [p.result() for p in processes]
