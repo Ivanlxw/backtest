@@ -44,8 +44,8 @@ def main(creds):
     if args.start_ms is not None:
         start_ms = args.start_ms
     else:
-        start_ms = generate_start_date_in_ms(2019 if args.inst_type == "equity" else 2021, 2023)
-    inst_days = random.randint(250, 700) if args.inst_type == "equity" else random.randint(100, 250)
+        start_ms = generate_start_date_in_ms(2019 if args.inst_type == "equity" else 2022, 2023)
+    inst_days = random.randint(250, 700) if args.inst_type == "equity" else random.randint(60, 250)
     # end anytime between 250 - 700 days later
     end_ms = int(start_ms + inst_days * 8.64e7 * (1.0 if args.frequency == "day" else 0.25))
     print(start_ms, end_ms)
@@ -95,7 +95,8 @@ def main(creds):
     args.end_ms = end_ms
     
     plot_index_benchmark(args, ['SPY'], "BuyAndHoldIndex")
-    plot_index_benchmark(args, symbol_list, "BuyAndHoldStrategy")
+    if args.inst_type == "equity":
+        plot_index_benchmark(args, symbol_list, "BuyAndHoldStrategy")
 
     if args.name:
         port.write_curr_holdings()

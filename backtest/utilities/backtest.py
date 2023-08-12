@@ -60,14 +60,15 @@ class Backtest:
                     if event is not None:
                         if event.type == "MARKET":
                             market_bar = self.data_provider.get_latest_bars(event.symbol, 2)
-                            self.portfolio.update_option_datetime(market_bar, self.event_queue)
-                            self.portfolio.update_timeindex(market_bar, self.event_queue)
-                            signal_list = self.strategy.calculate_signals(event, curr_holdings=self.portfolio.current_holdings)
-                            for signal in signal_list:
-                                self.event_queue.appendleft(signal)
-                            while not self.order_queue.empty():
-                                self.event_queue.appendleft(self.order_queue.get())
-
+                            if (
+                                self.portfolio.update_option_datetime(market_bar, self.event_queue) and
+                                self.portfolio.update_timeindex(market_bar, self.event_queue)
+                            ):
+                                signal_list = self.strategy.calculate_signals(event, curr_holdings=self.portfolio.current_holdings)
+                                for signal in signal_list:
+                                    self.event_queue.appendleft(signal)
+                                while not self.order_queue.empty():
+                                    self.event_queue.appendleft(self.order_queue.get())
                         elif event.type == "SIGNAL":
                             self.portfolio.update_signal(
                                 event, self.event_queue
@@ -112,15 +113,16 @@ class Backtest:
                         if event.type == "MARKET":
                             log_message("MarketEvent")
                             market_bar = self.data_provider.get_latest_bars(event.symbol, 2)
-                            self.portfolio.update_option_datetime(market_bar, self.event_queue)
-                            self.portfolio.update_timeindex(market_bar, self.event_queue)
-                            self.broker.update_portfolio_positions()
-                            signal_list = self.strategy.calculate_signals(event)
-                            for signal in signal_list:
-                                self.event_queue.appendleft(signal)
-                            while not self.order_queue.empty():
-                                self.event_queue.appendleft(self.order_queue.get())
-
+                            if (
+                                self.portfolio.update_option_datetime(market_bar, self.event_queue) and
+                                self.portfolio.update_timeindex(market_bar, self.event_queue)
+                            ):
+                                self.broker.update_portfolio_positions()
+                                signal_list = self.strategy.calculate_signals(event)
+                                for signal in signal_list:
+                                    self.event_queue.appendleft(signal)
+                                while not self.order_queue.empty():
+                                    self.event_queue.appendleft(self.order_queue.get())
                         elif event.type == "SIGNAL":
                             self.portfolio.update_signal(event, self.event_queue)
 
