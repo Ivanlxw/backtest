@@ -3,21 +3,21 @@ import datetime
 import importlib
 import time
 from pathlib import Path
+from backtest.utilities.option_info import OptionMetadata
 
 import numpy as np
 import pandas as pd
 
 from Data.source.polygon import Polygon
 from backtest.utilities.utils import (
-    NY_TIMEZONE,
     OPTION_METADATA_PATH,
     get_db_connection,
     get_ms_from_datetime,
     load_credentials,
-    read_option_metadata,
     read_universe_list,
     get_sleep_time,
 )
+from trading.utilities.utils import NY_TIMEZONE
 
 
 def parse_args():
@@ -46,7 +46,6 @@ def update_db(option_metadata_df: pd.DataFrame):
     df.to_sql(con=conn, name='option_metadata', if_exists='append', index=False)
 
 
-DATA_FROM = datetime.datetime(2021, 8, 1)
 DATA_FROM = datetime.datetime(2023, 1, 1)
 DATA_TO = datetime.datetime.now()
 METADATA_COL_TYPE = {
@@ -71,19 +70,20 @@ if __name__ == "__main__":
 
     future = datetime.datetime.today() + datetime.timedelta(days=12)
     to_ms = get_ms_from_datetime(future if args.live else DATA_TO)
+    option_metadata = OptionMetadata()
     while True:
         now = pd.Timestamp.now(tz=NY_TIMEZONE)
         time_since_midnight = now - now.normalize()
         if args.live and now.dayofweek > 4:
             break
-        # elif args.live and time_since_midnight > datetime.timedelta(hours=17):
-        #     time.sleep(1600)
-        #     continue
+        elif args.live and time_since_midnight > datetime.timedelta(hours=17):
+            time.sleep(1600)
+            continue
 
-        option_metadata_df = read_option_metadata().loc[:, METADATA_COL_TYPE.keys()]
+        # option_metadata_df = option_metadata.loc[:, METADATA_COL_TYPE.keys()]
         for underlying in universe_list:
             # stored_df = pd.read_sql(f"SELECT * FROM backtest.option_metadata where underlying_sym='{underlying}'", con=get_db_connection())
-            stored_df = option_metadata_df.query("underlying_sym == @underlying").astype(METADATA_COL_TYPE)
+            stored_df = option_metadata.get_option_metadata_for_symbol(underlying).loc[:, METADATA_COL_TYPE.keys()].astype(METADATA_COL_TYPE)
             if "expiration_date" not in stored_df.columns:
                 print(f"expiration_date not in col and will cause error: {underlying}")
                 continue

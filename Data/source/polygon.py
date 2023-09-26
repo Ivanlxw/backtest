@@ -11,11 +11,10 @@ from Data.source.base.DataGetter import DataGetter
 class Polygon(DataGetter):
     def __init__(self, inst_type: str) -> None:
         super().__init__(inst_type)
-        self.equity_client = RESTClient(os.environ["POLYGON_API"])
-        self.option_client = RESTClient(os.environ["POLYGON_API_KEY"])
+        self._api_key = os.environ["POLYGON_API"]
+        self.client = RESTClient(self._api_key)
         self.BASE_URL = "https://api.polygon.io/"
         self._data_getter_options = ["csv", "gz", "proto"]
-        self._api_key = os.environ["POLYGON_API" if inst_type == "equity" else "POLYGON_API_KEY"]
         self._80_days_in_ms = 6912000000
         self._limit_count = 49500
 
@@ -55,9 +54,8 @@ class Polygon(DataGetter):
         return resp_json["results"]
     
     def get_ohlc(self, symbol, multiplier, freq, from_ms, to_ms) -> pd.DataFrame:
-        client = self.option_client if self.inst_type == "options" else self.equity_client
         try:
-            results = [a for a in client.list_aggs(symbol, multiplier, freq, from_ms, to_ms, limit=50000)]    
+            results = [a for a in self.client.list_aggs(symbol, multiplier, freq, from_ms, to_ms, limit=50000)]    
         except KeyError:
             return pd.DataFrame()
         results = pd.DataFrame(results)

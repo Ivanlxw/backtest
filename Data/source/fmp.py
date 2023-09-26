@@ -3,11 +3,13 @@ import logging
 import requests
 
 from Data.source.base.DataGetter import DataGetter
+from backtest.utilities.utils import get_datetime_from_ms
+from trading.utilities.utils import FORMAT_YYYY_MM_DD
 
 
 class FMP(DataGetter):
-    def __init__(self, universe_list: list, inst_type: str) -> None:
-        super().__init__(universe_list, inst_type)
+    def __init__(self, inst_type: str) -> None:
+        super().__init__(inst_type)
         self.BASE_URL = "https://financialmodelingprep.com/api/v3/"
 
     def get_all_tradable_symbols(self):
@@ -43,13 +45,19 @@ class FMP(DataGetter):
         if res.ok:
             return res.json()
 
-    def get_ohlc(self):
-        ## TODO: Write for polygon first, both csv and proto.
-        return
+    def get_ohlc(self, symbol, multiplier, freq, from_ms, to_ms):
+        ts = freq if freq == "day" else f"{multiplier}{freq.replace('ute', '')}"
+        from_datestr = get_datetime_from_ms(from_ms).strftime(FORMAT_YYYY_MM_DD)
+        to_datestr = get_datetime_from_ms(to_ms).strftime(FORMAT_YYYY_MM_DD) 
+        url = f"{self.BASE_URL}historical-chart/{ts}/{symbol}?from={from_datestr}&to={to_datestr}&apikey={os.environ['FMP_API']}"
+        print(url)
+        res = requests.get(url, timeout=30)
+        if res.ok:
+            return res.json()
 
 
-def get_source_instance(universe_fp, inst_type):
-    return FMP(universe_fp, inst_type)
+def get_source_instance(inst_type):
+    return FMP(inst_type)
 
 
 # from backtest.utilities.utils import load_credentials, parse_args
