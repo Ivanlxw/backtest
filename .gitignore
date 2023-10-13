@@ -1,5 +1,6 @@
 real_credentials*.json
-*.ipynb
+scratch*.ipynb
+test*.ipynb
 *.pyc 
 *.log
 *.txt
