@@ -46,7 +46,7 @@ def update_db(option_metadata_df: pd.DataFrame):
     df.to_sql(con=conn, name='option_metadata', if_exists='append', index=False)
 
 
-DATA_FROM = datetime.datetime(2023, 1, 1)
+DATA_FROM = datetime.datetime(2023, 9, 1)
 DATA_TO = datetime.datetime.now()
 METADATA_COL_TYPE = {
     "cfi": "string",

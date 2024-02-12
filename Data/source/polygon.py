@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import List
 import requests
@@ -93,6 +94,18 @@ class Polygon(DataGetter):
             resp_json = resp.json()
             results.extend(resp_json["results"])
         return results
+    
+    def get_stock_details(self, symbol):
+        url = (
+            self.BASE_URL
+            + f"v3/reference/tickers/{symbol}"
+        )
+        url += f"?apiKey={self._api_key}"
+        resp = requests.get(url, timeout=60)
+        if not resp.ok:
+            logging.error(f"failed to get stock details: symbol={symbol}")
+            return dict()
+        return resp.json()["results"]
 
 
 def get_source_instance(inst_type):

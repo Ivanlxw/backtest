@@ -13,16 +13,15 @@ from Data.source.base.DataGetter import OHLC_COLUMNS, DataGetter, get_ohlc_fp
 from backtest.utilities.option_info import get_option_ticker_from_underlying
 from backtest.utilities.utils import (
     DATA_GETTER_INST_TYPES,
-    NY_TIMEZONE,
     get_ms_from_datetime,
     load_credentials,
-    get_sleep_time,
     read_universe_list,
 )
+from trading.utilities.utils import NY_TIMEZONE
 
-# change this from intended start date: datetime.datetime(2022, 9, 1)
-DATA_FROM = datetime.datetime(2021, 8, 15)
-DATA_TO = datetime.datetime(2023, 8, 1)
+# change this for intended start date
+data_from = datetime.datetime(2023, 1, 1)
+data_to = datetime.datetime.now()
 DERIVE_START_MS_FROM_FILE = False
 WRITE_NEW_SYMBOLS_ONLY = True
 
@@ -36,18 +35,16 @@ def parse_args():
         type=str,
         help="filepath to credentials.json",
     )
-    parser.add_argument("-s", "--source", required=True, type=str)
     parser.add_argument("--universe", type=Path, required=False, help="File path to trading universe", nargs="+")
     parser.add_argument("--symbol", required=False, help="File path to trading universe", nargs="+")
     parser.add_argument("--inst-type", type=str, required=False, default="equity", choices=DATA_GETTER_INST_TYPES)
-    parser.add_argument("--frequency", type=str, default="day", help="Frequency of data. Searches a dir with same name")
+    parser.add_argument("--frequency", type=str, default="day", nargs="+", help="Frequency of data. Searches a dir with same name")
     parser.add_argument("-l", "--live", action="store_true", help="inform life?")
     return parser.parse_args()
 
 
-def get_source_instance(source, inst_type: str):
-    importlib.util.find_spec(f"Data.source.{source}")
-    return importlib.import_module(f"Data.source.{source}").get_source_instance(inst_type)
+def get_source_instance(inst_type: str):
+    return importlib.import_module(f"Data.source.polygon").get_source_instance(inst_type)
 
 
 def get_and_write_stock_symbols(getter, exchange):
@@ -83,8 +80,9 @@ def _write_ohlc(symbol, multiplier, time_scale, inst_type, df):
         except Exception as e:
             print(f"Could not write into {fp}:\n{e}")
             return
-        df = pd.concat([existing_df, df]).drop_duplicates(keep="last")
-    df.set_index('timestamp', inplace=True, drop=True)
+        
+        df = pd.concat([existing_df, df]).drop_duplicates(subset=["timestamp"], keep="last")
+    df = df.set_index('timestamp', drop=True).sort_index()
     df.loc[:, OHLC_COLUMNS].to_csv(fp)
 
 
@@ -94,22 +92,23 @@ def _store_option_data_into_history(freq: str):
         f"python {proj_root_dir}/Data/consolidate_option_data.py --credentials {proj_root_dir}/real_credentials.json "
         f"--universe {' '.join([str(univ_path) for univ_path in args.universe])} --frequency {freq}"
     )
+    print("running cmd:", cmd)
     subprocess.run(cmd, shell=True, check=True)
 
 
 def get_data_for_equity(args, underlying_universe_list):
-    getter: DataGetter = get_source_instance(args.source, "equity")
+    getter: DataGetter = get_source_instance("equity")
     now = datetime.datetime.now()
-    from_ms = get_ms_from_datetime(now - datetime.timedelta(days=25)) if args.live else get_ms_from_datetime(DATA_FROM)
-    to_ms = get_ms_from_datetime(now if args.live else DATA_TO)
+    from_ms = get_ms_from_datetime(now - datetime.timedelta(days=25)) if args.live else get_ms_from_datetime(data_from)
+    to_ms = get_ms_from_datetime(now if args.live else data_to)
     print(from_ms, to_ms)
     print("Num of sym to get: ", len(underlying_universe_list))
-    to_iterate = ["5minute", "15minute", "30minute", "day"] if args.live else [args.frequency]
+    to_iterate = ["5minute", "15minute", "30minute", "day"] if args.live else args.frequency
     for freq in to_iterate:
         sym_and_time_list = [
             [(start_ms, end_ms, sym) for start_ms, end_ms in getter.equity_chop_dates(from_ms, to_ms, freq)]
-            if args.source == "polygon"
-            else [(from_ms, to_ms, sym)]
+            # if args.source == "polygon"
+            # else [(from_ms, to_ms, sym)]
             for sym in underlying_universe_list
         ]
         sym_and_time_list = [entry for combi in sym_and_time_list for entry in combi]
@@ -127,7 +126,8 @@ def get_data_for_equity(args, underlying_universe_list):
 
 
 def get_data_for_options(args, underlying_universe_list):
-    getter: DataGetter = get_source_instance(args.source, "options")
+    # assert len(args.frequency) == 1, "get_data for option does not support multiple frequency"
+    getter: DataGetter = get_source_instance("options")
     now = datetime.datetime.now()
     if args.live:
         ticker_expiry_list = [
@@ -143,17 +143,17 @@ def get_data_for_options(args, underlying_universe_list):
         ticker_expiry_list = [
             (sym, expiry_dt)
             for sym, expiry_dt in get_option_ticker_from_underlying(
-                underlying_universe_list, DATA_FROM, DATA_TO
+                underlying_universe_list, data_from,data_to 
             ).items()
         ]
         # TODO: get the symbol and expiring, compare against to_ms
         if WRITE_NEW_SYMBOLS_ONLY:
-            written_fp = list((Path(os.environ["DATA_DIR"]) / f"{args.frequency}/options").glob("*_options.csv"))
+            written_fp = list((Path(os.environ["DATA_DIR"]) / f"{args.frequency[0]}/options").glob("*_options.csv"))
             if len(written_fp) != 0:
                 written_etos = set(pd.concat([pd.read_csv(fp, usecols=["symbol"]) for fp in written_fp]).symbol.unique())
                 ticker_expiry_list = [(k, v) for k, v in ticker_expiry_list if k not in written_etos]
     print("Num of sym to get: ", len(ticker_expiry_list))
-    to_iterate = ["5minute", "15minute", "day"] if args.live else [args.frequency]
+    to_iterate = ["5minute", "15minute", "day"] if args.live else args.frequency
     chunk = 12000
     ticker_expiry_chunks = [
         ticker_expiry_list[i * chunk : (i + 1) * chunk] for i in range((len(ticker_expiry_list) + chunk - 1) // chunk)
