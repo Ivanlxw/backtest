@@ -8,12 +8,12 @@ from typing import List
 import pandas as pd
 
 from trading.broker.broker import Broker
-from trading.event import SignalEvent
 from trading.portfolio.portfolio import Portfolio
-from backtest.utilities.utils import NY_TIMEZONE, get_sleep_time, log_message
+from backtest.utilities.utils import get_sleep_time, log_message
 from trading.strategy.base import Strategy
 from trading.data.dataHandler import DataHandler
 from trading.plots.plot import Plot
+from trading.utilities.utils import NY_TIMEZONE
 
 
 class Backtest:
@@ -59,16 +59,18 @@ class Backtest:
                 else:
                     if event is not None:
                         if event.type == "MARKET":
-                            market_bar = self.data_provider.get_latest_bars(event.symbol, 2)
+                            market_bar = event.data
                             if (
                                 self.portfolio.update_option_datetime(market_bar, self.event_queue) and
                                 self.portfolio.update_timeindex(market_bar, self.event_queue)
                             ):
-                                signal_list = self.strategy.calculate_signals(event, curr_holdings=self.portfolio.current_holdings)
+                                inst = self.portfolio.current_holdings[event.symbol]
+                                signal_list = self.strategy.calculate_signals(
+                                    event, inst=inst)
                                 for signal in signal_list:
                                     self.event_queue.appendleft(signal)
                                 while not self.order_queue.empty():
-                                    self.event_queue.appendleft(self.order_queue.get())
+                                    self.event_queue.append(self.order_queue.get())
                         elif event.type == "SIGNAL":
                             self.portfolio.update_signal(
                                 event, self.event_queue
@@ -81,11 +83,13 @@ class Backtest:
                                 log_message(event.details())
 
                         elif event.type == "FILL":
+                            print(event.order_event.details())
                             self.portfolio.update_fill(event, False)
 
         print(f"Backtest finished in {time.time() - start}. Getting summary stats")
         self.portfolio.create_equity_curve_df()
         log_message(self.portfolio.output_summary_stats())
+        print(self.portfolio.output_summary_stats())
         plotter = Plot(self.portfolio)
         plotter.plot()
         return plotter

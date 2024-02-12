@@ -9,14 +9,10 @@ from pathlib import Path
 import pandas as pd
 from sqlalchemy import create_engine
 
-from trading.utilities.utils import timestamp_to_ms
+from trading.utilities.utils import FORMAT_YYYYMMDD, NY_TIMEZONE, timestamp_to_ms
 
 UTILS_ABS_FP = Path(os.path.dirname(os.path.abspath(__file__)))
 MODELINFO_DIR = UTILS_ABS_FP / "../../Data/strategies"
-FORMAT_YYYY_MM_DD = '%y-%m-%d'
-FORMAT_YYYYMMDD = '%Y%m%d'
-NY_TIMEZONE = "America/New_York"
-_OPTION_METADATA_PATH = Path(f"{os.environ['DATA_DIR']}/options/metadata.h5")
 OPTION_METADATA_PATH = Path(f"{os.environ['DATA_DIR']}/options/metadata.csv.gz")
 DATA_GETTER_INST_TYPES = ['equity', 'options']
 DATA_GETTER_DEFAULT_START_DT = datetime.datetime(2019, 6, 1)
