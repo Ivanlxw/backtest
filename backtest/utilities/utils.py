@@ -25,22 +25,15 @@ def log_message(message: str):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Configs for running main.')
-    parser.add_argument('-c', '--credentials', required=True,
-                        type=Path, help="credentials filepath")
-    parser.add_argument('-n', '--name', required=False, default="",
-                        type=str, help="name of backtest/live strat run")
     parser.add_argument('-l', '--live', action='store_true', default=False,
                         help='inform life?')
     parser.add_argument("--inst-type", type=str, required=False,
                         default='equity', choices=DATA_GETTER_INST_TYPES)
     parser.add_argument("--num-runs", type=int, default=1,
                         help="Run backtest x times, get more aggregated performance details from log")
-    parser.add_argument("--frequency", type=str, default="day",
-                        help="Frequency of data. Searches a dir with same name")
-    parser.add_argument("--universe", type=Path, required=True,
-                        help="File path to trading universe", nargs='+')
     parser.add_argument("--start-ms", type=int, required=False,
                         help="Specific start time in ms")
+    parser.add_argument("--config-name", type=str, required=True)
     return parser.parse_args()
 
 

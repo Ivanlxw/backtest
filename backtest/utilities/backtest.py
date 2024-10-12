@@ -9,7 +9,7 @@ import pandas as pd
 
 from trading.broker.broker import Broker
 from trading.portfolio.portfolio import Portfolio
-from backtest.utilities.utils import get_sleep_time, log_message
+from backtest.utilities.utils import log_message
 from trading.strategy.base import Strategy
 from trading.data.dataHandler import DataHandler
 from trading.plots.plot import Plot
@@ -17,20 +17,19 @@ from trading.utilities.utils import NY_TIMEZONE
 
 
 class Backtest:
-    def __init__(self, data_provider, strategy, portfolio, broker, args) -> None:
-        self.data_provider: DataHandler = data_provider
-        self.strategy: Strategy = strategy
-        self.portfolio: Portfolio = portfolio
-        self.broker: Broker = broker
+    def __init__(self, args) -> None:
+        self.data_provider: DataHandler = args.data_provider
+        self.strategy: Strategy = args.strategy
+        self.portfolio: Portfolio = args.portfolio
+        self.broker: Broker = args.broker
         self.event_queue = deque([])
         self.order_queue = queue.Queue()
 
         self.show_plot = args.num_runs == 1
-        self.sleep_duration = get_sleep_time(args.frequency)
 
         self.portfolio.Initialize(
             self.data_provider.symbol_list,
-            self.data_provider.start_ms,
+            # self.data_provider.start_ms,
             self.data_provider.option_metadata_info,
         )
 
@@ -40,7 +39,7 @@ class Backtest:
             self._life_loop()
         else:
             plotter = self._backtest_loop()
-
+    
     def _backtest_loop(self):
         start = time.time()
         while True:
@@ -83,7 +82,7 @@ class Backtest:
                                 log_message(event.details())
 
                         elif event.type == "FILL":
-                            print(event.order_event.details())
+                            print("[FILLED]\t", event.order_event.details())
                             self.portfolio.update_fill(event, False)
 
         print(f"Backtest finished in {time.time() - start}. Getting summary stats")
@@ -143,5 +142,4 @@ class Backtest:
             # end of cycle
             self.portfolio.write_curr_holdings()
             log_message("sleeping")
-            time.sleep(self.sleep_duration.total_seconds())
             log_message("sleep over")

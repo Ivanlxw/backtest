@@ -4,8 +4,6 @@ scikit-learn
 matplotlib
 requests
 seaborn
-ibapi
-alpaca-trade-api
 TA-Lib
 selenium
 pathos
@@ -16,3 +14,6 @@ numba
 plotly
 polygon-api-client
 polars
+psycopg2
+pyzmq
+zmq
