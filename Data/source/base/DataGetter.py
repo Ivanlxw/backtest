@@ -7,7 +7,8 @@ import pandas as pd
 
 from backtest.utilities.utils import DATA_GETTER_INST_TYPES
 
-OHLC_COLUMNS = ['open', 'high', 'low', 'close', 'volume', 'vwap', 'num_trades']
+_OHLC_COLUMNS_DEPRECATED = ['open', 'high', 'low', 'close', 'volume', 'vwap', 'num_trades']
+OHLC_COLUMNS = ['open', 'high', 'low', 'close', 'volume']
 
 def get_ohlc_fp(freq_prefix, freq, symbol, inst_type, compression="csv"):
     assert compression in ["csv", "csv.gz"], "Only csv and csv.gz allowed"

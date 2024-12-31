@@ -1,7 +1,6 @@
 import importlib
 import json
 import os
-import random
 import logging
 import os
 import concurrent.futures as fut
@@ -10,13 +9,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 from backtest.utilities.backtest import Backtest
-from backtest.utilities.utils import generate_start_date_in_ms, parse_args, load_credentials, read_universe_list
-from trading.broker.broker import SimulatedBroker
-from trading.portfolio.rebalance import NoRebalance
+from backtest.utilities.utils import parse_args, load_credentials, read_universe_list
+from trading.broker.broker import IBBroker
 from trading.portfolio.portfolio import PercentagePortFolio
 from trading.data.dataHandler import StreamingDataHandler
-from trading.strategy.basic import BuyAndHoldStrategy
-from trading.utilities.enum import OrderType
 
 
 def main(args):
@@ -27,26 +23,25 @@ def main(args):
     symbol_list = [c["symbol"] for c in data_config["contracts"]]
     bars = StreamingDataHandler(symbol_list, creds)
     setattr(args, "data_provider", bars)
-    broker = SimulatedBroker(bars, args.portfolio, gatekeepers=args.gk)
+
+    args.portfolio.Initialize(
+        bars.symbol_list,
+        # bars.start_ms,
+        bars.option_metadata_info,
+    )
+    broker = IBBroker(args.portfolio, args.gk, args.is_live_acct)
+    broker.reqAccountSummary(9001, "All", 'NetLiquidation,TotalCashValue,AvailableFunds,ExcessLiquidity')
     setattr(args, "broker", broker)
 
     bt = Backtest(args)
     bt.run(live=False)
+    
+    broker.disconnect()
+    broker.api_thread.join()
 
-    # args.start_ms = start_ms
-    # args.end_ms = end_ms
-
-    # plot_index_benchmark(args, ["SPY"], "BuyAndHoldIndex")
-    # if args.inst_type == "equity":
-    #     plot_index_benchmark(args, symbol_list, "BuyAndHoldStrategy")
-
-    # if args.name and args.save_portfolio:
-    #     args.port.write_curr_holdings()
-    #     args.port.write_all_holdings()
-
-    # if bt.show_plot:
-    #     plt.legend()
-    #     plt.show()
+    if bt.show_plot:
+        plt.legend()
+        plt.show()
 
 
 if __name__ == "__main__":
@@ -55,6 +50,9 @@ if __name__ == "__main__":
     model_args["creds"] = load_credentials(model_args["credentials_fp"])
     for k, v in model_args.items():
         setattr(args, k, v)
+    # hacky. TODO: better way to put broker acct info in program
+    for k, v in model_args["creds"].items():
+        os.environ[k] = v
 
     if args.name != "":
         logging.basicConfig(

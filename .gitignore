@@ -25,3 +25,4 @@ scrap/
 strategies/
 __pycache__/
 bin/
+logs/
