@@ -26,3 +26,5 @@ strategies/
 __pycache__/
 bin/
 logs/
+
+backtest/config/*.py
