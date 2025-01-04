@@ -41,8 +41,8 @@ def remove_bs(s: str):
     # remove backslash at the end from reading from a stock_list.txt
     return s.replace("\n", "")
 
-def get_db_connection():
-    return create_engine(os.environ['DB_URL']).connect()
+def get_db_engine():
+    return create_engine(os.environ['DB_URL'])
 
 def read_universe(universe_fp):
     with open(universe_fp, "r") as fin:

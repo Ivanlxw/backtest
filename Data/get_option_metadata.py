@@ -11,7 +11,7 @@ import pandas as pd
 from Data.source.polygon import Polygon
 from backtest.utilities.utils import (
     OPTION_METADATA_PATH,
-    get_db_connection,
+    get_db_engine,
     get_ms_from_datetime,
     load_credentials,
     read_universe_list,
@@ -39,11 +39,13 @@ def get_source_instance(source):
     return importlib.import_module(f"Data.source.{source}").get_source_instance("options")
 
 def update_db(option_metadata_df: pd.DataFrame):
-    conn = get_db_connection()
-    existing_option_info_df = pd.read_sql("SELECT * FROM backtest.option_metadata", con=conn)
-    option_metadata_df = option_metadata_df.astype(existing_option_info_df.dtypes)
-    df = pd.concat([existing_option_info_df, option_metadata_df]).drop_duplicates(keep=False)
-    df.to_sql(con=conn, name='option_metadata', if_exists='append', index=False)
+    engine = get_db_engine()
+    with engine.connect() as conn:
+        existing_option_info_df = pd.read_sql("SELECT * FROM backtest.option_metadata", con=conn)
+        option_metadata_df = option_metadata_df.astype(existing_option_info_df.dtypes)
+        df = pd.concat([existing_option_info_df, option_metadata_df]).drop_duplicates(keep=False)
+        df.to_sql(con=conn, name='option_metadata', if_exists='append', index=False)
+    engine.dispose()
 
 
 DATA_FROM = datetime.datetime(2023, 9, 1)
@@ -82,7 +84,7 @@ if __name__ == "__main__":
 
         # option_metadata_df = option_metadata.loc[:, METADATA_COL_TYPE.keys()]
         for underlying in universe_list:
-            # stored_df = pd.read_sql(f"SELECT * FROM backtest.option_metadata where underlying_sym='{underlying}'", con=get_db_connection())
+            # stored_df = pd.read_sql(f"SELECT * FROM backtest.option_metadata where underlying_sym='{underlying}'", con=get_db_engine().connect())
             stored_df = option_metadata.get_option_metadata_for_symbol(underlying).loc[:, METADATA_COL_TYPE.keys()].astype(METADATA_COL_TYPE)
             if "expiration_date" not in stored_df.columns:
                 print(f"expiration_date not in col and will cause error: {underlying}")

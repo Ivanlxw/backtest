@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 
 import pandas as pd
-from sqlalchemy import create_engine
 
 from trading.portfolio.portfolio import FixedTradeValuePortfolio
 from trading.portfolio.rebalance import NoRebalance, RebalanceMonthly
@@ -30,7 +29,7 @@ def get_config() -> dict:
 
     strategy = PairTrading(30, pairs=[("SPY", "VOO"), ("QQQ", "QQQM")], price_margin_perc=1e-5,
                            min_update_freq=timedelta(minutes=2), sd_deviation=2)
-    eng = create_engine(os.environ["DB_URL"])
+    eng = get_db_engine()
     df_warmup = pd.read_sql("""
         SELECT * FROM ibkr.market_data_bars_uniq
         WHERE frequency = '15 mins'
@@ -38,6 +37,7 @@ def get_config() -> dict:
         order by timestamp;
     """, eng)
     strategy.warmup(df_warmup)
+    print(len(strategy.pairs_info["VOO"].past_ratios), strategy.pairs_info["VOO"].p1_update_time)
 
     port = FixedTradeValuePortfolio(
         trade_value=5_000,

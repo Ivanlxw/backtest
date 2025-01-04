@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 
 import polars as pl
 
-from backtest.utilities.utils import load_credentials, read_universe_list
+from backtest.utilities.utils import get_db_engine, load_credentials, read_universe_list
 from Data.source.polygon import Polygon
 
 COLS_TO_SAVE = [
@@ -68,12 +68,10 @@ if __name__ == "__main__":
         ]
     )
 
-    db_url = os.environ["DB_URL"]
-    conn = create_engine(db_url)
-    connection = conn.connect()
-    existing_df = pl.read_database("SELECT * from backtest.equity_metadata", connection)
-    stock_details_df = pl.concat([stock_details_df, existing_df]).unique(keep="first")
-
-    stock_details_df.write_database(
-        "backtest.equity_metadata", db_url, if_exists="append"
-    )
+    eng = get_db_engine()
+    with eng.connect() as conn:
+        existing_df = pl.read_database("SELECT * from backtest.equity_metadata", conn)
+        stock_details_df = pl.concat([stock_details_df, existing_df]).unique(keep="first")
+        stock_details_df.write_database(
+            "backtest.equity_metadata", os.environ["DB_URL"], if_exists="append"
+        )

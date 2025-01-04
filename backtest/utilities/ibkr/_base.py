@@ -10,13 +10,14 @@ from ibapi.contract import Contract
 from ibapi.order import *
 from ibapi.utils import floatMaxString, decimalMaxString
 
+from backtest.utilities.utils import get_db_engine
 
 
 class IBClient(EWrapper, EClient):
-    def __init__(self, sql_engine, live=False):
+    def __init__(self, live=False):
         EClient.__init__(self, self)
         self.fill_dict = {}
-        self.eng = sql_engine
+        self.eng = get_db_engine()
         self.live = live
 
         # hardcoded port to 7497, change to 7496 when going live
@@ -69,44 +70,6 @@ class IBClient(EWrapper, EClient):
 
     def accountSummaryEnd(self, reqId: int):
         print("AccountSummaryEnd. ReqId:", reqId)
-
-    ## Account Updates ##
-    def reqAccountUpdates(self, subscribe:bool, acctCode:str):
-        """Call this function to start getting account values, portfolio,
-        and last update time information via EWrapper.updateAccountValue(),
-        EWrapperi.updatePortfolio() and Wrapper.updateAccountTime().
-
-        subscribe:bool - If set to TRUE, the client will start receiving account
-            and Portfoliolio updates. If set to FALSE, the client will stop
-            receiving this information.
-        acctCode:str -The account code for which to receive account and
-            portfolio updates."""
-
-        self.logRequest(current_fn_name(), vars())
-
-        if not self.isConnected():
-            self.wrapper.error(NO_VALID_ID, NOT_CONNECTED.code(), NOT_CONNECTED.msg())
-            return
-        
-        try:
-    
-            VERSION = 2
-    
-            flds = []
-            flds += [make_field(OUT.REQ_ACCT_DATA),
-               make_field(VERSION),
-               make_field(subscribe),  # TRUE = subscribe, FALSE = unsubscribe.
-               make_field(acctCode)]   # srv v9 and above, the account code. This will only be used for FA clients
-    
-            msg = "".join(flds)
-            
-        except ClientException as ex:
-            self.wrapper.error(NO_VALID_ID, ex.code, ex.msg + ex.text)
-            return
-
-        self.portfolio_detail = dict()
-        self.sendMsg(msg)
-
     
     def updateAccountValue(self, key: str, val: str, currency: str, accountName: str):
         print("UpdateAccountValue. Key:", key, "Value:", val,

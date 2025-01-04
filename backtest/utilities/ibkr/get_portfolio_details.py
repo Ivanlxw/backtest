@@ -24,8 +24,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    eng = create_engine(os.environ["DB_URL"])
-    c = IBClient(eng, live=True)
+    c = IBClient(live=True)
     acct_summary_req_id = 10003
     # c.reqAccountSummary(acct_summary_req_id, "All", AccountSummaryTags.AllTags)
     # c.cancelAccountSummary(acct_summary_req_id)

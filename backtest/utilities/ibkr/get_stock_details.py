@@ -1,18 +1,15 @@
 import argparse
 import os
-import threading
-import time
 
-import psycopg2
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
 from ibapi.client import *
 from ibapi.wrapper import *
 from ibapi.contract import Contract
 from ibapi.order import *
 
-from backtest.utilities.utils import read_universe
+from backtest.utilities.utils import get_db_engine, read_universe
 from backtest.utilities.ibkr._base import IBClient
 
 
@@ -37,12 +34,12 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    eng = create_engine(os.environ["DB_URL"])
+    eng = get_db_engine()
     saved_symbols = pd.read_sql('''
         SELECT distinct symbol FROM ibkr.symbol_info
     ''', eng).squeeze().to_list()
 
-    c = IBClient(eng, args.save_db)
+    c = IBClient(args.save_db)
     req_id = 12111
     if args.symbol is not None:
         sym_to_query = [s for s in args.symbol if s.upper() not in saved_symbols]
