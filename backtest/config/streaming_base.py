@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from backtest.utilities.utils import get_db_engine
 from trading.portfolio.portfolio import FixedTradeValuePortfolio
 from trading.portfolio.rebalance import NoRebalance, RebalanceMonthly
 from trading.strategy.complex.correlation import PairTrading, InvPairTrading
@@ -34,10 +35,10 @@ def get_config() -> dict:
         SELECT * FROM ibkr.market_data_bars_uniq
         WHERE frequency = '15 mins'
             and to_timestamp(timestamp / 1000) > date('2024-06-01')
-        order by timestamp;
+        order by timestamp desc;
     """, eng)
     strategy.warmup(df_warmup)
-    print(len(strategy.pairs_info["VOO"].past_ratios), strategy.pairs_info["VOO"].p1_update_time)
+    print(len(strategy.pairs_info["VOO"].past_ratios), strategy.pairs_info["QQQ"].past_ratios)
 
     port = FixedTradeValuePortfolio(
         trade_value=5_000,

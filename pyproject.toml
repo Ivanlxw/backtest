@@ -1,0 +1,40 @@
+[project]
+name = "quiver-data"
+version = "1.0"
+requires-python = "==3.13.*"
+dependencies = [
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "matplotlib",
+    "requests",
+    "seaborn",
+    "TA-Lib",
+    "selenium",
+    "pathos",
+    "numba",
+    "Deprecated",
+    "scipy",
+    "plotly",
+    "polars",
+    "psycopg2",
+    "pyzmq",
+    "ibapi",
+    "xgboost",
+    "tables",
+    "pyarrow>=8.0.0",
+    "optuna",
+    "sqlalchemy"
+]
+
+[tool.uv]
+package = false
+
+# PyPI ibapi (9.81, 2020) lacks floatMaxString/decimalMaxString; use the 10.x client. Rebuild: copy IBJts/source/pythonclient somewhere writable, then `uv build --wheel -o ~/wheels`.
+[tool.uv.sources]
+ibapi = { path = "/home/ivanlxw/wheels/ibapi-10.45.1-py3-none-any.whl" }
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
+]

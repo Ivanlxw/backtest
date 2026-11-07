@@ -7,7 +7,8 @@ import random
 from pathlib import Path
 
 import pandas as pd
-from sqlalchemy import create_engine
+import polars as pl
+from sqlalchemy import create_engine, inspect
 
 from trading.utilities.utils import FORMAT_YYYYMMDD, NY_TIMEZONE, timestamp_to_ms
 
@@ -43,6 +44,26 @@ def remove_bs(s: str):
 
 def get_db_engine():
     return create_engine(os.environ['DB_URL'])
+
+
+def upload_df_to_db(df: pl.DataFrame, table_name: str, schema: str = "ibkr") -> int:
+    """Append df's rows into <schema>.<table_name>, skipping rows that are a full match of an existing row."""
+    engine = get_db_engine()
+    if inspect(engine).has_table(table_name, schema=schema):
+        existing = pl.read_database(
+            f'SELECT * FROM "{schema}"."{table_name}"', connection=engine)
+        new_rows = df.join(existing, on=df.columns, how="anti")
+    else:
+        new_rows = df
+
+    if new_rows.is_empty():
+        log_message(f"No new rows to upload to {schema}.{table_name}")
+        return 0
+
+    new_rows.write_database(
+        f"{schema}.{table_name}", connection=os.environ['DB_URL'], if_table_exists="append")
+    log_message(f"Uploaded {len(new_rows)} new rows to {schema}.{table_name}")
+    return len(new_rows)
 
 def read_universe(universe_fp):
     with open(universe_fp, "r") as fin:
