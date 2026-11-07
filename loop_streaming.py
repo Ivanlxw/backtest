@@ -32,6 +32,7 @@ def main(args):
     broker = IBBroker(args.portfolio, args.gk, args.is_live_acct)
     broker.reqAccountSummary(9001, "All", 'NetLiquidation,TotalCashValue,AvailableFunds,ExcessLiquidity')
     setattr(args, "broker", broker)
+    print("main current_holdings: ", args.portfolio.current_holdings)
 
     bt = Backtest(args)
     bt.run(live=False)

@@ -23,9 +23,8 @@ from trading.plots.plot import PlotIndividual
 from trading.data.dataHandler import HistoricCSVDataHandler, DataFromDisk
 from trading.portfolio.portfolio import NaivePortfolio
 from trading.strategy.base import Strategy
-from trading.strategy.fairprice.strategy import FairPriceStrategy
-from trading.strategy.fairprice.feature import FeatureEMA, RelativeCCI, RelativeRSI, TradeImpulseBase
-from trading.strategy.fairprice.margin import AsymmetricPercentageMargin
+from trading.strategy.fairprice.feature import FeatureLit, FeatureMA, ema
+from trading.strategy.multiple import MultipleAllStrategy, MultipleAnyStrategy
 from trading.strategy.statmodels.models import EquityPrediction
 from trading.utilities.enum import OrderPosition
 from trading.utilities.utils import DATA_DIR, NY_TIMEZONE
@@ -41,7 +40,8 @@ def run(args, creds, strategy):
     else:
         start_ms = generate_start_date_in_ms(2021, 2022)
     end_ms = int(start_ms + random.randint(250, 700) * 8.64e7 * (1.0 if args.frequency == "day" else 0.2))
-    universe_list = read_universe_list([DATA_DIR / "universe/etf.txt", DATA_DIR / "universe/nyse_active.txt"])
+    print(start_ms, end_ms)
+    universe_list = read_universe_list(args.universe)
     symbol_list = random.sample(universe_list, min(len(universe_list), 9))
     if not args.live:
         bars = HistoricCSVDataHandler(
@@ -76,7 +76,7 @@ def run(args, creds, strategy):
         else:
             break
 
-        if len(event_queue) != 0:
+        while len(event_queue) != 0:
             event = event_queue.pop()
             if event.type == "MARKET":
                 market_data = event.data
@@ -112,15 +112,21 @@ def run(args, creds, strategy):
 
 
 def get_strategy(args) -> Strategy:
-    return EquityPrediction(
-        MODEL_DIR / "equity_prediction_perc_min.lgb.txt",
-        MODEL_DIR / "equity_prediction_perc_max.lgb.txt",
-        25,  # lookback
-        lookahead=6,   # in days
-        frequency=args.frequency,
-        min_move_perc=0.05,
-        description="EquityRangeML"
+    # weighted avg of the following 2 makes more sense
+    strategy = (
+        FeatureLit(0.9, margin=1e-4, description="Lit(0.9)") * FeatureMA(0.03, 20, ema, range_multiplier=0.3)
+    ) + (
+        FeatureLit(0.1, margin=1e-4, description="Lit(0.1)") * EquityPrediction(
+            0.01,
+            MODEL_DIR / "equity_prediction_perc_min.lgb.txt",
+            MODEL_DIR / "equity_prediction_perc_max.lgb.txt",
+            25,  # lookback
+            lookahead=8,   # in days
+            frequency=args.frequency,
+            description="EquityRangeML")
     )
+    # FeatureLit(1.0, margin=1e-4, description="Lit(0.7)") * FeatureMA(0.02, 20, ema, range_multiplier=0.3)
+    return strategy
 
 
 if __name__ == "__main__":
@@ -129,4 +135,5 @@ if __name__ == "__main__":
     if args.name != "":
         logging.basicConfig(filename=DATA_DIR / f"logging/{args.name}.log", level=logging.INFO, force=True)
     strategy = get_strategy(args)
+    print(strategy.get_description())
     run(args, creds, strategy)

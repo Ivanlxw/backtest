@@ -10,8 +10,8 @@ Take note:
 - `plt.show()` wont work. Save it in a file instead (**TODO**) 
 
 **Local**
-`python -m pip install -r requirements.txt && python -m pip install -e .`
-`python loop.py -c credentials.json`
+`uv sync`
+`uv run python loop.py -c credentials.json`
 
 ## Usage
 `python loop.py -c credentials.json` - runs the backtester. 
